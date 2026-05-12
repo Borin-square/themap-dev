@@ -676,20 +676,29 @@ th.ee-inactive { opacity: .4; }
 .ev-edit-actions{display:flex;gap:6px;margin-top:2px}
 
 /* ── Organization (Organigramma) ── */
-.og-scroll{flex:1;overflow:auto;padding:20px;min-height:0}
+.og-scroll{flex:1;overflow:auto;padding:0;min-height:0}
 .og-svg{display:block;margin:0 auto}
+.og-topbar{display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--bd)}
+.og-count{font-size:11px;color:var(--fg3)}
 
 /* Org node card */
-.og-node{display:flex;gap:8px;align-items:center;background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;height:100%;box-sizing:border-box;position:relative;transition:box-shadow .15s;cursor:default;font-family:var(--font)}
+.og-node{display:flex;gap:8px;align-items:center;background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;height:100%;box-sizing:border-box;position:relative;transition:box-shadow .15s,border-color .15s;cursor:default;font-family:var(--font)}
 .og-node:hover{box-shadow:0 4px 16px rgba(0,0,0,.3)}
 .og-leader{border-color:rgba(245,158,11,.4);border-width:1.5px}
 .og-ceo{background:rgba(6,182,212,.06);border-color:rgba(6,182,212,.4)}
+.og-moving{border:2px dashed var(--accent);opacity:.6}
+.og-drop-target{cursor:pointer}
+.og-drop-target:hover{border-color:var(--accent);box-shadow:0 0 12px rgba(79,140,255,.3)}
 .og-node-initials{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px}
 .og-node-info{flex:1;min-width:0;overflow:hidden}
 .og-node-name{font-size:11px;font-weight:700;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
 .og-node-meta{display:flex;align-items:center;gap:4px;margin-top:2px}
 .og-node-fn{font-size:8px;color:var(--fg3);text-transform:uppercase;letter-spacing:.3px}
 .og-node-team{font-size:8px;color:var(--fg3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Collapse toggle */
+.og-collapse-btn{position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--bd);color:var(--fg3);font-size:7px;width:16px;height:14px;border-radius:0 0 6px 6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1;padding:0;z-index:1}
+.og-collapse-btn:hover{color:var(--accent);border-color:var(--accent)}
 
 /* Org node hover actions */
 .og-node-actions{position:absolute;top:2px;right:2px;display:flex;gap:2px;opacity:0;transition:opacity .15s}
@@ -699,6 +708,11 @@ th.ee-inactive { opacity: .4; }
 .og-act-del:hover{color:#ef4444}
 .og-confirm{display:flex;gap:2px}
 .og-confirm button{font-size:9px;padding:1px 6px}
+
+/* Move banner */
+.og-move-banner{display:flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(79,140,255,.08);border-bottom:1px solid rgba(79,140,255,.2);font-size:12px;color:var(--fg2);animation:fwsFadeIn .2s;flex-wrap:wrap}
+.og-move-root{background:rgba(79,140,255,.15);color:var(--accent);border:1px solid rgba(79,140,255,.25);border-radius:5px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font)}
+.og-move-root:hover{background:rgba(79,140,255,.25)}
 
 /* Org edit bar (bottom) */
 .og-edit-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg2);border-top:1px solid var(--bd);flex-wrap:wrap;animation:fwsFadeIn .2s}
