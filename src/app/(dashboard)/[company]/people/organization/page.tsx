@@ -1,121 +1,236 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
-import { fwP, fwArc, fwTA } from "@/lib/flywheel";
 import {
-  getMockPeople, OG_SEGS, OG_IR, OG_OR, OG_MR, OG_SR, OG_LR,
-  OG_GAP, OG_PAD, OG_LDR, OG_MDR, OG_MIN_A,
-  peLvlColor, peLvlFilter, peInitials,
+  getMockPeople, PE_FUNZIONI, PE_LIVELLI, PE_CONTRATTI,
+  peFnColor, peLvlClass, peInitials,
   type Persona,
 } from "@/lib/people";
 
-interface TipData {
-  nome: string;
-  funzione: string;
-  team: string;
-  isLeader: boolean;
+/* ── Types ── */
+
+interface OrgNode {
+  id: string;
+  persona: Persona;
+  children: OrgNode[];
 }
+
+/* ── Build tree from flat people list ── */
+
+function buildTree(people: Persona[]): OrgNode | null {
+  // Find CEO (DIREZIONE leader)
+  const dirLeader = people.find((p) => p.funzione === "DIREZIONE" && p.leader);
+  if (!dirLeader) {
+    // Fallback: first DIREZIONE person or first person
+    const fallback = people.find((p) => p.funzione === "DIREZIONE") || people[0];
+    if (!fallback) return null;
+    return { id: fallback.nome, persona: fallback, children: buildLevel1(people, fallback.nome) };
+  }
+  return { id: dirLeader.nome, persona: dirLeader, children: buildLevel1(people, dirLeader.nome) };
+}
+
+function buildLevel1(people: Persona[], ceoName: string): OrgNode[] {
+  const nodes: OrgNode[] = [];
+
+  // DIREZIONE non-leaders
+  people
+    .filter((p) => p.funzione === "DIREZIONE" && !p.leader && p.nome !== ceoName)
+    .forEach((p) => nodes.push({ id: p.nome, persona: p, children: [] }));
+
+  // Leaders of each function (grouped by team)
+  const fns = PE_FUNZIONI.filter((f) => f !== "DIREZIONE");
+  fns.forEach((fn) => {
+    const fnPeople = people.filter((p) => p.funzione === fn);
+    // Group by team
+    const teams: Record<string, Persona[]> = {};
+    fnPeople.forEach((p) => {
+      const t = p.team || fn;
+      if (!teams[t]) teams[t] = [];
+      teams[t].push(p);
+    });
+
+    Object.entries(teams).forEach(([teamName, members]) => {
+      const leader = members.find((p) => p.leader);
+      const rest = members.filter((p) => !p.leader);
+      const children = rest.map((p) => ({ id: p.nome, persona: p, children: [] as OrgNode[] }));
+
+      if (leader) {
+        nodes.push({ id: leader.nome, persona: leader, children });
+      } else if (rest.length > 0) {
+        // No leader: first person as "node head", rest as children
+        const [head, ...tail] = rest;
+        nodes.push({ id: head.nome, persona: head, children: tail.map((p) => ({ id: p.nome, persona: p, children: [] })) });
+      }
+    });
+  });
+
+  return nodes;
+}
+
+/* ── Layout constants ── */
+
+const NODE_W = 160;
+const NODE_H = 72;
+const H_GAP = 24;
+const V_GAP = 60;
+const LINE_COLOR = "#30363d";
+
+/* ── Calculate positions ── */
+
+interface LayoutNode {
+  node: OrgNode;
+  x: number;
+  y: number;
+  w: number; // subtree width
+  children: LayoutNode[];
+}
+
+function layoutTree(node: OrgNode, depth: number = 0): LayoutNode {
+  if (node.children.length === 0) {
+    return { node, x: 0, y: depth * (NODE_H + V_GAP), w: NODE_W, children: [] };
+  }
+
+  const kids = node.children.map((c) => layoutTree(c, depth + 1));
+  const totalW = kids.reduce((s, k) => s + k.w, 0) + (kids.length - 1) * H_GAP;
+
+  // Position children side by side
+  let cx = -totalW / 2;
+  kids.forEach((k) => {
+    k.x = cx + k.w / 2;
+    cx += k.w + H_GAP;
+  });
+
+  return {
+    node,
+    x: 0,
+    y: depth * (NODE_H + V_GAP),
+    w: Math.max(NODE_W, totalW),
+    children: kids,
+  };
+}
+
+function flattenLayout(ln: LayoutNode, offsetX: number = 0): { node: OrgNode; x: number; y: number; parentX?: number; parentY?: number }[] {
+  const result: { node: OrgNode; x: number; y: number; parentX?: number; parentY?: number }[] = [];
+  const absX = offsetX + ln.x;
+
+  result.push({ node: ln.node, x: absX, y: ln.y });
+
+  ln.children.forEach((child) => {
+    const childFlat = flattenLayout(child, absX);
+    // Mark parent coords for lines
+    childFlat[0].parentX = absX;
+    childFlat[0].parentY = ln.y;
+    result.push(...childFlat);
+  });
+
+  return result;
+}
+
+/* ── Component ── */
 
 export default function OrganizationPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
-  const people = getMockPeople();
-  const [tip, setTip] = useState<TipData | null>(null);
-  const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
-  const tipRef = useRef<HTMLDivElement>(null);
+  const [people, setPeople] = useState<Persona[]>(getMockPeople);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Partial<Persona> | null>(null);
+  const [addingTo, setAddingTo] = useState<string | null>(null); // parent nome
+  const [toast, setToast] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
-  const handleTipMove = useCallback((e: React.MouseEvent) => {
-    let tx = e.clientX + 14, ty = e.clientY - 10;
-    const el = tipRef.current;
-    if (el) {
-      if (tx + el.offsetWidth > window.innerWidth - 8) tx = e.clientX - el.offsetWidth - 14;
-      if (ty + el.offsetHeight > window.innerHeight - 8) ty = e.clientY - el.offsetHeight - 10;
-      if (ty < 8) ty = 8;
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  // Edit
+  function startEdit(p: Persona) {
+    setEditId(p.nome);
+    setDraft({ ...p });
+    setAddingTo(null);
+  }
+
+  function cancelEdit() {
+    setEditId(null);
+    setDraft(null);
+    setAddingTo(null);
+  }
+
+  function saveDraft() {
+    if (!draft || !draft.nome?.trim()) return;
+    if (addingTo !== null) {
+      // Adding new person
+      const newP: Persona = {
+        nome: draft.nome!.trim(),
+        azienda: people[0]?.azienda || "",
+        funzione: draft.funzione || "OPERATION",
+        livello: draft.livello || "MIDDLE",
+        contratto: draft.contratto || "DIPENDENTE",
+        team: draft.team || "",
+        leader: draft.leader || false,
+        anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } },
+      };
+      setPeople((prev) => [...prev, newP]);
+      showToast("Persona aggiunta");
+    } else if (editId) {
+      setPeople((prev) =>
+        prev.map((p) =>
+          p.nome === editId
+            ? { ...p, nome: draft.nome!.trim(), funzione: draft.funzione || p.funzione, livello: draft.livello || p.livello, contratto: draft.contratto || p.contratto, team: draft.team ?? p.team, leader: draft.leader ?? p.leader }
+            : p,
+        ),
+      );
+      showToast("Persona aggiornata");
     }
-    setTipPos({ x: tx, y: ty });
-  }, []);
+    cancelEdit();
+  }
 
-  /* Group by function */
-  const byFn: Record<string, Persona[]> = {};
-  people.forEach((p) => {
-    const fn = (p.funzione || "ALTRO").toUpperCase();
-    if (!byFn[fn]) byFn[fn] = [];
-    byFn[fn].push(p);
+  function deletePerson(nome: string) {
+    setPeople((p) => p.filter((x) => x.nome !== nome));
+    setConfirmDel(null);
+    showToast(`${nome} rimosso`);
+  }
+
+  function startAdd(parentNome: string) {
+    // Inherit function/team from parent
+    const parent = people.find((p) => p.nome === parentNome);
+    setAddingTo(parentNome);
+    setEditId(null);
+    setDraft({
+      nome: "",
+      funzione: parent?.funzione || "OPERATION",
+      livello: "MIDDLE",
+      contratto: "DIPENDENTE",
+      team: parent?.team || "",
+      leader: false,
+    });
+  }
+
+  function updateDraft(field: string, value: string | boolean) {
+    if (!draft) return;
+    setDraft({ ...draft, [field]: value });
+  }
+
+  // Build and layout tree
+  const tree = buildTree(people);
+  const layout = tree ? layoutTree(tree) : null;
+  const flat = layout ? flattenLayout(layout) : [];
+
+  // Calculate SVG bounds
+  let minX = 0, maxX = 0, maxY = 0;
+  flat.forEach((f) => {
+    if (f.x - NODE_W / 2 < minX) minX = f.x - NODE_W / 2;
+    if (f.x + NODE_W / 2 > maxX) maxX = f.x + NODE_W / 2;
+    if (f.y + NODE_H > maxY) maxY = f.y + NODE_H;
   });
 
-  /* Proportional segment angles */
-  const segCounts = OG_SEGS.map((s) => (byFn[s.key] || []).length);
-  const totPpl = segCounts.reduce((a, b) => a + b, 0);
-  const avail = 360 - OG_SEGS.length * OG_GAP;
-  let segAngles: number[];
-  if (totPpl === 0) {
-    segAngles = OG_SEGS.map(() => avail / OG_SEGS.length);
-  } else {
-    segAngles = segCounts.map((c) => Math.max(OG_MIN_A, (c / totPpl) * avail));
-    const sum = segAngles.reduce((a, b) => a + b, 0);
-    const sc = avail / sum;
-    segAngles = segAngles.map((a) => a * sc);
-  }
-
-  const startAngles: number[] = [];
-  let curA = 0;
-  for (let i = 0; i < OG_SEGS.length; i++) {
-    startAngles.push(curA);
-    curA += segAngles[i] + OG_GAP;
-  }
-
-  /* DIREZIONE */
-  const dirPeople = byFn["DIREZIONE"] || [];
-  const dirLeader = dirPeople.find((p) => p.leader) || null;
-  const dirMembers = dirPeople.filter((p) => !p.leader);
-
-  function dotProps(p: Persona) {
-    return {
-      onMouseEnter: () => setTip({ nome: p.nome, funzione: p.funzione, team: p.team, isLeader: p.leader }),
-      onMouseMove: handleTipMove,
-      onMouseLeave: () => setTip(null),
-    };
-  }
-
-  function renderDot(cx: number, cy: number, r: number, p: Persona, segColor: string) {
-    const color = peLvlColor(p.livello);
-    const filtId = peLvlFilter(p.funzione, p.livello);
-    const showName = p.leader || r >= 20;
-    const parts = p.nome.trim().split(/\s+/);
-    const l1 = parts[0];
-    let l2 = parts.length > 1 ? parts.slice(1).join(" ") : "";
-    if (l2.length > 12) l2 = l2.substring(0, 11) + ".";
-    const fs1 = r >= 28 ? 10 : r >= 22 ? 9 : 8;
-    const fs2 = fs1 - 1;
-
-    return (
-      <g key={p.nome}>
-        {p.leader && (
-          <circle cx={cx} cy={cy} r={r + 3} fill="none" stroke="#f59e0b" strokeWidth={2.5} opacity={0.8} pointerEvents="none" />
-        )}
-        <circle cx={cx} cy={cy} r={r} fill={color} filter={`url(#${filtId})`}
-          style={{ cursor: "pointer" }} {...dotProps(p)} />
-        {showName ? (
-          <>
-            <text x={cx} y={cy - (l2 ? 5 : 0)} fill="#fff" fontSize={fs1} fontWeight={700}
-              textAnchor="middle" dominantBaseline="central" pointerEvents="none">{l1}</text>
-            {l2 && (
-              <text x={cx} y={cy + fs1} fill="#fff" fontSize={fs2} fontWeight={500}
-                textAnchor="middle" dominantBaseline="central" pointerEvents="none">{l2}</text>
-            )}
-          </>
-        ) : (
-          <text x={cx} y={cy} fill="#fff" fontSize={9} fontWeight={700}
-            textAnchor="middle" dominantBaseline="central" pointerEvents="none">
-            {peInitials(p.nome)}
-          </text>
-        )}
-      </g>
-    );
-  }
+  const svgW = maxX - minX + 80;
+  const svgH = maxY + 60;
+  const offsetX = -minX + 40;
+  const offsetY = 30;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -125,175 +240,109 @@ export default function OrganizationPage() {
         <Link href={`/${params.company}/people/rituals`} className="ee-tab">Rituals</Link>
       </div>
 
-      <div className="org-area">
-        <div className="org-wrap">
-          <svg viewBox="-500 -500 1000 1000" style={{ width: "100%", height: "100%" }}>
-            <defs>
-              {([
-                { n: "senior", c: "#4f8cff" },
-                { n: "middle", c: "#9ca3af" },
-                { n: "junior", c: "#34d399" },
-                { n: "dir", c: "#06b6d4" },
-                { n: "amm", c: "#ec4899" },
-              ]).map((lv) => (
-                <filter key={lv.n} id={`og-${lv.n}`} x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
-                  <feFlood floodColor={lv.c} floodOpacity="0.5" result="color" />
-                  <feComposite in2="blur" operator="in" result="shadow" />
-                  <feMerge>
-                    <feMergeNode in="shadow" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              ))}
-            </defs>
+      {toast && <div className="fws-toast">{toast}</div>}
 
-            {/* Background ring */}
-            <circle cx={0} cy={0} r={(OG_IR + OG_OR) / 2} fill="none" stroke="#21262d"
-              strokeWidth={OG_OR - OG_IR} strokeOpacity={0.3} />
+      <div className="og-scroll">
+        <svg
+          width={svgW}
+          height={svgH}
+          viewBox={`0 0 ${svgW} ${svgH}`}
+          className="og-svg"
+        >
+          {/* Connection lines */}
+          {flat.map((f) => {
+            if (f.parentX === undefined || f.parentY === undefined) return null;
+            const px = f.parentX + offsetX;
+            const py = f.parentY + offsetY + NODE_H;
+            const cx = f.x + offsetX;
+            const cy = f.y + offsetY;
+            const midY = py + (cy - py) / 2;
+            return (
+              <path
+                key={`line-${f.node.id}`}
+                d={`M${px},${py} L${px},${midY} L${cx},${midY} L${cx},${cy}`}
+                fill="none"
+                stroke={LINE_COLOR}
+                strokeWidth={1.5}
+              />
+            );
+          })}
 
-            {/* Segments */}
-            {OG_SEGS.map((seg, idx) => {
-              const a0 = startAngles[idx];
-              const a1 = a0 + segAngles[idx];
-              const segPeople = byFn[seg.key] || [];
+          {/* Nodes */}
+          {flat.map((f) => {
+            const p = f.node.persona;
+            const nx = f.x + offsetX - NODE_W / 2;
+            const ny = f.y + offsetY;
+            const fnColor = peFnColor(p.funzione);
+            const isEditing = editId === p.nome;
+            const isCeo = p.funzione === "DIREZIONE" && p.leader;
 
-              /* Segment label */
-              const lA = (a0 + a1) / 2;
-              const lp = fwP(OG_IR - 22, lA);
-
-              /* Arrow between segments */
-              const cs = fwP(OG_MR, a1 + 2);
-              const ce = fwP(OG_MR, a1 + OG_GAP - 2);
-              const arA = a1 + OG_GAP - 2;
-              const aP = fwP(OG_MR, arA);
-              const aR = (arA * Math.PI) / 180;
-              const atx = Math.cos(aR), aty = Math.sin(aR);
-              const arrowPoints = `${aP.x},${aP.y} ${aP.x - atx * 10 + aty * 4.5},${aP.y - aty * 10 - atx * 4.5} ${aP.x - atx * 10 - aty * 4.5},${aP.y - aty * 10 + atx * 4.5}`;
-
-              /* Group by team */
-              const teams: Record<string, { leader: Persona | null; members: Persona[] }> = {};
-              segPeople.forEach((p) => {
-                const t = p.team || seg.key;
-                if (!teams[t]) teams[t] = { leader: null, members: [] };
-                if (p.leader) teams[t].leader = p;
-                else teams[t].members.push(p);
-              });
-              const teamNames = Object.keys(teams);
-
-              return (
-                <g key={seg.key}>
-                  {/* Arc */}
-                  <path d={fwArc(OG_IR, OG_OR, a0, a1)} fill={seg.bg} stroke={seg.color}
-                    strokeWidth={1} strokeOpacity={0.35} />
-                  {/* Label */}
-                  <text x={lp.x} y={lp.y} fill={seg.color} fontSize={13} fontWeight={700}
-                    textAnchor="middle" dominantBaseline="central" letterSpacing={2.5}
-                    opacity={0.9} pointerEvents="none">{seg.key}</text>
-                  {/* Arrow */}
-                  <path d={`M${cs.x},${cs.y} A${OG_MR},${OG_MR} 0 0 1 ${ce.x},${ce.y}`}
-                    fill="none" stroke="#8b949e" strokeWidth={1.5} opacity={0.35} strokeDasharray="4,3" />
-                  <polygon points={arrowPoints} fill="#8b949e" opacity={0.5} />
-
-                  {/* Teams */}
-                  {teamNames.map((tName, ti) => {
-                    const team = teams[tName];
-                    let angle: number;
-                    if (teamNames.length === 1) angle = (a0 + a1) / 2;
-                    else {
-                      const es = a0 + OG_PAD, ee = a1 - OG_PAD;
-                      angle = es + ((ee - es) * ti) / (teamNames.length - 1);
-                    }
-
-                    const gp = fwP(OG_MR, angle);
-                    const llp = fwP(OG_LR, angle);
-                    const ta = fwTA(angle);
-
-                    const mems = team.members;
-                    const spread = Math.min(10, 28 / Math.max(mems.length, 1));
-
-                    return (
-                      <g key={tName}>
-                        {/* Team label */}
-                        <text x={llp.x} y={llp.y} fill="#c9d1d9" fontSize={11} fontWeight={600}
-                          textAnchor={ta} dominantBaseline="central" opacity={0.85}
-                          pointerEvents="none">{tName}</text>
-
-                        {/* Leader dot or placeholder */}
-                        {team.leader ? renderDot(gp.x, gp.y, OG_LDR, team.leader, seg.color) : (
-                          <>
-                            <circle cx={gp.x} cy={gp.y} r={OG_LDR} fill={seg.color} opacity={0.15} pointerEvents="none" />
-                            <text x={gp.x} y={gp.y} fill={seg.color} fontSize={9} fontWeight={600}
-                              textAnchor="middle" dominantBaseline="central" pointerEvents="none" opacity={0.4}>
-                              {tName.substring(0, 3).toUpperCase()}
-                            </text>
-                          </>
-                        )}
-
-                        {/* Member satellites */}
-                        {mems.map((m, mi) => {
-                          const sA = angle + (mi - (mems.length - 1) / 2) * spread;
-                          const sp = fwP(OG_SR, sA);
-                          const lx = gp.x + (sp.x - gp.x) * 0.45;
-                          const ly = gp.y + (sp.y - gp.y) * 0.45;
-                          return (
-                            <g key={m.nome}>
-                              <line x1={lx} y1={ly} x2={sp.x} y2={sp.y}
-                                stroke={seg.color} strokeWidth={1} strokeOpacity={0.2} pointerEvents="none" />
-                              {renderDot(sp.x, sp.y, OG_MDR, m, seg.color)}
-                            </g>
-                          );
-                        })}
-                      </g>
-                    );
-                  })}
-                </g>
-              );
-            })}
-
-            {/* Inner ring */}
-            <circle cx={0} cy={0} r={OG_IR} fill="none" stroke="#21262d" strokeWidth={1} opacity={0.3} />
-
-            {/* DIREZIONE center */}
-            {dirPeople.length > 0 && (
-              <g>
-                <text x={0} y={-70} fill="#06b6d4" fontSize={9} fontWeight={700}
-                  textAnchor="middle" dominantBaseline="central" letterSpacing={2.5}
-                  opacity={0.9} pointerEvents="none">DIREZIONE</text>
-
-                {dirLeader && renderDot(0, -20, 28, dirLeader, "#06b6d4")}
-                {dirLeader && dirMembers.length > 0 && (() => {
-                  const sp = dirMembers.length > 1
-                    ? Math.min(65, (OG_IR * 1.4) / (dirMembers.length - 1))
-                    : 0;
-                  return dirMembers.map((p, i) => {
-                    const px = (i - (dirMembers.length - 1) / 2) * sp;
-                    return renderDot(px, 40, 20, p, "#06b6d4");
-                  });
-                })()}
-                {!dirLeader && dirPeople.map((p, i) => {
-                  const sp = dirPeople.length > 1
-                    ? Math.min(70, (OG_IR * 1.5) / (dirPeople.length - 1))
-                    : 0;
-                  const px = (i - (dirPeople.length - 1) / 2) * sp;
-                  return renderDot(px, 0, 22, p, "#06b6d4");
-                })}
-              </g>
-            )}
-          </svg>
-        </div>
+            return (
+              <foreignObject
+                key={f.node.id}
+                x={nx}
+                y={ny}
+                width={NODE_W}
+                height={NODE_H}
+              >
+                <div
+                  className={`og-node${isCeo ? " og-ceo" : ""}${p.leader ? " og-leader" : ""}`}
+                  style={{ "--og-fn-color": fnColor } as React.CSSProperties}
+                >
+                  <div className="og-node-initials" style={{ background: fnColor }}>
+                    {peInitials(p.nome)}
+                  </div>
+                  <div className="og-node-info">
+                    <div className="og-node-name">{p.nome}</div>
+                    <div className="og-node-meta">
+                      <span className={`pe-lvl ${peLvlClass(p.livello)}`}>{p.livello}</span>
+                      <span className="og-node-fn">{p.funzione}</span>
+                    </div>
+                    {p.team && p.team !== p.funzione && (
+                      <div className="og-node-team">{p.team}</div>
+                    )}
+                  </div>
+                  <div className="og-node-actions">
+                    <button className="og-act" onClick={() => startEdit(p)} title="Modifica">&#9998;</button>
+                    <button className="og-act" onClick={() => startAdd(p.nome)} title="Aggiungi sotto">+</button>
+                    {!isCeo && (
+                      confirmDel === p.nome ? (
+                        <span className="og-confirm">
+                          <button className="fws-confirm-yes" onClick={() => deletePerson(p.nome)}>Si</button>
+                          <button className="fws-confirm-no" onClick={() => setConfirmDel(null)}>No</button>
+                        </span>
+                      ) : (
+                        <button className="og-act og-act-del" onClick={() => setConfirmDel(p.nome)} title="Rimuovi">&times;</button>
+                      )
+                    )}
+                  </div>
+                </div>
+              </foreignObject>
+            );
+          })}
+        </svg>
       </div>
 
-      {/* Tooltip */}
-      {tip && (
-        <div ref={tipRef} className="fw-tip" style={{ left: tipPos.x, top: tipPos.y }}>
-          <div className="fw-tt-name">{tip.nome}</div>
-          <div style={{ fontSize: 11, color: "var(--fg2)" }}>
-            {tip.funzione}{tip.team && tip.team !== tip.funzione && <> &middot; {tip.team}</>}
-          </div>
-          {tip.isLeader && (
-            <div style={{ fontSize: 10, color: "#f59e0b", marginTop: 2 }}>{"\u2605"} Leader</div>
-          )}
+      {/* Inline edit/add panel (bottom bar) */}
+      {(editId || addingTo !== null) && draft && (
+        <div className="og-edit-bar">
+          <span className="og-edit-label">{addingTo !== null ? "Nuova persona" : `Modifica: ${editId}`}</span>
+          <input className="og-edit-input og-edit-name" value={draft.nome || ""} onChange={(e) => updateDraft("nome", e.target.value)} placeholder="Nome..." autoFocus />
+          <select className="og-edit-select" value={draft.funzione || "OPERATION"} onChange={(e) => updateDraft("funzione", e.target.value)}>
+            {PE_FUNZIONI.map((f) => <option key={f}>{f}</option>)}
+          </select>
+          <select className="og-edit-select" value={draft.livello || "MIDDLE"} onChange={(e) => updateDraft("livello", e.target.value)}>
+            {PE_LIVELLI.map((l) => <option key={l}>{l}</option>)}
+          </select>
+          <select className="og-edit-select" value={draft.contratto || "DIPENDENTE"} onChange={(e) => updateDraft("contratto", e.target.value)}>
+            {PE_CONTRATTI.map((c) => <option key={c}>{c}</option>)}
+          </select>
+          <input className="og-edit-input" value={draft.team || ""} onChange={(e) => updateDraft("team", e.target.value)} placeholder="Team..." />
+          <label className="og-edit-leader">
+            <input type="checkbox" checked={draft.leader || false} onChange={(e) => updateDraft("leader", e.target.checked)} /> Leader
+          </label>
+          <button className="pe-act-save" onClick={saveDraft}>Salva</button>
+          <button className="pe-act-cancel" onClick={cancelEdit}>Annulla</button>
         </div>
       )}
     </div>

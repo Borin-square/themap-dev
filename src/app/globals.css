@@ -676,8 +676,40 @@ th.ee-inactive { opacity: .4; }
 .ev-edit-actions{display:flex;gap:6px;margin-top:2px}
 
 /* ── Organization (Organigramma) ── */
-.org-area{flex:1;position:relative;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.org-wrap{position:relative;width:100%;aspect-ratio:1;max-width:min(100%,calc(100vh - 140px));margin:0 auto}
+.og-scroll{flex:1;overflow:auto;padding:20px;min-height:0}
+.og-svg{display:block;margin:0 auto}
+
+/* Org node card */
+.og-node{display:flex;gap:8px;align-items:center;background:var(--bg2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;height:100%;box-sizing:border-box;position:relative;transition:box-shadow .15s;cursor:default;font-family:var(--font)}
+.og-node:hover{box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.og-leader{border-color:rgba(245,158,11,.4);border-width:1.5px}
+.og-ceo{background:rgba(6,182,212,.06);border-color:rgba(6,182,212,.4)}
+.og-node-initials{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px}
+.og-node-info{flex:1;min-width:0;overflow:hidden}
+.og-node-name{font-size:11px;font-weight:700;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+.og-node-meta{display:flex;align-items:center;gap:4px;margin-top:2px}
+.og-node-fn{font-size:8px;color:var(--fg3);text-transform:uppercase;letter-spacing:.3px}
+.og-node-team{font-size:8px;color:var(--fg3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Org node hover actions */
+.og-node-actions{position:absolute;top:2px;right:2px;display:flex;gap:2px;opacity:0;transition:opacity .15s}
+.og-node:hover .og-node-actions{opacity:1}
+.og-act{background:none;border:none;color:var(--fg3);cursor:pointer;font-size:12px;padding:1px 4px;border-radius:3px;transition:all .1s;line-height:1;font-family:var(--font)}
+.og-act:hover{background:var(--bg3);color:var(--fg)}
+.og-act-del:hover{color:#ef4444}
+.og-confirm{display:flex;gap:2px}
+.og-confirm button{font-size:9px;padding:1px 6px}
+
+/* Org edit bar (bottom) */
+.og-edit-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg2);border-top:1px solid var(--bd);flex-wrap:wrap;animation:fwsFadeIn .2s}
+.og-edit-label{font-size:10px;font-weight:700;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.og-edit-input{background:var(--bg);border:1px solid var(--bd);color:var(--fg);border-radius:4px;padding:6px 8px;font-size:12px;font-family:var(--font);box-sizing:border-box;min-width:80px}
+.og-edit-input:focus{border-color:var(--accent);outline:none}
+.og-edit-name{flex:1;min-width:120px}
+.og-edit-select{background:var(--bg);border:1px solid var(--bd);color:var(--fg);border-radius:4px;padding:6px 8px;font-size:11px;font-family:var(--font);cursor:pointer}
+.og-edit-select:focus{border-color:var(--accent);outline:none}
+.og-edit-leader{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fg2);cursor:pointer;white-space:nowrap}
+.og-edit-leader input{width:auto}
 
 /* Responsive */
 @media (max-width: 1200px) { .ee-kpi-row { grid-template-columns: repeat(3, 1fr); } .pe-charts { grid-template-columns: 1fr 1fr; } }
