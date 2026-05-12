@@ -1,14 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { NAV, FOOTER_NAV, type NavItem } from "@/lib/nav";
+import { COMPANIES } from "@/lib/companies";
+import { useAuth } from "./AuthProvider";
+import { getAllowedSlugs } from "@/lib/auth";
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { session, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({ holding: true });
+
+  /* Filter nav based on user access */
+  const allowed = getAllowedSlugs(session);
+  const filteredNav = NAV.map((item) => {
+    if (item.id !== "operative") return item;
+    if (allowed === "*") return item;
+    return {
+      ...item,
+      children: item.children?.filter((child) =>
+        allowed.includes(child.id.toLowerCase()),
+      ),
+    };
+  });
+
+  useEffect(() => {
+    setOpen((prev) => {
+      const next = { ...prev };
+      if (pathname.startsWith("/holding")) next.holding = true;
+      for (const c of COMPANIES) {
+        if (pathname.startsWith(`/${c.slug}`)) {
+          next.operative = true;
+          next[c.slug] = true;
+          next[`${c.slug}-strategy`] = true;
+          if (pathname.includes("/flywheel")) next[`${c.slug}-fw`] = true;
+          if (pathname.includes("/economic-engine")) next[`${c.slug}-ee`] = true;
+          if (pathname.includes("/people")) next[`${c.slug}-org`] = true;
+        }
+      }
+      return next;
+    });
+  }, [pathname]);
 
   function toggle(id: string) {
     setOpen((o) => ({ ...o, [id]: !o[id] }));
@@ -18,6 +54,11 @@ export default function Sidebar() {
     if (item.href && pathname === item.href) return true;
     if (item.children) return item.children.some(isActive);
     return false;
+  }
+
+  function handleLogout() {
+    logout();
+    router.replace("/login");
   }
 
   function renderItems(items: NavItem[], depth: number) {
@@ -78,8 +119,21 @@ export default function Sidebar() {
         </button>
         <span className="sb-logo">THE MAP</span>
       </div>
-      <div className="sb-nav">{renderItems(NAV, 0)}</div>
-      <div className="sb-foot">{renderItems(FOOTER_NAV, 0)}</div>
+      <div className="sb-nav">{renderItems(filteredNav, 0)}</div>
+      <div className="sb-foot">
+        {renderItems(FOOTER_NAV, 0)}
+        {session && (
+          <div className="sb-user">
+            <div className="sb-user-name">{session.nome || session.email}</div>
+            <div className="sb-user-meta">
+              <span className={`sb-user-role ${session.ruolo === "ADMIN" ? "admin" : "op"}`}>
+                {session.ruolo}
+              </span>
+              <button className="sb-logout" onClick={handleLogout}>Esci</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

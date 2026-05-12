@@ -1,5 +1,6 @@
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
+import AuthGuard from "@/components/AuthGuard";
 
 export default function DashboardLayout({
   children,
@@ -7,12 +8,14 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="shell">
-      <Sidebar />
-      <div className="main">
-        <Topbar />
-        <div className="content page-enter">{children}</div>
+    <AuthGuard>
+      <div className="shell">
+        <Sidebar />
+        <div className="main">
+          <Topbar />
+          <div className="content page-enter">{children}</div>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 }
