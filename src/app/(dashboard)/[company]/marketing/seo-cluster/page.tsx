@@ -11,7 +11,7 @@ import {
   SEO_INTENTI, SEO_FUNNEL, SEO_PRIORITA, SEO_KW_TIPO, SEO_LINGUE,
   emptyNode, emptyProject, canAddChild,
   updateNodeInTree, updateNodeData, addChildToNode,
-  removeNodeFromTree, moveNodeInChildren, findNode,
+  removeNodeFromTree, moveNodeInChildren, findNode, findParent,
   countByType, totalVolume, avgDifficulty, clusterCoverage, healthScore,
   scoreOpportunita, computeWarnings, flattenAll, flattenByType,
   parseKeywordCSV, getMockSEOProject,
@@ -19,14 +19,30 @@ import {
 
 type ViewMode = "map" | "table";
 
+interface ProjectListEntry {
+  id: string;
+  label: string;
+}
+
+function emptyProjectList(): ProjectListEntry[] {
+  const p = getMockSEOProject();
+  return [{ id: p.id, label: p.label }];
+}
+
 export default function SEOClusterPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
 
-  const [project, setProject] = useLocalState<SEONode>(
-    `themap:${slug}:seoCluster`, getMockSEOProject,
+  // Multi-project: lista progetti + progetto attivo
+  const [projectList, setProjectList] = useLocalState<ProjectListEntry[]>(
+    `themap:${slug}:seoProjects`, emptyProjectList,
   );
+  const [activeProjectId, setActiveProjectId] = useState<string>(projectList[0]?.id || "");
+  const [project, setProject] = useLocalState<SEONode>(
+    `themap:${slug}:seoCluster:${activeProjectId}`, getMockSEOProject,
+  );
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ [project.id]: true });
   const [viewMode, setViewMode] = useState<ViewMode>("map");
@@ -36,6 +52,7 @@ export default function SEOClusterPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [confirmDelProject, setConfirmDelProject] = useState(false);
 
   const selected = selectedId ? findNode(project, selectedId) : null;
   const warnings = useMemo(() => computeWarnings(project), [project]);
@@ -50,12 +67,48 @@ export default function SEOClusterPage() {
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3000); }
 
+  /* ── Project CRUD ── */
+
+  function handleNewProject() {
+    const p = emptyProject();
+    setProjectList((prev) => [...prev, { id: p.id, label: p.label }]);
+    setActiveProjectId(p.id);
+    setSelectedId(null);
+    setExpanded({ [p.id]: true });
+    // Il nuovo progetto verra' salvato automaticamente da useLocalState con la nuova key
+    // Forzo il set immediato del progetto vuoto
+    setTimeout(() => setProject(p), 0);
+    showToast("Nuovo progetto creato");
+  }
+
+  function handleDeleteProject() {
+    if (projectList.length <= 1) { showToast("Devi avere almeno un progetto"); return; }
+    const newList = projectList.filter((p) => p.id !== activeProjectId);
+    setProjectList(newList);
+    setActiveProjectId(newList[0].id);
+    setSelectedId(null);
+    setConfirmDelProject(false);
+    showToast("Progetto eliminato");
+  }
+
+  function handleSwitchProject(id: string) {
+    setActiveProjectId(id);
+    setSelectedId(null);
+    setExpanded({ [id]: true });
+  }
+
+  function handleRenameProject(newLabel: string) {
+    setProjectList((prev) => prev.map((p) => p.id === activeProjectId ? { ...p, label: newLabel } : p));
+    setProject((p) => updateNodeInTree(p, p.id, { label: newLabel }));
+  }
+
+  /* ── Tree operations ── */
+
   function toggle(id: string) {
     setExpanded((p) => ({ ...p, [id]: !p[id] }));
   }
 
   function expandTo(nodeId: string) {
-    // Expand all ancestors
     const path: string[] = [];
     function find(n: SEONode, trail: string[]): boolean {
       if (n.id === nodeId) { path.push(...trail); return true; }
@@ -85,6 +138,10 @@ export default function SEOClusterPage() {
     showToast(`${SEO_NODE_LABELS[type]} aggiunto`);
   }
 
+  function handleAddCluster() {
+    handleAddChild(project.id, "cluster");
+  }
+
   function handleDelete(nodeId: string) {
     if (nodeId === project.id) return;
     setProject((p) => removeNodeFromTree(p, nodeId));
@@ -99,10 +156,30 @@ export default function SEOClusterPage() {
 
   function handleUpdateLabel(nodeId: string, label: string) {
     setProject((p) => updateNodeInTree(p, nodeId, { label }));
+    // Se rinomino il progetto root, aggiorno anche la lista
+    if (nodeId === project.id) {
+      setProjectList((prev) => prev.map((e) => e.id === activeProjectId ? { ...e, label } : e));
+    }
   }
 
   function handleUpdateData(nodeId: string, patch: Record<string, unknown>) {
     setProject((p) => updateNodeData(p, nodeId, patch));
+  }
+
+  function handleDuplicate(nodeId: string) {
+    const source = findNode(project, nodeId);
+    if (!source || source.id === project.id) return;
+    const parent = findParent(project, nodeId);
+    if (!parent) return;
+
+    function deepClone(n: SEONode): SEONode {
+      return { ...n, id: crypto.randomUUID(), children: n.children.map(deepClone) };
+    }
+    const clone = deepClone(source);
+    clone.label = source.label + " (copia)";
+    setProject((p) => addChildToNode(p, parent.id, clone));
+    setSelectedId(clone.id);
+    showToast("Elemento duplicato");
   }
 
   function handleImportCSV(csv: string, targetId: string) {
@@ -145,7 +222,37 @@ export default function SEOClusterPage() {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="mk-import-btn" onClick={() => setShowImport(true)}>Import CSV</button>
+            <button className="comp-add" onClick={handleAddCluster}>+ Cluster</button>
+            <button className="comp-add" onClick={handleNewProject}>+ Progetto</button>
           </div>
+        </div>
+
+        {/* Project Switcher */}
+        <div className="seo-project-bar">
+          <span className="seo-project-label">Progetto:</span>
+          <select
+            className="seo-project-select"
+            value={activeProjectId}
+            onChange={(e) => handleSwitchProject(e.target.value)}
+          >
+            {projectList.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+          {confirmDelProject ? (
+            <span className="fws-confirm">
+              <span style={{ fontSize: 11, color: "var(--fg3)", marginRight: 4 }}>Elimina progetto?</span>
+              <button className="fws-confirm-yes" onClick={handleDeleteProject}>Si</button>
+              <button className="fws-confirm-no" onClick={() => setConfirmDelProject(false)}>No</button>
+            </span>
+          ) : (
+            <button
+              className="seo-project-del"
+              onClick={() => setConfirmDelProject(true)}
+              title="Elimina progetto"
+              disabled={projectList.length <= 1}
+            >{"\u2715"}</button>
+          )}
         </div>
 
         {/* KPI Bar */}
@@ -206,6 +313,7 @@ export default function SEOClusterPage() {
                 onAddChild={handleAddChild}
                 onDelete={(id) => setConfirmDel(id)}
                 onMove={handleMove}
+                onDuplicate={handleDuplicate}
                 confirmDel={confirmDel}
                 onConfirmYes={handleDelete}
                 onConfirmNo={() => setConfirmDel(null)}
@@ -258,7 +366,7 @@ export default function SEOClusterPage() {
 
 function TreeView({
   node, depth, expanded, selectedId, warningMap, search, filterStato, filterType,
-  onToggle, onSelect, onAddChild, onDelete, onMove,
+  onToggle, onSelect, onAddChild, onDelete, onMove, onDuplicate,
   confirmDel, onConfirmYes, onConfirmNo,
 }: {
   node: SEONode;
@@ -274,6 +382,7 @@ function TreeView({
   onAddChild: (parentId: string, type: SEONodeType) => void;
   onDelete: (id: string) => void;
   onMove: (id: string, dir: -1 | 1) => void;
+  onDuplicate: (id: string) => void;
   confirmDel: string | null;
   onConfirmYes: (id: string) => void;
   onConfirmNo: () => void;
@@ -358,6 +467,7 @@ function TreeView({
           )}
           {depth > 0 && (
             <>
+              <button className="seo-tree-btn" onClick={() => onDuplicate(node.id)} title="Duplica">{"\u29C9"}</button>
               <button className="seo-tree-btn" onClick={() => onMove(node.id, -1)} title="Su">{"\u2191"}</button>
               <button className="seo-tree-btn" onClick={() => onMove(node.id, 1)} title="Giu">{"\u2193"}</button>
               {confirmDel === node.id ? (
@@ -404,6 +514,7 @@ function TreeView({
               onAddChild={onAddChild}
               onDelete={onDelete}
               onMove={onMove}
+              onDuplicate={onDuplicate}
               confirmDel={confirmDel}
               onConfirmYes={onConfirmYes}
               onConfirmNo={onConfirmNo}

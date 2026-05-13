@@ -1288,6 +1288,14 @@ th.ee-inactive { opacity: .4; }
 .seo-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .seo-title{font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px}
 
+/* Project switcher bar */
+.seo-project-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:var(--bg2);border:1px solid var(--bd);border-radius:8px}
+.seo-project-label{font-size:11px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.seo-project-select{background:var(--bg3);border:1px solid var(--bd);color:var(--fg);border-radius:6px;padding:5px 8px;font-size:13px;font-family:var(--font);flex:1;max-width:300px}
+.seo-project-del{background:none;border:1px solid var(--bd);color:var(--fg3);width:24px;height:24px;border-radius:4px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.seo-project-del:hover{color:var(--red);border-color:var(--red)}
+.seo-project-del:disabled{opacity:.3;cursor:not-allowed}
+
 /* KPI bar */
 .seo-kpi-bar{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 .seo-kpi{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:10px 16px;display:flex;flex-direction:column;align-items:center;min-width:90px}
