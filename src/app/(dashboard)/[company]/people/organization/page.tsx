@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useLocalState } from "@/lib/useLocalState";
 import {
   getMockPeople, PE_FUNZIONI, PE_LIVELLI, PE_CONTRATTI,
   peFnColor, peLvlClass, peInitials,
@@ -172,8 +173,9 @@ function isDescendant(orgMap: Record<string, string | null>, nodeId: string, pos
 export default function OrganizationPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
-  const [people, setPeople] = useState<Persona[]>(getMockPeople);
-  const [orgMap, setOrgMap] = useState<Record<string, string | null>>(() => initOrgMap(getMockPeople()));
+  const slug = params.company as string;
+  const [people, setPeople] = useLocalState<Persona[]>(`themap:${slug}:people`, getMockPeople);
+  const [orgMap, setOrgMap] = useLocalState<Record<string, string | null>>(`themap:${slug}:orgMap`, () => initOrgMap(getMockPeople()));
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [movingId, setMovingId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -258,7 +260,7 @@ export default function OrganizationPage() {
 
       if (addMode === "below") {
         // New person reports to addTarget
-        setOrgMap((prev) => ({ ...prev, [nome]: addTarget || null }));
+        setOrgMap((prev) => ({ ...prev, [nome]: addTarget === "__ROOT__" ? null : addTarget }));
       } else if (addMode === "above") {
         // New person takes addTarget's parent, addTarget now reports to new person
         setOrgMap((prev) => {

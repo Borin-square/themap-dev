@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useLocalState } from "@/lib/useLocalState";
 import {
   getMockPeople, PE_FUNZIONI, PE_LIVELLI, PE_CONTRATTI,
   peFnColor, peLvlClass,
@@ -27,7 +28,8 @@ function emptyPersona(): Persona {
 export default function PeoplePage() {
   const params = useParams();
   const company = getCompany(params.company as string);
-  const [people, setPeople] = useState<Persona[]>(getMockPeople);
+  const slug = params.company as string;
+  const [people, setPeople] = useLocalState<Persona[]>(`themap:${slug}:people`, getMockPeople);
   const [editId, setEditId] = useState<string | null>(null); // nome of person being edited
   const [addRow, setAddRow] = useState<Persona | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);

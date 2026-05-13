@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { NAV, FOOTER_NAV, type NavItem } from "@/lib/nav";
-import { COMPANIES } from "@/lib/companies";
+import { useState, useEffect, useMemo } from "react";
+import { buildNav, FOOTER_NAV, type NavItem } from "@/lib/nav";
+import { fetchCompanies, getCachedCompanies, type Company } from "@/lib/companies";
 import { useAuth } from "./AuthProvider";
 import { getAllowedSlugs } from "@/lib/auth";
 
@@ -14,37 +14,49 @@ export default function Sidebar() {
   const { session, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({ holding: true });
+  const [companies, setCompanies] = useState<Company[]>(getCachedCompanies);
+
+  // Load companies from Supabase
+  useEffect(() => {
+    fetchCompanies().then(setCompanies);
+  }, []);
+
+  const NAV = useMemo(() => buildNav(companies), [companies]);
 
   /* Filter nav based on user access */
   const allowed = getAllowedSlugs(session);
-  const filteredNav = NAV.map((item) => {
-    if (item.id !== "operative") return item;
-    if (allowed === "*") return item;
-    return {
-      ...item,
-      children: item.children?.filter((child) =>
-        allowed.includes(child.id.toLowerCase()),
-      ),
-    };
-  });
+  const isOp = allowed !== "*";
+  const filteredNav = isOp
+    ? NAV
+        .filter((item) => item.id !== "holding") // hide Holding for operativi
+        .flatMap((item) => {
+          if (item.id !== "operative") return [item];
+          // Flatten: remove "Operative" wrapper, show allowed companies directly at root
+          const kids = item.children?.filter((child) =>
+            (allowed as string[]).includes(child.id.toLowerCase()),
+          ) || [];
+          return kids;
+        })
+    : NAV;
 
   useEffect(() => {
     setOpen((prev) => {
       const next = { ...prev };
-      if (pathname.startsWith("/holding")) next.holding = true;
-      for (const c of COMPANIES) {
+      if (!isOp && pathname.startsWith("/holding")) next.holding = true;
+      for (const c of companies) {
         if (pathname.startsWith(`/${c.slug}`)) {
-          next.operative = true;
+          if (!isOp) next.operative = true;
           next[c.slug] = true;
           next[`${c.slug}-strategy`] = true;
           if (pathname.includes("/flywheel")) next[`${c.slug}-fw`] = true;
           if (pathname.includes("/economic-engine")) next[`${c.slug}-ee`] = true;
           if (pathname.includes("/people")) next[`${c.slug}-org`] = true;
+          if (pathname.includes("/marketing")) next[`${c.slug}-mktg`] = true;
         }
       }
       return next;
     });
-  }, [pathname]);
+  }, [pathname, companies, isOp]);
 
   function toggle(id: string) {
     setOpen((o) => ({ ...o, [id]: !o[id] }));
@@ -114,9 +126,6 @@ export default function Sidebar() {
   return (
     <div id="sidebar" className={`sb${collapsed ? " coll" : ""}`}>
       <div className="sb-head">
-        <button className="sb-toggle" onClick={() => setCollapsed(!collapsed)}>
-          &#9776;
-        </button>
         <span className="sb-logo">THE MAP</span>
       </div>
       <div className="sb-nav">{renderItems(filteredNav, 0)}</div>

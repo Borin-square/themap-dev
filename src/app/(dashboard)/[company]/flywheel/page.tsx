@@ -4,12 +4,13 @@ import { useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useLocalState } from "@/lib/useLocalState";
 import {
   FW_SEGS, FW_IR, FW_OR, FW_MR, FW_SR, FW_LR, FW_GAP, FW_SEG_ANGLE, FW_PAD, FW_GDR, FW_SDR,
   FW_GRN, FW_YEL, FW_RED, FW_GRY, FW_MN, FW_PER, FW_PER_LBL,
   fwP, fwArc, fwTA, fwSC, fwSCl, fwGR, fwMom, fwCR, fwDV, fwMDV, fwSMR,
   getMockData,
-  type FwGoalData, type FwConfigEntry,
+  type FwGoalData, type FwConfigEntry, type FwData, type FwConfig,
 } from "@/lib/flywheel";
 
 interface TipData {
@@ -35,12 +36,15 @@ interface TipData {
 export default function FlywheelOverviewPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
+  const slug = params.company as string;
+  const mock = getMockData();
   const [per, setPer] = useState("q1");
   const [tip, setTip] = useState<TipData | null>(null);
   const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
   const tipRef = useRef<HTMLDivElement>(null);
 
-  const { data, config } = getMockData();
+  const [data] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data);
+  const [config] = useLocalState<FwConfig>(`themap:${slug}:fwConfig`, () => mock.config);
 
   const getCfg = (name: string): FwConfigEntry =>
     config[name] || { mode: "STANDARD" };

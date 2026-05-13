@@ -1,4 +1,4 @@
-import { COMPANIES } from "./companies";
+import type { Company } from "./companies";
 
 export interface NavItem {
   id: string;
@@ -8,15 +8,15 @@ export interface NavItem {
   children?: NavItem[];
 }
 
-function buildOperativeNav(): NavItem[] {
-  return COMPANIES.map((c) => ({
+export function buildOperativeNav(companies: Company[]): NavItem[] {
+  return companies.map((c) => ({
     id: c.slug,
     label: c.name,
     color: c.color,
     children: [
       {
         id: `${c.slug}-strategy`,
-        label: "STRATEGY",
+        label: "Strategy",
         children: [
           {
             id: `${c.slug}-fw`,
@@ -40,6 +40,16 @@ function buildOperativeNav(): NavItem[] {
         ],
       },
       {
+        id: `${c.slug}-mktg`,
+        label: "Marketing",
+        children: [
+          { id: `${c.slug}-mktg-camp`, label: "Campaign Manager", href: `/${c.slug}/marketing` },
+          { id: `${c.slug}-mktg-strat`, label: "Strategy", href: `/${c.slug}/marketing/strategy` },
+          { id: `${c.slug}-mktg-brand`, label: "Brand Asset", href: `/${c.slug}/marketing/brand-asset` },
+          { id: `${c.slug}-mktg-seo`, label: "SEO Cluster", href: `/${c.slug}/marketing/seo-cluster` },
+        ],
+      },
+      {
         id: `${c.slug}-org`,
         label: "Organization",
         children: [
@@ -52,20 +62,22 @@ function buildOperativeNav(): NavItem[] {
   }));
 }
 
-export const NAV: NavItem[] = [
-  { id: "home", label: "Home", href: "/" },
-  {
-    id: "holding",
-    label: "Holding",
-    children: [
-      { id: "overview", label: "Overview", href: "/holding/overview" },
-      { id: "vision", label: "Vision", href: "/holding/vision" },
-      { id: "workload", label: "Workload", href: "/holding/workload" },
-      { id: "tasks", label: "Task Manager", href: "/holding/tasks" },
-    ],
-  },
-  { id: "operative", label: "Operative", children: buildOperativeNav() },
-];
+export function buildNav(companies: Company[]): NavItem[] {
+  return [
+    { id: "home", label: "Home", href: "/" },
+    {
+      id: "holding",
+      label: "Holding",
+      children: [
+        { id: "overview", label: "Overview", href: "/holding/overview" },
+        { id: "vision", label: "Vision", href: "/holding/vision" },
+        { id: "workload", label: "Workload", href: "/holding/workload" },
+        { id: "tasks", label: "Task Manager", href: "/holding/tasks" },
+      ],
+    },
+    { id: "operative", label: "Operative", children: buildOperativeNav(companies) },
+  ];
+}
 
 export const FOOTER_NAV: NavItem[] = [
   { id: "library", label: "Library", href: "/library" },

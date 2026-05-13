@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useLocalState } from "@/lib/useLocalState";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
@@ -22,11 +23,12 @@ export default function EconomicEnginePage() {
   const [{ values, origValues, prevValues }] = useState(() =>
     initEeValues(getEeMockMetrics(), year),
   );
-  const [vals, setVals] = useState(values);
+  const slug = params.company as string;
+  const [vals, setVals] = useLocalState(`themap:${slug}:eeVals`, () => values);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ mensile: true });
   const [filterFn, setFilterFn] = useState<string | null>(null);
   const [drillKpi, setDrillKpi] = useState<string | null>(null);
-  const [scenarios, setScenarios] = useState<EeScenario[]>([]);
+  const [scenarios, setScenarios] = useLocalState<EeScenario[]>(`themap:${slug}:eeScenarios`, () => []);
   const [scOpen, setScOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [scName, setScName] = useState("");

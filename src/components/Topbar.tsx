@@ -2,15 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
-import { NAV, FOOTER_NAV, getPath, flatNav } from "@/lib/nav";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { buildNav, FOOTER_NAV, getPath, flatNav } from "@/lib/nav";
+import { fetchCompanies, getCachedCompanies, type Company } from "@/lib/companies";
 
 export default function Topbar() {
   const pathname = usePathname();
   const [spotOpen, setSpotOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [companies, setCompanies] = useState<Company[]>(getCachedCompanies);
 
+  useEffect(() => { fetchCompanies().then(setCompanies); }, []);
+
+  const NAV = useMemo(() => buildNav(companies), [companies]);
   const allNav = [...NAV, ...FOOTER_NAV];
   const crumbs = getPath(allNav, pathname) || [];
   const flat = flatNav(allNav);

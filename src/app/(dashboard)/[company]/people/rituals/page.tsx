@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany, COMPANIES } from "@/lib/companies";
+import { useLocalState } from "@/lib/useLocalState";
 
 interface Evento {
   id: number;
@@ -60,7 +61,8 @@ function getMockEvents(): Evento[] {
 export default function RitualsPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
-  const [events, setEvents] = useState<Evento[]>(getMockEvents);
+  const slug = params.company as string;
+  const [events, setEvents] = useLocalState<Evento[]>(`themap:${slug}:events`, getMockEvents);
   const [editId, setEditId] = useState<number | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [draft, setDraft] = useState<Evento | null>(null);

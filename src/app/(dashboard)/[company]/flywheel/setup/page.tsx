@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useLocalState } from "@/lib/useLocalState";
 import {
   FW_FUNCS, FW_MN, getMockData, fwSegColor,
   type FwData, type FwConfig, type FwConfigEntry, type FwGoalData,
@@ -14,9 +15,10 @@ const MODES = ["STANDARD", "POSITIVO", "LIMITI", "PARTENZA", "INVERSO"] as const
 export default function FlywheelSetupPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
+  const slug = params.company as string;
   const mock = getMockData();
-  const [data, setData] = useState<FwData>(mock.data);
-  const [config, setConfig] = useState<FwConfig>(mock.config);
+  const [data, setData] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data);
+  const [config, setConfig] = useLocalState<FwConfig>(`themap:${slug}:fwConfig`, () => mock.config);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null);
 

@@ -1,12 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { COMPANIES, type Company } from "@/lib/companies";
+import { fetchCompanies, getCachedCompanies, type Company } from "@/lib/companies";
 import { useAuth } from "@/components/AuthProvider";
-import {
-  getAccessList, addAccess, updateAccess, deleteAccess,
-  isAdmin, type AccessEntry, type Ruolo,
-} from "@/lib/auth";
+import { isAdmin, type Ruolo } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+
+interface UserProfile {
+  id: string;
+  email: string;
+  nome: string;
+  ruolo: Ruolo;
+  funzione: string;
+  aziende: string;
+}
 
 const FUNZIONI = ["", "OPERATION", "SALES", "MARKETING", "AMMINISTRAZIONE", "DIREZIONE"];
 const FN_COLORS: Record<string, string> = {
@@ -16,45 +23,73 @@ const FN_COLORS: Record<string, string> = {
 
 type Tab = "accessi" | "aziende" | "generali";
 
+async function getToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token || "";
+}
+
 export default function SettingsPage() {
   const { session } = useAuth();
   const admin = isAdmin(session);
   const [tab, setTab] = useState<Tab>("accessi");
-  const [users, setUsers] = useState<AccessEntry[]>([]);
-  const [modal, setModal] = useState<AccessEntry | "new" | null>(null);
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [companies, setCompanies] = useState<Company[]>(getCachedCompanies);
+  const [editing, setEditing] = useState<UserProfile | "new" | null>(null);
+  const [confirmDel, setConfirmDel] = useState<UserProfile | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  useEffect(() => { setUsers(getAccessList()); }, []);
+  useEffect(() => { fetchCompanies().then(setCompanies); }, []);
+
+  useEffect(() => {
+    if (admin) loadUsers();
+  }, [admin]);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
   }
 
-  function reload() { setUsers(getAccessList()); }
-
-  function handleSave(entry: AccessEntry, oldEmail: string | null) {
-    try {
-      if (oldEmail) { updateAccess(oldEmail, entry); }
-      else { addAccess(entry); }
-      reload();
-      setModal(null);
-      showToast(oldEmail ? "Utente aggiornato" : "Utente aggiunto");
-    } catch (e: unknown) {
-      showToast((e as Error).message, false);
-    }
+  async function loadUsers() {
+    const token = await getToken();
+    const res = await fetch("/api/users", { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) setUsers(await res.json());
   }
 
-  function handleDelete(email: string) {
-    try {
-      deleteAccess(email);
-      reload();
-      setConfirmDel(null);
-      showToast("Utente rimosso");
-    } catch (e: unknown) {
-      showToast((e as Error).message, false);
+  async function handleSave(data: { id?: string; email: string; password?: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) {
+    const token = await getToken();
+    const isEdit = !!data.id;
+
+    const res = await fetch("/api/users", {
+      method: isEdit ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+
+    const result = await res.json();
+    if (!res.ok) { showToast(result.error || "Errore", false); return; }
+
+    await loadUsers();
+    setEditing(null);
+    showToast(isEdit ? "Utente aggiornato" : "Utente creato");
+  }
+
+  async function handleDelete(user: UserProfile) {
+    const token = await getToken();
+    const res = await fetch("/api/users", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: user.id }),
+    });
+
+    if (!res.ok) {
+      const r = await res.json();
+      showToast(r.error || "Errore", false);
+      return;
     }
+
+    await loadUsers();
+    setConfirmDel(null);
+    showToast("Utente rimosso");
   }
 
   return (
@@ -75,12 +110,11 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {/* ── ACCESSI (Role Manager) ── */}
       {tab === "accessi" && (
         <div className="ac-page">
           <div className="ac-head">
             Gestione Accessi
-            {admin && <button onClick={() => setModal("new")}>+ Invita utente</button>}
+            {admin && <button onClick={() => setEditing("new")}>+ Invita utente</button>}
           </div>
 
           {!admin && (
@@ -105,7 +139,7 @@ export default function SettingsPage() {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.email}>
+                  <tr key={u.id}>
                     <td>{u.nome || "\u2014"}</td>
                     <td className="ac-email">{u.email}</td>
                     <td>
@@ -130,7 +164,7 @@ export default function SettingsPage() {
                         ) : u.aziende ? (
                           u.aziende.split(",").map((az) => {
                             const slug = az.trim().toLowerCase();
-                            const comp = COMPANIES.find((c) => c.slug === slug);
+                            const comp = companies.find((c) => c.slug === slug);
                             return (
                               <span key={az} className="ac-az-tag" style={{ borderLeft: `3px solid ${comp?.color || "var(--fg3)"}` }}>
                                 {comp?.name || az.trim()}
@@ -144,9 +178,9 @@ export default function SettingsPage() {
                     </td>
                     <td>
                       <div className="ac-actions">
-                        <button onClick={() => setModal(u)}>Modifica</button>
+                        <button onClick={() => setEditing(u)}>Modifica</button>
                         {u.email !== session?.email && (
-                          <button className="ac-del" onClick={() => setConfirmDel(u.email)}>Elimina</button>
+                          <button className="ac-del" onClick={() => setConfirmDel(u)}>Elimina</button>
                         )}
                       </div>
                     </td>
@@ -158,13 +192,12 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── AZIENDE ── */}
       {tab === "aziende" && (
         <div style={{ maxWidth: 700 }}>
           <table className="ac-table">
             <thead><tr><th style={{ width: 48 }}>Colore</th><th>Nome</th><th>Slug</th></tr></thead>
             <tbody>
-              {COMPANIES.map((c) => (
+              {companies.map((c) => (
                 <tr key={c.slug}>
                   <td><span className="ni-dot" style={{ background: c.color, display: "inline-block" }} /></td>
                   <td>{c.name}</td>
@@ -176,7 +209,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── GENERALI ── */}
       {tab === "generali" && (
         <div className="cd" style={{ maxWidth: 480 }}>
           <label className="setting-label">Nome applicazione</label>
@@ -189,57 +221,54 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── Confirm Delete ── */}
       {confirmDel && (
-        <div className="pe-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setConfirmDel(null); }}>
-          <div className="pe-modal" style={{ maxWidth: 380, textAlign: "center" }}>
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setConfirmDel(null); }}>
+          <div className="modal" style={{ maxWidth: 380, textAlign: "center" }}>
             <div style={{ fontSize: 36, marginBottom: 8, color: "#ef4444" }}>{"\u26A0"}</div>
             <h3>Rimuovi accesso</h3>
             <p style={{ fontSize: 13, color: "var(--fg2)", margin: "0 0 12px", lineHeight: 1.5 }}>
               L&apos;utente non potrà più accedere a The Map.
             </p>
             <div style={{ background: "var(--bg2)", border: "1px solid var(--bd)", borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "var(--fg)", marginBottom: 12 }}>
-              {confirmDel}
+              {confirmDel.email}
             </div>
-            <div className="pe-modal-foot" style={{ justifyContent: "center" }}>
-              <button className="pe-btn-cancel" onClick={() => setConfirmDel(null)}>Annulla</button>
-              <button className="pe-btn-save" style={{ background: "#ef4444" }} onClick={() => handleDelete(confirmDel)}>Rimuovi</button>
+            <div className="modal-foot" style={{ justifyContent: "center" }}>
+              <button className="btn-cancel" onClick={() => setConfirmDel(null)}>Annulla</button>
+              <button className="btn-save" style={{ background: "#ef4444" }} onClick={() => handleDelete(confirmDel)}>Rimuovi</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── User Modal ── */}
-      {modal && (
+      {editing && (
         <UserModal
-          user={modal === "new" ? null : modal}
-          currentEmail={session?.email || ""}
+          user={editing === "new" ? null : editing}
+          companies={companies}
           onSave={handleSave}
-          onClose={() => setModal(null)}
+          onClose={() => setEditing(null)}
         />
       )}
     </div>
   );
 }
 
-/* ── User Modal ── */
-
 function UserModal({
-  user, currentEmail, onSave, onClose,
+  user, companies, onSave, onClose,
 }: {
-  user: AccessEntry | null;
-  currentEmail: string;
-  onSave: (entry: AccessEntry, oldEmail: string | null) => void;
+  user: UserProfile | null;
+  companies: Company[];
+  onSave: (data: { id?: string; email: string; password?: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) => void;
   onClose: () => void;
 }) {
   const isEdit = !!user;
   const [email, setEmail] = useState(user?.email || "");
+  const [password, setPassword] = useState("");
   const [nome, setNome] = useState(user?.nome || "");
   const [ruolo, setRuolo] = useState<Ruolo>(user?.ruolo || "OPERATIVO");
   const [funzione, setFunzione] = useState(user?.funzione || "");
   const [allAz, setAllAz] = useState(user?.aziende === "*" || !user);
   const [selectedAz, setSelectedAz] = useState<string[]>(() => {
-    if (!user || user.aziende === "*") return COMPANIES.map((c) => c.slug);
+    if (!user || user.aziende === "*") return companies.map((c) => c.slug);
     return user.aziende.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   });
 
@@ -251,13 +280,19 @@ function UserModal({
 
   function handleSave() {
     if (!email.trim()) return;
+    if (!isEdit && !password) return;
     const aziende = allAz ? "*" : selectedAz.join(",");
-    onSave({ email: email.trim().toLowerCase(), nome, ruolo, funzione, aziende }, isEdit ? user!.email : null);
+    onSave({
+      ...(isEdit ? { id: user!.id } : {}),
+      email: email.trim().toLowerCase(),
+      ...(password ? { password } : {}),
+      nome, ruolo, funzione, aziende,
+    });
   }
 
   return (
-    <div className="pe-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="pe-modal">
+    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal">
         <h3>{isEdit ? "Modifica" : "Invita"} Utente</h3>
 
         <label>Nome</label>
@@ -267,7 +302,14 @@ function UserModal({
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
           readOnly={isEdit} style={isEdit ? { opacity: 0.6 } : undefined} />
 
-        <div className="pe-modal-row">
+        {!isEdit && (
+          <>
+            <label>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 caratteri" />
+          </>
+        )}
+
+        <div className="modal-row">
           <div>
             <label>Ruolo</label>
             <select value={ruolo} onChange={(e) => setRuolo(e.target.value as Ruolo)}>
@@ -288,11 +330,11 @@ function UserModal({
           <label className="ac-az-check">
             <input type="checkbox" checked={allAz} onChange={(e) => {
               setAllAz(e.target.checked);
-              if (e.target.checked) setSelectedAz(COMPANIES.map((c) => c.slug));
+              if (e.target.checked) setSelectedAz(companies.map((c) => c.slug));
             }} />
             <b>Tutte</b>
           </label>
-          {COMPANIES.map((c) => (
+          {companies.map((c) => (
             <label key={c.slug} className="ac-az-check">
               <input type="checkbox" checked={allAz || selectedAz.includes(c.slug)}
                 disabled={allAz} onChange={() => toggleAz(c.slug)} />
@@ -304,9 +346,9 @@ function UserModal({
           ))}
         </div>
 
-        <div className="pe-modal-foot">
-          <button className="pe-btn-cancel" onClick={onClose}>Annulla</button>
-          <button className="pe-btn-save" onClick={handleSave}>Salva</button>
+        <div className="modal-foot">
+          <button className="btn-cancel" onClick={onClose}>Annulla</button>
+          <button className="btn-save" onClick={handleSave}>Salva</button>
         </div>
       </div>
     </div>

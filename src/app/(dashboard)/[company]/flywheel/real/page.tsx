@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useLocalState } from "@/lib/useLocalState";
 import {
   FW_FUNCS, FW_MN, getMockData, fwSegColor,
   type FwData,
@@ -12,8 +13,9 @@ import {
 export default function FlywheelRealPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
+  const slug = params.company as string;
   const mock = getMockData();
-  const [data, setData] = useState<FwData>(mock.data);
+  const [data, setData] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<string | null>(null);
 

@@ -1,4 +1,24 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
+import { getAllowedSlugs } from "@/lib/auth";
+
 export default function HomePage() {
+  const router = useRouter();
+  const { session } = useAuth();
+  const allowed = getAllowedSlugs(session);
+
+  // Operativi: redirect alla prima azienda accessibile
+  useEffect(() => {
+    if (allowed !== "*" && allowed.length > 0) {
+      router.replace(`/${allowed[0]}/flywheel`);
+    }
+  }, [allowed, router]);
+
+  if (allowed !== "*") return null;
+
   return (
     <div>
       <h1 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Home</h1>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useLocalState } from "@/lib/useLocalState";
 import {
   getEeMockMetrics, getEeYear, initEeValues, eeRecalc, eeFmtEuro,
   eeGetDelta, EE_KPI_ITEMS, EE_MONTHS,
@@ -39,7 +40,8 @@ export default function ConsuntivoPage() {
   const { calc: fcCalc, monthly: fcMonthly } = eeRecalc(fcValues);
 
   // Real data — prima 5 mesi con valori mock, resto vuoto
-  const [realData, setRealData] = useState<RealRow[]>(() => {
+  const slug = params.company as string;
+  const [realData, setRealData] = useLocalState<RealRow[]>(`themap:${slug}:eeReal`, () => {
     const rows: RealRow[] = [];
     for (let i = 0; i < 12; i++) {
       if (i < 5) {

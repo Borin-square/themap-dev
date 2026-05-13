@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useLocalState } from "@/lib/useLocalState";
 import {
   getEeMockMetrics, initEeValues, eeRecalc, eeIsPercent,
   EE_INVERTED, type EeMetric,
@@ -116,9 +117,10 @@ export default function CkmPage() {
   const { forecasts, metrics } = useMemo(buildForecasts, []);
   const catalog = useMemo(() => buildCatalog(metrics), [metrics]);
 
-  const [selected, setSelected] = useState<string[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(true);
-  const [notes, setNotes] = useState<Record<string, string>>({});
+  const slug = params.company as string;
+  const [selected, setSelected] = useLocalState<string[]>(`themap:${slug}:ckmSelected`, () => []);
+  const [pickerOpen, setPickerOpen] = useLocalState<boolean>(`themap:${slug}:ckmPickerOpen`, () => true);
+  const [notes, setNotes] = useLocalState<Record<string, string>>(`themap:${slug}:ckmNotes`, () => ({}));
 
   function toggleMetric(key: string) {
     setSelected((prev) =>
