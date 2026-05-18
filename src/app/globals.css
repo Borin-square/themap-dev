@@ -423,6 +423,8 @@ th.ee-inactive { opacity: .4; }
 .fws-goal-actions button{background:none;border:none;color:var(--fg3);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;transition:all .15s}
 .fws-goal-actions button:hover{background:var(--bg3);color:var(--fg)}
 .fws-goal-actions .fws-del:hover{color:#ef4444}
+.fws-goal-actions .fws-move{font-size:10px;opacity:.5}
+.fws-goal-actions .fws-move:hover{opacity:1;color:var(--accent)}
 .fws-sub-del-vis{background:none;border:none;color:var(--fg3);cursor:pointer;font-size:13px;transition:color .15s;flex-shrink:0}
 .fws-sub-del-vis:hover{color:#ef4444}
 .fws-add-sub{display:inline-flex;align-items:center;gap:4px;color:var(--fg3);font-size:11px;cursor:pointer;padding:6px 0;border:none;background:none;font-family:var(--font);transition:color .15s}

@@ -42,16 +42,18 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { email, nome, ruolo, funzione, aziende } = body;
-  if (!email) {
-    return NextResponse.json({ error: "Email richiesta" }, { status: 400 });
+  const { email, password, nome, ruolo, funzione, aziende } = body;
+  if (!email || !password) {
+    return NextResponse.json({ error: "Email e password richiesti" }, { status: 400 });
   }
 
   const svc = createServiceClient();
 
-  // Invite user via magic link — they'll set their own password
-  const { data: authData, error: authErr } = await svc.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://the-map-v2.vercel.app"}/login`,
+  // Create auth user with temporary password
+  const { data: authData, error: authErr } = await svc.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
   });
 
   if (authErr) {

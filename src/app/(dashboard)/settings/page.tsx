@@ -59,7 +59,7 @@ export default function SettingsPage() {
     if (res.ok) setUsers(await res.json());
   }
 
-  async function handleSave(data: { id?: string; email: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) {
+  async function handleSave(data: { id?: string; email: string; password?: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) {
     const token = await getToken();
     const isEdit = !!data.id;
 
@@ -400,7 +400,14 @@ export default function SettingsPage() {
   );
 }
 
-function getInviteMessage(nome: string, senderName: string): string {
+function generateTempPassword(): string {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  let pw = "";
+  for (let i = 0; i < 8; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+  return pw + "!";
+}
+
+function getInviteMessage(nome: string, email: string, password: string, senderName: string): string {
   const firstName = nome.split(" ")[0] || nome;
   return `Ciao ${firstName},
 
@@ -412,7 +419,12 @@ The Map nasce per questo: non per dirti ogni passo, ma per aiutarti a capire dov
 
 Benvenuto/a.
 
-${senderName}`;
+${senderName}
+
+---
+Accedi a The Map: https://the-map-v2.vercel.app/login
+Email: ${email}
+Password: ${password}`;
 }
 
 function UserModal({
@@ -420,7 +432,7 @@ function UserModal({
 }: {
   user: UserProfile | null;
   companies: Company[];
-  onSave: (data: { id?: string; email: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) => void;
+  onSave: (data: { id?: string; email: string; password?: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) => void;
   onClose: () => void;
   senderName: string;
 }) {
@@ -435,6 +447,7 @@ function UserModal({
     return user.aziende.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   });
   const [copied, setCopied] = useState(false);
+  const [tempPassword] = useState(() => generateTempPassword());
 
   function toggleAz(slug: string) {
     setSelectedAz((prev) =>
@@ -449,12 +462,13 @@ function UserModal({
     onSave({
       ...(isEdit ? { id: user!.id } : {}),
       email: email.trim().toLowerCase(),
+      ...(!isEdit ? { password: tempPassword } : {}),
       nome, ruolo, funzione, aziende,
     });
   }
 
   function copyMessage() {
-    const msg = getInviteMessage(nome || "—", senderName);
+    const msg = getInviteMessage(nome || "\u2014", email, tempPassword, senderName);
     navigator.clipboard.writeText(msg);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -513,19 +527,19 @@ function UserModal({
         {!isEdit && nome.trim() && (
           <div className="invite-msg-box">
             <label>Messaggio di invito</label>
-            <pre className="invite-msg-text">{getInviteMessage(nome, senderName)}</pre>
+            <pre className="invite-msg-text">{getInviteMessage(nome, email, tempPassword, senderName)}</pre>
             <button className="invite-copy-btn" onClick={copyMessage}>
               {copied ? "Copiato!" : "Copia messaggio"}
             </button>
             <p className="invite-msg-hint">
-              Riceverà un&apos;email con il link per creare il proprio account.
+              Copia il messaggio e invialo alla persona. Contiene link e credenziali di accesso.
             </p>
           </div>
         )}
 
         <div className="modal-foot">
           <button className="btn-cancel" onClick={onClose}>Annulla</button>
-          <button className="btn-save" onClick={handleSave}>{isEdit ? "Salva" : "Invia invito"}</button>
+          <button className="btn-save" onClick={handleSave}>{isEdit ? "Salva" : "Crea accesso"}</button>
         </div>
       </div>
     </div>
