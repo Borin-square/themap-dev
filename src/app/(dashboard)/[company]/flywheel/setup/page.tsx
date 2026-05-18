@@ -218,22 +218,19 @@ export default function FlywheelSetupPage() {
   }
 
   function moveGoal(fn: string, goalName: string, dir: -1 | 1) {
-    setData((prev) => {
-      const next = JSON.parse(JSON.stringify(prev)) as FwData;
-      const goals = next[fn];
-      if (!goals) return prev;
-      const keys = Object.keys(goals);
-      const idx = keys.indexOf(goalName);
-      const newIdx = idx + dir;
-      if (newIdx < 0 || newIdx >= keys.length) return prev;
-      // Swap
-      [keys[idx], keys[newIdx]] = [keys[newIdx], keys[idx]];
-      // Rebuild object in new order
-      const reordered: Record<string, FwGoalData> = {};
-      keys.forEach((k) => { reordered[k] = goals[k]; });
-      next[fn] = reordered;
-      return next;
-    });
+    const next = JSON.parse(JSON.stringify(data)) as FwData;
+    const goals = next[fn];
+    if (!goals) return;
+    const keys = Object.keys(goals);
+    const idx = keys.indexOf(goalName);
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= keys.length) return;
+    [keys[idx], keys[newIdx]] = [keys[newIdx], keys[idx]];
+    const reordered: Record<string, FwGoalData> = {};
+    keys.forEach((k) => { reordered[k] = goals[k]; });
+    next[fn] = reordered;
+    setData(next);
+    showToast(`${goalName} ${dir === -1 ? "\u2191" : "\u2193"}`);
   }
 
   function fillAll(goalName: string, subName: string, value: number) {

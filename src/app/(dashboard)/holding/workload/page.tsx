@@ -7,7 +7,7 @@ import { PE_FUNZIONI, peFnColor } from "@/lib/people";
 import {
   WL_MAX_EFFORT, WL_LIVELLI, WL_FUNZIONI,
   effortColor, groupByPerson, emptyMission,
-  getMockMissions, DEFAULT_FOUNDERS,
+  getMockMissions, DEFAULT_FOUNDERS, getLeaderNames,
   type Mission, type PersonCard,
 } from "@/lib/workload";
 
@@ -26,11 +26,15 @@ export default function WorkloadPage() {
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3000); }
 
+  // Only show missions for leaders (or founders)
+  const leaderNames = getLeaderNames(companies);
+  const leaderMissions = missions.filter((m) => founders.includes(m.persona) || leaderNames.has(m.persona));
+
   // All unique people names for the add form
-  const allPeople = Array.from(new Set(missions.map((m) => m.persona))).sort();
+  const allPeople = Array.from(new Set(leaderMissions.map((m) => m.persona))).sort();
 
   // Filter missions
-  const filtered = missions.filter((m) => {
+  const filtered = leaderMissions.filter((m) => {
     if (filterAz !== "ALL" && m.azienda !== filterAz) return false;
     if (filterFn !== "ALL" && m.funzione !== filterFn) return false;
     return true;

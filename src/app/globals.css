@@ -508,6 +508,7 @@ th.ee-inactive { opacity: .4; }
 .pe-row:hover{background:rgba(79,140,255,.04)}
 .pe-cell-name{font-weight:600;color:var(--fg);white-space:nowrap}
 .pe-cell-dim{color:var(--fg2);font-size:11px}
+.pe-cell-center{text-align:center;font-size:13px;color:#f59e0b}
 .pe-cell-num{text-align:right;font-size:11px;color:var(--fg2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .pe-cell-hours{font-weight:600;color:var(--fg3)}
 .pe-cell-ro{text-align:right;font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums}

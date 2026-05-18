@@ -1,4 +1,6 @@
 import { type Company } from "./companies";
+import { type Persona } from "./people";
+import { dataVersion } from "./square-marketing-data";
 
 export const WL_MAX_EFFORT = 5;
 
@@ -103,3 +105,21 @@ export function getMockMissions(): Mission[] {
 }
 
 export const DEFAULT_FOUNDERS = ["Borin Nicholas", "Edoardo Rossignoli", "Giovanni Bergamini"];
+
+/** Read leader names from localStorage across all companies */
+export function getLeaderNames(companies: Company[]): Set<string> {
+  const leaders = new Set<string>();
+  if (typeof window === "undefined") return leaders;
+  for (const c of companies) {
+    const v = dataVersion(c.slug);
+    const key = v != null ? `themap:${c.slug}:people:v${v}` : `themap:${c.slug}:people`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const people: Persona[] = JSON.parse(raw);
+        people.forEach((p) => { if (p.leader) leaders.add(p.nome); });
+      }
+    } catch { /* ignore */ }
+  }
+  return leaders;
+}

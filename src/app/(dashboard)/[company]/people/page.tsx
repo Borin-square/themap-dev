@@ -285,6 +285,7 @@ export default function PeoplePage() {
                   <thead>
                     <tr>
                       <th>Nome</th>
+                      <th>Leader</th>
                       <th>Livello</th>
                       <th>Contratto</th>
                       <th>Team</th>
@@ -307,6 +308,7 @@ export default function PeoplePage() {
                         return (
                           <tr key={p.nome} className="pe-row-edit">
                             <td><input className="pe-inline-input" value={draft.nome} onChange={(e) => updateDraft("nome", e.target.value)} autoFocus /></td>
+                            <td className="pe-cell-center"><input type="checkbox" checked={draft.leader} onChange={(e) => updateDraft("leader", e.target.checked)} /></td>
                             <td>
                               <select className="pe-inline-select" value={draft.livello} onChange={(e) => updateDraft("livello", e.target.value)}>
                                 {PE_LIVELLI.map((l) => <option key={l}>{l}</option>)}
@@ -336,6 +338,7 @@ export default function PeoplePage() {
                       return (
                         <tr key={p.nome} className="pe-row" onDoubleClick={() => startEdit(p)}>
                           <td className="pe-cell-name">{p.nome}</td>
+                          <td className="pe-cell-center">{p.leader ? "\u2605" : ""}</td>
                           <td><span className={`pe-lvl ${peLvlClass(p.livello)}`}>{p.livello}</span></td>
                           <td><span className={p.contratto === "FREELANCE" ? "pe-contr-free" : "pe-contr-dip"}>{p.contratto}</span></td>
                           <td className="pe-cell-dim">{p.team}</td>
@@ -366,6 +369,7 @@ export default function PeoplePage() {
                     {addRow && draft && draft.funzione === fn && (
                       <tr className="pe-row-edit pe-row-add">
                         <td><input className="pe-inline-input" value={draft.nome} onChange={(e) => updateDraft("nome", e.target.value)} autoFocus placeholder="Nome..." /></td>
+                        <td className="pe-cell-center"><input type="checkbox" checked={draft.leader} onChange={(e) => updateDraft("leader", e.target.checked)} /></td>
                         <td>
                           <select className="pe-inline-select" value={draft.livello} onChange={(e) => updateDraft("livello", e.target.value)}>
                             {PE_LIVELLI.map((l) => <option key={l}>{l}</option>)}
@@ -408,13 +412,14 @@ export default function PeoplePage() {
               <table className="pe-table">
                 <thead>
                   <tr>
-                    <th>Nome</th><th>Livello</th><th>Contratto</th><th>Team</th>
+                    <th>Nome</th><th>Leader</th><th>Livello</th><th>Contratto</th><th>Team</th>
                     <th>h/sett</th><th>Mesi</th><th>{"\u20AC"}/h</th><th>RAL</th><th>h/anno</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="pe-row-edit pe-row-add">
                     <td><input className="pe-inline-input" value={draft.nome} onChange={(e) => updateDraft("nome", e.target.value)} autoFocus placeholder="Nome..." /></td>
+                    <td className="pe-cell-center"><input type="checkbox" checked={draft.leader} onChange={(e) => updateDraft("leader", e.target.checked)} /></td>
                     <td>
                       <select className="pe-inline-select" value={draft.livello} onChange={(e) => updateDraft("livello", e.target.value)}>
                         {PE_LIVELLI.map((l) => <option key={l}>{l}</option>)}
@@ -451,9 +456,6 @@ export default function PeoplePage() {
             <select className="pe-inline-select" value={draft.funzione} onChange={(e) => updateDraft("funzione", e.target.value)}>
               {PE_FUNZIONI.map((f) => <option key={f}>{f}</option>)}
             </select>
-            <label className="pe-leader-check">
-              <input type="checkbox" checked={draft.leader} onChange={(e) => updateDraft("leader", e.target.checked)} /> Leader
-            </label>
           </div>
         )}
       </div>
