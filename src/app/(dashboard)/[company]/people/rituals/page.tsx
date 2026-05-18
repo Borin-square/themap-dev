@@ -358,6 +358,23 @@ function EventEditForm({
           {partOpen && (
             <div className="ev-part-dropdown">
               {people.length === 0 && <div className="ev-part-empty">Nessuna persona in People</div>}
+              {people.length > 0 && (
+                <label className="ev-part-option ev-part-all">
+                  <input
+                    type="checkbox"
+                    checked={people.length > 0 && selected.length === people.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        updateDraft("partecipanti", people.map((p) => p.nome).join(", "));
+                      } else {
+                        updateDraft("partecipanti", "");
+                      }
+                    }}
+                  />
+                  <span><b>Invita tutti</b></span>
+                  <span className="ev-part-fn">{people.length}</span>
+                </label>
+              )}
               {people.map((p) => (
                 <label key={p.nome} className="ev-part-option">
                   <input type="checkbox" checked={selected.includes(p.nome)} onChange={() => togglePerson(p.nome)} />

@@ -118,6 +118,14 @@ body {
 .btn-save:hover { opacity: .85; }
 .btn-danger { color: #ef4444; margin-right: auto; }
 
+/* Invite message */
+.invite-msg-box{margin-top:12px;border:1px solid var(--bd);border-radius:8px;padding:12px;background:var(--bg2)}
+.invite-msg-box label{font-size:11px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
+.invite-msg-text{font-family:var(--font);font-size:12px;line-height:1.7;color:var(--fg);white-space:pre-wrap;margin:0 0 8px;padding:10px 12px;background:var(--bg);border-radius:6px;border:1px solid var(--bd)}
+.invite-copy-btn{background:var(--accent);color:#fff;border:none;border-radius:4px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:var(--font)}
+.invite-copy-btn:hover{opacity:.85}
+.invite-msg-hint{font-size:11px;color:var(--fg3);margin:8px 0 0}
+
 /* Tabs */
 .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--bd); }
 .tab { background: none; border: none; padding: 10px 16px; color: var(--fg3); font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; font-family: var(--font); transition: color .15s; }
@@ -671,6 +679,8 @@ th.ee-inactive { opacity: .4; }
 .ev-edit-row{display:flex;gap:8px;flex-wrap:wrap}
 .ev-edit-input{background:var(--bg);border:1px solid var(--bd);color:var(--fg);border-radius:4px;padding:6px 8px;font-size:12px;font-family:var(--font);box-sizing:border-box;min-width:80px;flex:1}
 .ev-edit-input:focus{border-color:var(--accent);outline:none}
+.ev-edit-input[type="date"]{min-width:140px;padding:6px 10px;font-size:13px;font-weight:600;border:1.5px solid var(--accent);color:var(--accent);background:rgba(79,140,255,.06);cursor:pointer}
+.ev-edit-input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.7;cursor:pointer;font-size:16px}
 .ev-edit-title{flex:3;font-weight:600}
 .ev-edit-place{flex:2}
 .ev-edit-wide{flex:1;min-width:200px}
@@ -705,6 +715,7 @@ th.ee-inactive { opacity: .4; }
 .ev-part-option input{width:auto;accent-color:var(--accent)}
 .ev-part-fn{margin-left:auto;font-size:10px;color:var(--fg3);text-transform:uppercase}
 .ev-part-empty{padding:10px;font-size:12px;color:var(--fg3);text-align:center}
+.ev-part-all{border-bottom:1px solid var(--bd);background:rgba(79,140,255,.04)}
 
 /* Tools page */
 .tools-page{padding:20px 24px}

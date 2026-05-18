@@ -59,7 +59,7 @@ export default function SettingsPage() {
     if (res.ok) setUsers(await res.json());
   }
 
-  async function handleSave(data: { id?: string; email: string; password?: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) {
+  async function handleSave(data: { id?: string; email: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) {
     const token = await getToken();
     const isEdit = !!data.id;
 
@@ -393,23 +393,39 @@ export default function SettingsPage() {
           companies={companies}
           onSave={handleSave}
           onClose={() => setEditing(null)}
+          senderName={session?.nome || ""}
         />
       )}
     </div>
   );
 }
 
+function getInviteMessage(nome: string, senderName: string): string {
+  const firstName = nome.split(" ")[0] || nome;
+  return `Ciao ${firstName},
+
+ogni azienda è un viaggio.
+
+Ci sono strade già tracciate, bivi da scegliere, territori ancora da scoprire.
+
+The Map nasce per questo: non per dirti ogni passo, ma per aiutarti a capire dove sei, dove stiamo andando e quale direzione vale la pena seguire.
+
+Benvenuto/a.
+
+${senderName}`;
+}
+
 function UserModal({
-  user, companies, onSave, onClose,
+  user, companies, onSave, onClose, senderName,
 }: {
   user: UserProfile | null;
   companies: Company[];
-  onSave: (data: { id?: string; email: string; password?: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) => void;
+  onSave: (data: { id?: string; email: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) => void;
   onClose: () => void;
+  senderName: string;
 }) {
   const isEdit = !!user;
   const [email, setEmail] = useState(user?.email || "");
-  const [password, setPassword] = useState("");
   const [nome, setNome] = useState(user?.nome || "");
   const [ruolo, setRuolo] = useState<Ruolo>(user?.ruolo || "OPERATIVO");
   const [funzione, setFunzione] = useState(user?.funzione || "");
@@ -418,6 +434,7 @@ function UserModal({
     if (!user || user.aziende === "*") return companies.map((c) => c.slug);
     return user.aziende.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   });
+  const [copied, setCopied] = useState(false);
 
   function toggleAz(slug: string) {
     setSelectedAz((prev) =>
@@ -427,14 +444,20 @@ function UserModal({
 
   function handleSave() {
     if (!email.trim()) return;
-    if (!isEdit && !password) return;
+    if (!isEdit && !nome.trim()) return;
     const aziende = allAz ? "*" : selectedAz.join(",");
     onSave({
       ...(isEdit ? { id: user!.id } : {}),
       email: email.trim().toLowerCase(),
-      ...(password ? { password } : {}),
       nome, ruolo, funzione, aziende,
     });
+  }
+
+  function copyMessage() {
+    const msg = getInviteMessage(nome || "—", senderName);
+    navigator.clipboard.writeText(msg);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -443,18 +466,11 @@ function UserModal({
         <h3>{isEdit ? "Modifica" : "Invita"} Utente</h3>
 
         <label>Nome</label>
-        <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome e cognome" />
+        <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome e cognome" autoFocus />
 
         <label>Email</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
           readOnly={isEdit} style={isEdit ? { opacity: 0.6 } : undefined} />
-
-        {!isEdit && (
-          <>
-            <label>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 caratteri" />
-          </>
-        )}
 
         <div className="modal-row">
           <div>
@@ -493,9 +509,23 @@ function UserModal({
           ))}
         </div>
 
+        {/* Messaggio invito (solo per nuovi utenti) */}
+        {!isEdit && nome.trim() && (
+          <div className="invite-msg-box">
+            <label>Messaggio di invito</label>
+            <pre className="invite-msg-text">{getInviteMessage(nome, senderName)}</pre>
+            <button className="invite-copy-btn" onClick={copyMessage}>
+              {copied ? "Copiato!" : "Copia messaggio"}
+            </button>
+            <p className="invite-msg-hint">
+              Riceverà un&apos;email con il link per creare il proprio account.
+            </p>
+          </div>
+        )}
+
         <div className="modal-foot">
           <button className="btn-cancel" onClick={onClose}>Annulla</button>
-          <button className="btn-save" onClick={handleSave}>Salva</button>
+          <button className="btn-save" onClick={handleSave}>{isEdit ? "Salva" : "Invia invito"}</button>
         </div>
       </div>
     </div>
