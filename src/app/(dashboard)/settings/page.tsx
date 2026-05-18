@@ -459,12 +459,11 @@ function UserModal({
     if (!email.trim()) return;
     if (!isEdit && !nome.trim()) return;
     const aziende = allAz ? "*" : selectedAz.join(",");
-    onSave({
-      ...(isEdit ? { id: user!.id } : {}),
-      email: email.trim().toLowerCase(),
-      ...(!isEdit ? { password: tempPassword } : {}),
-      nome, ruolo, funzione, aziende,
-    });
+    if (isEdit && user) {
+      onSave({ id: user.id, email: email.trim().toLowerCase(), nome, ruolo, funzione, aziende });
+    } else {
+      onSave({ email: email.trim().toLowerCase(), password: tempPassword, nome, ruolo, funzione, aziende });
+    }
   }
 
   function copyMessage() {

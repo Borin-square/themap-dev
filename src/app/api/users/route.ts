@@ -43,8 +43,11 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { email, password, nome, ruolo, funzione, aziende } = body;
-  if (!email || !password) {
-    return NextResponse.json({ error: "Email e password richiesti" }, { status: 400 });
+  if (!email) {
+    return NextResponse.json({ error: "Email richiesta" }, { status: 400 });
+  }
+  if (!password) {
+    return NextResponse.json({ error: "Password richiesta" }, { status: 400 });
   }
 
   const svc = createServiceClient();
