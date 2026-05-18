@@ -56,6 +56,7 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           { id: `${c.slug}-pe`, label: "People", href: `/${c.slug}/people` },
           { id: `${c.slug}-orgchart`, label: "Organigramma", href: `/${c.slug}/people/organization` },
           { id: `${c.slug}-rituals`, label: "Rituals", href: `/${c.slug}/people/rituals` },
+          { id: `${c.slug}-tools`, label: "Tools", href: `/${c.slug}/organization/tools` },
         ],
       },
     ],

@@ -8,7 +8,7 @@ import { useLocalState } from "@/lib/useLocalState";
 import {
   MKTG_STATI, MKTG_PIATTAFORME, MKTG_CANALI, MKTG_MONTHS,
   MKTG_MET_EDIT, MKTG_MET_LABELS,
-  mktgFmt, mktgStatoColor, campTotals, emptyCampaign, getMockCampaigns,
+  mktgFmt, mktgStatoColor, campTotals, emptyCampaign, getMockCampaignsForCompany,
   type Campaign, type MktgStato,
 } from "@/lib/marketing";
 
@@ -20,7 +20,7 @@ export default function MarketingPage() {
   const slug = params.company as string;
 
   const [campaigns, setCampaigns] = useLocalState<Campaign[]>(
-    `themap:${slug}:mktgCampaigns`, getMockCampaigns,
+    `themap:${slug}:mktgCampaigns`, () => getMockCampaignsForCompany(slug),
   );
   const [filterStato, setFilterStato] = useState("");
   const [filterPiatt, setFilterPiatt] = useState("");

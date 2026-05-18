@@ -9,7 +9,7 @@ import {
   FW_SEGS, FW_IR, FW_OR, FW_MR, FW_SR, FW_LR, FW_GAP, FW_SEG_ANGLE, FW_PAD, FW_GDR, FW_SDR,
   FW_GRN, FW_YEL, FW_RED, FW_GRY, FW_MN, FW_PER, FW_PER_LBL,
   fwP, fwArc, fwTA, fwSC, fwSCl, fwGR, fwMom, fwCR, fwDV, fwMDV, fwSMR,
-  getMockData,
+  getMockDataForCompany,
   type FwGoalData, type FwConfigEntry, type FwData, type FwConfig,
 } from "@/lib/flywheel";
 
@@ -37,7 +37,7 @@ export default function FlywheelOverviewPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
-  const mock = getMockData();
+  const mock = getMockDataForCompany(slug);
   const [per, setPer] = useState("q1");
   const [tip, setTip] = useState<TipData | null>(null);
   const [tipPos, setTipPos] = useState({ x: 0, y: 0 });

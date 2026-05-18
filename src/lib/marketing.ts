@@ -214,6 +214,13 @@ export function campTotals(c: Campaign) {
   return { budgetFc, budgetRe, leadFc, leadRe, impressioni, click, cplFc, cplRe };
 }
 
+import { getSquareCampaigns } from "./square-marketing-data";
+
+export function getMockCampaignsForCompany(slug: string): Campaign[] {
+  if (slug === "square-marketing") return getSquareCampaigns();
+  return getMockCampaigns();
+}
+
 export function getMockCampaigns(): Campaign[] {
   return [
     {

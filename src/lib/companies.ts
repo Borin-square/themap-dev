@@ -8,6 +8,7 @@ export interface Company {
 
 // Fallback for SSR / initial render
 export const DEFAULT_COMPANIES: Company[] = [
+  { slug: "square-marketing", name: "Square Marketing", color: "#6366f1" },
   { slug: "acme", name: "Acme Corp", color: "#4f8cff" },
   { slug: "beta", name: "Beta Srl", color: "#22c55e" },
   { slug: "gamma", name: "Gamma SpA", color: "#f59e0b" },

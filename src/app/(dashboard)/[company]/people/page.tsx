@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import {
-  getMockPeople, PE_FUNZIONI, PE_LIVELLI, PE_CONTRATTI,
+  getMockPeopleForCompany, PE_FUNZIONI, PE_LIVELLI, PE_CONTRATTI,
   peFnColor, peLvlClass,
   type Persona, type PersonaAnno,
 } from "@/lib/people";
@@ -29,7 +29,7 @@ export default function PeoplePage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
-  const [people, setPeople] = useLocalState<Persona[]>(`themap:${slug}:people`, getMockPeople);
+  const [people, setPeople] = useLocalState<Persona[]>(`themap:${slug}:people`, () => getMockPeopleForCompany(slug));
   const [editId, setEditId] = useState<string | null>(null); // nome of person being edited
   const [addRow, setAddRow] = useState<Persona | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
@@ -37,6 +37,8 @@ export default function PeoplePage() {
 
   // Draft state for inline editing
   const [draft, setDraft] = useState<Persona | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [bulkPreview, setBulkPreview] = useState<Persona[] | null>(null);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -94,6 +96,60 @@ export default function PeoplePage() {
     });
   }
 
+  function handleBulkFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      if (!text) return;
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) { showToast("File vuoto o senza dati"); return; }
+      const headers = lines[0].split(/[,;\t]/).map((h) => h.trim().toLowerCase());
+      const parsed: Persona[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const vals = lines[i].split(/[,;\t]/).map((v) => v.trim());
+        const get = (key: string) => {
+          const idx = headers.indexOf(key);
+          return idx >= 0 ? vals[idx] || "" : "";
+        };
+        const nome = get("nome");
+        if (!nome) continue;
+        const fn = get("funzione").toUpperCase();
+        const lvl = get("livello").toUpperCase();
+        const contr = get("contratto").toUpperCase();
+        parsed.push({
+          nome,
+          azienda: slug.toUpperCase(),
+          funzione: PE_FUNZIONI.includes(fn as typeof PE_FUNZIONI[number]) ? fn : "OPERATION",
+          livello: PE_LIVELLI.includes(lvl as typeof PE_LIVELLI[number]) ? lvl : "MIDDLE",
+          contratto: PE_CONTRATTI.includes(contr as typeof PE_CONTRATTI[number]) ? contr : "DIPENDENTE",
+          team: get("team"),
+          leader: ["true", "si", "1", "yes"].includes(get("leader").toLowerCase()),
+          anni: {
+            [YEAR]: {
+              capSett: get("h/sett") || get("capsett") ? Number(get("h/sett") || get("capsett")) || null : null,
+              mesiEff: get("mesi") || get("mesieff") ? Number(get("mesi") || get("mesieff")) || null : null,
+              costoOra: get("costo/ora") || get("costoora") ? Number(get("costo/ora") || get("costoora")) || null : null,
+              ral: get("ral") ? Number(get("ral")) || null : null,
+            },
+          },
+        });
+      }
+      if (parsed.length === 0) { showToast("Nessuna persona trovata nel file"); return; }
+      setBulkPreview(parsed);
+    };
+    reader.readAsText(file);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  function confirmBulk() {
+    if (!bulkPreview) return;
+    setPeople((prev) => [...prev, ...bulkPreview]);
+    showToast(`${bulkPreview.length} persone aggiunte`);
+    setBulkPreview(null);
+  }
+
   /* Summary stats */
   let totH = 0, totRAL = 0, dipCount = 0, freeCount = 0, opH = 0, freeH = 0;
   people.forEach((p) => {
@@ -130,6 +186,7 @@ export default function PeoplePage() {
         <span className="ee-tab active">People</span>
         <Link href={`/${params.company}/people/organization`} className="ee-tab">Organigramma</Link>
         <Link href={`/${params.company}/people/rituals`} className="ee-tab">Rituals</Link>
+        <Link href={`/${params.company}/organization/tools`} className="ee-tab">Tools</Link>
       </div>
 
       {toast && <div className="fws-toast">{toast}</div>}
@@ -139,7 +196,41 @@ export default function PeoplePage() {
           {company && <span style={{ color: company.color }}>{"\u25A0"}</span>}
           {company?.name || params.company} — People {YEAR}
           <button className="pe-add-btn" onClick={startAdd}>+ Aggiungi</button>
+          <button className="pe-add-btn" style={{ background: "var(--bg3)", color: "var(--fg2)" }} onClick={() => fileRef.current?.click()}>Upload CSV</button>
+          <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" style={{ display: "none" }} onChange={handleBulkFile} />
         </div>
+
+        {/* Bulk preview */}
+        {bulkPreview && (
+          <div className="pe-bulk-preview">
+            <div className="pe-bulk-head">
+              Anteprima: {bulkPreview.length} persone da importare
+              <button className="pe-act-save" onClick={confirmBulk}>Conferma import</button>
+              <button className="pe-act-cancel" onClick={() => setBulkPreview(null)}>Annulla</button>
+            </div>
+            <div className="pe-table-wrap">
+              <table className="pe-table">
+                <thead>
+                  <tr><th>Nome</th><th>Funzione</th><th>Livello</th><th>Contratto</th><th>Team</th><th>h/sett</th><th>Mesi</th><th>RAL</th></tr>
+                </thead>
+                <tbody>
+                  {bulkPreview.map((p, i) => {
+                    const ya = p.anni[YEAR] || {} as PersonaAnno;
+                    return (
+                      <tr key={i}>
+                        <td>{p.nome}</td><td>{p.funzione}</td><td>{p.livello}</td>
+                        <td>{p.contratto}</td><td>{p.team}</td>
+                        <td className="pe-cell-num">{ya.capSett ?? "-"}</td>
+                        <td className="pe-cell-num">{ya.mesiEff ?? "-"}</td>
+                        <td className="pe-cell-num">{ya.ral ? `\u20AC${fmtN(ya.ral)}` : "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Summary cards */}
         <div className="pe-summary">

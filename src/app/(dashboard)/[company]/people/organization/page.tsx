@@ -6,7 +6,7 @@ import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import {
-  getMockPeople, PE_FUNZIONI, PE_LIVELLI, PE_CONTRATTI,
+  getMockPeopleForCompany, PE_FUNZIONI, PE_LIVELLI, PE_CONTRATTI,
   peFnColor, peLvlClass, peInitials,
   type Persona,
 } from "@/lib/people";
@@ -174,8 +174,8 @@ export default function OrganizationPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
-  const [people, setPeople] = useLocalState<Persona[]>(`themap:${slug}:people`, getMockPeople);
-  const [orgMap, setOrgMap] = useLocalState<Record<string, string | null>>(`themap:${slug}:orgMap`, () => initOrgMap(getMockPeople()));
+  const [people, setPeople] = useLocalState<Persona[]>(`themap:${slug}:people`, () => getMockPeopleForCompany(slug));
+  const [orgMap, setOrgMap] = useLocalState<Record<string, string | null>>(`themap:${slug}:orgMap`, () => initOrgMap(getMockPeopleForCompany(slug)));
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [movingId, setMovingId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -377,6 +377,7 @@ export default function OrganizationPage() {
         <Link href={`/${params.company}/people`} className="ee-tab">People</Link>
         <span className="ee-tab active">Organigramma</span>
         <Link href={`/${params.company}/people/rituals`} className="ee-tab">Rituals</Link>
+        <Link href={`/${params.company}/organization/tools`} className="ee-tab">Tools</Link>
       </div>
 
       {toast && <div className="fws-toast">{toast}</div>}

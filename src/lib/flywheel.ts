@@ -339,6 +339,13 @@ export function fwMDV(months: (number | null)[] | undefined, idx: number, isPct:
 
 // === MOCK DATA ===
 
+import { getSquareFwData } from "./square-marketing-data";
+
+export function getMockDataForCompany(slug: string): { data: FwData; config: FwConfig } {
+  if (slug === "square-marketing") return getSquareFwData();
+  return getMockData();
+}
+
 export function getMockData(): { data: FwData; config: FwConfig } {
   const data: FwData = {
     MARKETING: {

@@ -71,7 +71,14 @@ export const OG_GAP = 10, OG_PAD = 16;
 export const OG_LDR = 30, OG_MDR = 14;
 export const OG_MIN_A = 30;
 
-/* Mock data */
+/* Mock data — company-aware */
+import { getSquarePeople } from "./square-marketing-data";
+
+export function getMockPeopleForCompany(slug: string): Persona[] {
+  if (slug === "square-marketing") return getSquarePeople();
+  return getMockPeople();
+}
+
 export function getMockPeople(): Persona[] {
   return [
     { nome: "Marco Rossi", azienda: "ACME", funzione: "DIREZIONE", livello: "SENIOR", contratto: "DIPENDENTE", team: "DIREZIONE", leader: true, anni: { 2026: { capSett: 40, mesiEff: 12, costoOra: null, ral: 85000 } } },
