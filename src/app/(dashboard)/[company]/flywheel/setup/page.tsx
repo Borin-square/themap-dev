@@ -7,7 +7,7 @@ import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import { dataVersion } from "@/lib/square-marketing-data";
 import {
-  FW_FUNCS, FW_MN, getMockDataForCompany, fwSegColor,
+  FW_FUNCS, FW_MN, getMockDataForCompany, fwSegColor, fwSortedGoals,
   type FwData, type FwConfig, type FwConfigEntry, type FwGoalData,
 } from "@/lib/flywheel";
 
@@ -221,14 +221,13 @@ export default function FlywheelSetupPage() {
     const next = JSON.parse(JSON.stringify(data)) as FwData;
     const goals = next[fn];
     if (!goals) return;
-    const keys = Object.keys(goals);
+    const keys = fwSortedGoals(goals);
     const idx = keys.indexOf(goalName);
     const newIdx = idx + dir;
     if (newIdx < 0 || newIdx >= keys.length) return;
     [keys[idx], keys[newIdx]] = [keys[newIdx], keys[idx]];
-    const reordered: Record<string, FwGoalData> = {};
-    keys.forEach((k) => { reordered[k] = goals[k]; });
-    next[fn] = reordered;
+    // Persist order explicitly via _order field (JSONB doesn't preserve key order)
+    keys.forEach((k, i) => { goals[k]._order = i; });
     setData(next);
     showToast(`${goalName} ${dir === -1 ? "\u2191" : "\u2193"}`);
   }
@@ -267,7 +266,7 @@ export default function FlywheelSetupPage() {
 
         {FW_FUNCS.map((fn) => {
           const goals = data[fn] || {};
-          const goalKeys = Object.keys(goals);
+          const goalKeys = fwSortedGoals(goals);
           const segColor = fwSegColor(fn);
 
           return (

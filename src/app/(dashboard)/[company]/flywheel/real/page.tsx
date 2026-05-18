@@ -7,8 +7,8 @@ import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import { dataVersion } from "@/lib/square-marketing-data";
 import {
-  FW_FUNCS, FW_MN, getMockDataForCompany, fwSegColor,
-  type FwData,
+  FW_FUNCS, FW_MN, getMockDataForCompany, fwSegColor, fwSortedGoals,
+  type FwData, type FwGoalData,
 } from "@/lib/flywheel";
 
 export default function FlywheelRealPage() {
@@ -65,7 +65,7 @@ export default function FlywheelRealPage() {
 
         {FW_FUNCS.map((fn) => {
           const goals = data[fn] || {};
-          const goalKeys = Object.keys(goals);
+          const goalKeys = fwSortedGoals(goals);
           const segColor = fwSegColor(fn);
           if (goalKeys.length === 0) return null;
 

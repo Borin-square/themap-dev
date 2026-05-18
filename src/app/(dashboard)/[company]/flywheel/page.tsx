@@ -10,7 +10,7 @@ import {
   FW_SEGS, FW_IR, FW_OR, FW_MR, FW_SR, FW_LR, FW_GAP, FW_SEG_ANGLE, FW_PAD, FW_GDR, FW_SDR,
   FW_GRN, FW_YEL, FW_RED, FW_GRY, FW_MN, FW_PER, FW_PER_LBL,
   fwP, fwArc, fwTA, fwSC, fwSCl, fwGR, fwMom, fwCR, fwDV, fwMDV, fwSMR,
-  getMockDataForCompany,
+  getMockDataForCompany, fwSortedGoals,
   type FwGoalData, type FwConfigEntry, type FwData, type FwConfig,
 } from "@/lib/flywheel";
 
@@ -223,7 +223,7 @@ export default function FlywheelOverviewPage() {
               const a0 = idx * (FW_SEG_ANGLE + FW_GAP);
               const a1 = a0 + FW_SEG_ANGLE;
               const goals = data[seg.key] || {};
-              const names = Object.keys(goals);
+              const names = fwSortedGoals(goals);
 
               // Segment label
               const lA = (a0 + a1) / 2;

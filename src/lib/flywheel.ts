@@ -9,6 +9,7 @@ export interface FwSubgoalData {
 }
 
 export interface FwGoalData extends FwSubgoalData {
+  _order?: number;
   subgoals: Record<string, FwSubgoalData>;
 }
 
@@ -65,6 +66,14 @@ export const FW_PER_LBL: Record<string, string> = {
   m0: "Gennaio", m1: "Febbraio", m2: "Marzo", m3: "Aprile", m4: "Maggio", m5: "Giugno",
   m6: "Luglio", m7: "Agosto", m8: "Settembre", m9: "Ottobre", m10: "Novembre", m11: "Dicembre",
 };
+
+/** Get goal keys sorted by _order (fallback: insertion order) */
+export function fwSortedGoals(goals: Record<string, FwGoalData>): string[] {
+  const keys = Object.keys(goals);
+  const hasOrder = keys.some((k) => goals[k]._order != null);
+  if (!hasOrder) return keys;
+  return keys.sort((a, b) => (goals[a]._order ?? 999) - (goals[b]._order ?? 999));
+}
 
 // === SVG HELPERS ===
 
