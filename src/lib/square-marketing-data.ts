@@ -2,187 +2,235 @@ import type { FwData, FwConfig } from "./flywheel";
 import type { Campaign } from "./marketing";
 import type { Persona } from "./people";
 
-/* ══════════════════════════════════════
-   SQUARE MARKETING — Dati iniziali
-   ══════════════════════════════════════ */
-
-// ── PEOPLE ──
+/* Data imported from THE MAP (Google Apps Script) */
 
 export function getSquarePeople(): Persona[] {
   return [
-    { nome: "Davide Borin", azienda: "SQUARE MARKETING", funzione: "DIREZIONE", livello: "SENIOR", contratto: "DIPENDENTE", team: "DIREZIONE", leader: true, anni: { 2026: { capSett: 40, mesiEff: 12, costoOra: null, ral: 75000 } } },
-    { nome: "Sara Colombo", azienda: "SQUARE MARKETING", funzione: "MARKETING", livello: "SENIOR", contratto: "DIPENDENTE", team: "Strategy", leader: true, anni: { 2026: { capSett: 40, mesiEff: 12, costoOra: null, ral: 45000 } } },
-    { nome: "Luca Martinelli", azienda: "SQUARE MARKETING", funzione: "SALES", livello: "SENIOR", contratto: "DIPENDENTE", team: "Sales", leader: true, anni: { 2026: { capSett: 40, mesiEff: 12, costoOra: null, ral: 48000 } } },
-    { nome: "Giulia Ferraro", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "DIPENDENTE", team: "Account", leader: true, anni: { 2026: { capSett: 40, mesiEff: 12, costoOra: null, ral: 42000 } } },
-    { nome: "Marco Pellegrini", azienda: "SQUARE MARKETING", funzione: "MARKETING", livello: "MIDDLE", contratto: "DIPENDENTE", team: "Performance", leader: false, anni: { 2026: { capSett: 40, mesiEff: 12, costoOra: null, ral: 35000 } } },
-    { nome: "Chiara Benedetti", azienda: "SQUARE MARKETING", funzione: "MARKETING", livello: "MIDDLE", contratto: "DIPENDENTE", team: "Content", leader: false, anni: { 2026: { capSett: 40, mesiEff: 11, costoOra: null, ral: 32000 } } },
-    { nome: "Andrea Moretti", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "Account", leader: false, anni: { 2026: { capSett: 40, mesiEff: 12, costoOra: null, ral: 33000 } } },
-    { nome: "Elena Ricci", azienda: "SQUARE MARKETING", funzione: "MARKETING", livello: "JUNIOR", contratto: "DIPENDENTE", team: "Social", leader: false, anni: { 2026: { capSett: 40, mesiEff: 11, costoOra: null, ral: 26000 } } },
-    { nome: "Tommaso Galli", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "JUNIOR", contratto: "DIPENDENTE", team: "Account", leader: false, anni: { 2026: { capSett: 40, mesiEff: 10, costoOra: null, ral: 25000 } } },
-    { nome: "Alessia Fontana", azienda: "SQUARE MARKETING", funzione: "MARKETING", livello: "MIDDLE", contratto: "FREELANCE", team: "SEO", leader: false, anni: { 2026: { capSett: 24, mesiEff: 10, costoOra: 35, ral: null } } },
-    { nome: "Roberto De Luca", azienda: "SQUARE MARKETING", funzione: "MARKETING", livello: "SENIOR", contratto: "FREELANCE", team: "Creative", leader: false, anni: { 2026: { capSett: 20, mesiEff: 12, costoOra: 50, ral: null } } },
-    { nome: "Valentina Orsini", azienda: "SQUARE MARKETING", funzione: "AMMINISTRAZIONE", livello: "MIDDLE", contratto: "DIPENDENTE", team: "Admin", leader: true, anni: { 2026: { capSett: 30, mesiEff: 12, costoOra: null, ral: 32000 } } },
+    { nome: "Alessandra Marafetti", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "DIPENDENTE", team: "KOTLER", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Michele Buoso", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "DIPENDENTE", team: "GODIN", leader: true, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Stefano Rizzo", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "DIPENDENTE", team: "GODIN", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Alice Martelloni", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "GODIN", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Beatrice Tardiani", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "GODIN", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Riccardo Claudi", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "JUNIOR", contratto: "DIPENDENTE", team: "GODIN", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Alessandra Ziviani", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "GODIN", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Vania Rigon", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "FRANK", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Nicholas Ferrari", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "DIPENDENTE", team: "KOTLER", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Fabio Zanoncello", azienda: "SQUARE MARKETING", funzione: "SALES", livello: "SENIOR", contratto: "DIPENDENTE", team: "", leader: true, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Rebecca Mantoanello", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "KOTLER", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Federico Montresor", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "DIPENDENTE", team: "KOTLER", leader: true, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Alessia Lorenzetto", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "JUNIOR", contratto: "DIPENDENTE", team: "GODIN", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Fabio Giacomello", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "FREELANCE", team: "KOTLER", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Silvia Cenci", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "DIPENDENTE", team: "FRANK", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Manuel Sgrazzutti", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "DIPENDENTE", team: "KOTLER", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Marco Gonella", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "KOTLER", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Sara Crepaldi", azienda: "SQUARE MARKETING", funzione: "SALES", livello: "SENIOR", contratto: "DIPENDENTE", team: "", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Viviana Menin", azienda: "SQUARE MARKETING", funzione: "AMMINISTRAZIONE", livello: "MIDDLE", contratto: "DIPENDENTE", team: "", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Paola Soldi", azienda: "SQUARE MARKETING", funzione: "AMMINISTRAZIONE", livello: "MIDDLE", contratto: "DIPENDENTE", team: "", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Anna Mirandola", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "FREELANCE", team: "GODIN", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Elia Signorato", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "KOTLER", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Luca Calzolari", azienda: "SQUARE MARKETING", funzione: "SALES", livello: "JUNIOR", contratto: "DIPENDENTE", team: "", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Giovanni Solimeno", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "SENIOR", contratto: "DIPENDENTE", team: "FRANK", leader: true, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Nicola Ferrari", azienda: "SQUARE MARKETING", funzione: "MARKETING", livello: "SENIOR", contratto: "DIPENDENTE", team: "", leader: true, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Giuseppe Vivaldi", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "GODIN", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Michele Gelmini", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "FRANK", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Davide Zago", azienda: "SQUARE MARKETING", funzione: "AMMINISTRAZIONE", livello: "MIDDLE", contratto: "DIPENDENTE", team: "", leader: true, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Alessia Tezza", azienda: "SQUARE MARKETING", funzione: "SALES", livello: "JUNIOR", contratto: "DIPENDENTE", team: "", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Borin Nicholas", azienda: "SQUARE MARKETING", funzione: "DIREZIONE", livello: "SENIOR", contratto: "DIPENDENTE", team: "", leader: true, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Edoardo Rossignoli", azienda: "SQUARE MARKETING", funzione: "DIREZIONE", livello: "SENIOR", contratto: "DIPENDENTE", team: "", leader: true, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Giovanni Bergamini", azienda: "SQUARE MARKETING", funzione: "DIREZIONE", livello: "SENIOR", contratto: "DIPENDENTE", team: "", leader: true, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Thomas Ferrari", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "KOTLER", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Chiara Fenzi", azienda: "SQUARE MARKETING", funzione: "OPERATION", livello: "MIDDLE", contratto: "DIPENDENTE", team: "FRANK", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
+    { nome: "Emma Pecirep", azienda: "SQUARE MARKETING", funzione: "AMMINISTRAZIONE", livello: "JUNIOR", contratto: "DIPENDENTE", team: "", leader: false, anni: { 2026: { capSett: null, mesiEff: null, costoOra: null, ral: null } } },
   ];
 }
-
-// ── FLYWHEEL ──
 
 export function getSquareFwData(): { data: FwData; config: FwConfig } {
   const data: FwData = {
     MARKETING: {
-      "Lead Generation": {
-        owner: "Marco Pellegrini", isPercent: false, isCurrency: false,
-        real: [85, 92, 98, 105, 110, null, null, null, null, null, null, null],
-        forecast: [80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135],
+      "POSIZIONE SU DIRECTORY": {
+        owner: "NICOLA FERRARI", isPercent: false, isCurrency: false,
+        real: [2, 2, 1.9, 2.07, null, null, null, null, null, null, null, null],
+        forecast: [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5],
+        subgoals: {},
+      },
+      "TRAFFICO SITO": {
+        owner: "N. Ferrari", isPercent: false, isCurrency: false,
+        real: [1800, 1800, 1700, 1200, null, null, null, null, null, null, null, null],
+        forecast: [1800, 1800, 1800, 1890, 1984.5, 2083.72, 2187.91, 2297.31, 2412.17, 2532.78, 2659.42, 2792.39],
+        subgoals: {},
+      },
+      "TOTALE OFFERTE": {
+        owner: "F. Zanoncello", isPercent: false, isCurrency: false,
+        real: [null, null, null, null, null, null, null, null, null, null, null, null],
+        forecast: [null, null, null, null, null, null, null, null, null, null, null, null],
         subgoals: {
-          "Google Ads": { owner: "Marco Pellegrini", isPercent: false, isCurrency: false, real: [35, 38, 42, 45, 48, null, null, null, null, null, null, null], forecast: [30, 32, 35, 38, 40, 42, 45, 48, 50, 52, 55, 58] },
-          "Meta Ads": { owner: "Marco Pellegrini", isPercent: false, isCurrency: false, real: [28, 30, 32, 35, 33, null, null, null, null, null, null, null], forecast: [25, 27, 28, 30, 32, 34, 35, 37, 38, 40, 42, 44] },
-          "SEO / Organic": { owner: "Alessia Fontana", isPercent: false, isCurrency: false, real: [22, 24, 24, 25, 29, null, null, null, null, null, null, null], forecast: [25, 26, 27, 27, 28, 29, 30, 30, 32, 33, 33, 33] },
+          "FONTE MARKETING": { owner: "N. Ferrari", isPercent: false, isCurrency: false, real: [38, 29, 36, 38, null, null, null, null, null, null, null, null], forecast: [60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60] },
+          "FONTE SALES": { owner: "F. Zanoncello", isPercent: false, isCurrency: false, real: [30, 20, 32, 19, null, null, null, null, null, null, null, null], forecast: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20] },
         },
-      },
-      "Brand Awareness": {
-        owner: "Sara Colombo", isPercent: true, isCurrency: false,
-        real: [0.12, 0.13, 0.14, 0.15, 0.16, null, null, null, null, null, null, null],
-        forecast: [0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20, 0.21, 0.22, 0.23],
-        subgoals: {},
-      },
-      "Content Output": {
-        owner: "Chiara Benedetti", isPercent: false, isCurrency: false,
-        real: [12, 14, 11, 15, 13, null, null, null, null, null, null, null],
-        forecast: [12, 12, 12, 14, 14, 14, 16, 16, 16, 18, 18, 18],
-        subgoals: {},
       },
     },
     SALES: {
-      "Fatturato": {
-        owner: "Luca Martinelli", isPercent: false, isCurrency: true,
-        real: [38000, 42000, 45000, 41000, 48000, null, null, null, null, null, null, null],
-        forecast: [35000, 37000, 40000, 42000, 45000, 47000, 50000, 48000, 52000, 55000, 58000, 62000],
+      "TASSO DI CHIUSURA": {
+        owner: "F. Zanoncello", isPercent: false, isCurrency: false,
+        real: [null, null, null, null, null, null, null, null, null, null, null, null],
+        forecast: [null, null, null, null, null, null, null, null, null, null, null, null],
         subgoals: {
-          Retainer: { owner: "Luca Martinelli", isPercent: false, isCurrency: true, real: [22000, 22000, 24000, 24000, 26000, null, null, null, null, null, null, null], forecast: [20000, 20000, 22000, 22000, 24000, 24000, 26000, 26000, 28000, 28000, 30000, 30000] },
-          Progetti: { owner: "Luca Martinelli", isPercent: false, isCurrency: true, real: [16000, 20000, 21000, 17000, 22000, null, null, null, null, null, null, null], forecast: [15000, 17000, 18000, 20000, 21000, 23000, 24000, 22000, 24000, 27000, 28000, 32000] },
+          "FONTE SALES": { owner: "N. Ferrari", isPercent: false, isCurrency: false, real: [0.26, 0.26, 0.2, 0.07, null, null, null, null, null, null, null, null], forecast: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25] },
+          "FONTE MARKETING": { owner: "F. Zanoncello", isPercent: false, isCurrency: false, real: [0.12, 0.2, 0.11, 0.1, null, null, null, null, null, null, null, null], forecast: [0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15] },
         },
       },
-      "Pipeline Value": {
-        owner: "Luca Martinelli", isPercent: false, isCurrency: true,
-        real: [120000, 135000, 145000, 130000, 155000, null, null, null, null, null, null, null],
-        forecast: [100000, 110000, 120000, 130000, 140000, 150000, 160000, 165000, 170000, 180000, 190000, 200000],
-        subgoals: {},
+      "VENDITA MEDIA": {
+        owner: "F. Zanoncello", isPercent: false, isCurrency: false,
+        real: [null, null, null, null, null, null, null, null, null, null, null, null],
+        forecast: [null, null, null, null, null, null, null, null, null, null, null, null],
+        subgoals: {
+          "FONTE SALES": { owner: "F. Zanoncello", isPercent: false, isCurrency: false, real: [10511, 6276, 6285, 1485, null, null, null, null, null, null, null, null], forecast: [12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500] },
+          "FONTE MARKETING": { owner: "F. Zanoncello", isPercent: false, isCurrency: false, real: [16844, 9210, 7770, 10582, null, null, null, null, null, null, null, null], forecast: [12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500, 12500] },
+        },
       },
-      "Conversion Rate": {
-        owner: "Luca Martinelli", isPercent: true, isCurrency: false,
-        real: [0.22, 0.25, 0.24, 0.28, 0.26, null, null, null, null, null, null, null],
-        forecast: [0.25, 0.25, 0.26, 0.26, 0.27, 0.27, 0.28, 0.28, 0.29, 0.29, 0.30, 0.30],
-        subgoals: {},
+      "TOTALE VENDITE": {
+        owner: "F. Zanoncello", isPercent: false, isCurrency: false,
+        real: [null, null, null, null, null, null, null, null, null, null, null, null],
+        forecast: [null, null, null, null, null, null, null, null, null, null, null, null],
+        subgoals: {
+          "SALES TEAM": { owner: "F. Zanoncello", isPercent: false, isCurrency: false, real: [330000, 140000, 98400, 45320, null, null, null, null, null, null, null, null], forecast: [189000, 189000, 189000, 189000, 189000, 189000, 189000, 189000, 189000, 189000, 189000, 189000] },
+        },
       },
     },
     OPERATION: {
-      "Client Satisfaction": {
-        owner: "Giulia Ferraro", isPercent: false, isCurrency: false,
-        real: [8.2, 8.4, 8.1, 8.5, 8.3, null, null, null, null, null, null, null],
-        forecast: [8.0, 8.0, 8.2, 8.2, 8.3, 8.3, 8.5, 8.5, 8.5, 8.5, 8.5, 8.5],
+      "DELTA RICORRENTE": {
+        owner: "G. Solimeno", isPercent: false, isCurrency: false,
+        real: [null, null, null, null, null, null, null, null, null, null, null, null],
+        forecast: [null, null, null, null, null, null, null, null, null, null, null, null],
+        subgoals: {
+          "GODIN": { owner: "M. Buoso", isPercent: false, isCurrency: false, real: [6365, 2662, 859, -3345, null, null, null, null, null, null, null, null], forecast: [null, null, null, null, null, null, null, null, null, null, null, null] },
+          "KOTLER": { owner: "F. Montresor", isPercent: false, isCurrency: false, real: [3719, null, -3857, -2348, null, null, null, null, null, null, null, null], forecast: [null, null, null, null, null, null, null, null, null, null, null, null] },
+          "FRANK": { owner: "G. Solimeno", isPercent: false, isCurrency: false, real: [null, null, 1483, null, null, null, null, null, null, null, null, null], forecast: [null, null, null, null, null, null, null, null, null, null, null, null] },
+        },
+      },
+      "ORE SU ORE": {
+        owner: "G. Solimeno", isPercent: false, isCurrency: false,
+        real: [null, null, null, null, null, null, null, null, null, null, null, null],
+        forecast: [null, null, null, null, null, null, null, null, null, null, null, null],
+        subgoals: {
+          "GODIN": { owner: "M. Buoso", isPercent: false, isCurrency: false, real: [1.05, 1.05, 1.05, 1.03, null, null, null, null, null, null, null, null], forecast: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] },
+          "KOTLER": { owner: "F. Montresor", isPercent: false, isCurrency: false, real: [0.98, 0.98, 0.98, 0.91, null, null, null, null, null, null, null, null], forecast: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] },
+          "FRANK": { owner: "G. Solimeno", isPercent: false, isCurrency: false, real: [0.93, 0.93, 0.93, 0.93, null, null, null, null, null, null, null, null], forecast: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] },
+        },
+      },
+      "ADVOCACY": {
+        owner: "N. Ferrari", isPercent: false, isCurrency: false,
+        real: [null, null, null, null, null, null, null, null, null, null, null, null],
+        forecast: [null, null, null, null, null, null, null, null, null, null, null, null],
+        subgoals: {
+          "CASI STUDIO": { owner: "N. Ferrari", isPercent: false, isCurrency: false, real: [1, 4, 2, 2, null, null, null, null, null, null, null, null], forecast: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3] },
+          "RECENSIONI": { owner: "N. Ferrari", isPercent: false, isCurrency: false, real: [null, null, null, null, null, null, null, null, null, null, null, null], forecast: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6] },
+        },
+      },
+    },
+    DIREZIONE: {
+      "FATTURATO": {
+        owner: "N. BORIN", isPercent: false, isCurrency: false,
+        real: [197145, 212653, 156655, 169000, null, null, null, null, null, null, null, null],
+        forecast: [179072.91, 184410.73, 189588.4, 194610.75, 199482.43, 204207.96, 208791.72, 213237.97, 217550.83, 221734.3, 225792.27, 229728.51],
         subgoals: {},
       },
-      "On-time Delivery": {
-        owner: "Giulia Ferraro", isPercent: true, isCurrency: false,
-        real: [0.88, 0.91, 0.85, 0.93, 0.90, null, null, null, null, null, null, null],
-        forecast: [0.90, 0.90, 0.90, 0.92, 0.92, 0.92, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95],
+      "M.O.L.": {
+        owner: "N. BORIN", isPercent: false, isCurrency: false,
+        real: [93145, 27653, -46345, null, null, null, null, null, null, null, null, null],
+        forecast: [10000, 15000, 20000, 45751.59, 43080.64, 51066.16, 16584.76, 37894.03, 68230.05, 68665.04, 72277.56, 38186.51],
         subgoals: {},
       },
-      "Churn Rate": {
-        owner: "Giulia Ferraro", isPercent: true, isCurrency: false,
-        real: [0.05, 0.03, 0.04, 0.02, 0.03, null, null, null, null, null, null, null],
-        forecast: [0.05, 0.05, 0.04, 0.04, 0.04, 0.03, 0.03, 0.03, 0.03, 0.02, 0.02, 0.02],
+      "CASSA": {
+        owner: "D. Zago", isPercent: false, isCurrency: false,
+        real: [115000, -19000, -27500, -46411, null, null, null, null, null, null, null, null],
+        forecast: [10000, 15000, 20000, 45751.59, 43080.64, 51066.16, 16584.76, 37894.03, 68230.05, 68665.04, 72277.56, 38186.51],
+        subgoals: {},
+      },
+    },
+    AMMINISTRAZIONE: {
+      "COSTI TOTALI": {
+        owner: "", isPercent: false, isCurrency: false,
+        real: [104000, 185000, 203000, null, null, null, null, null, null, null, null, null],
+        forecast: [188453.68, 209229.96, 182664.57, 148859.16, 156401.79, 153141.8, 192206.96, 175343.94, 149320.78, 153069.26, 153514.71, 191542],
         subgoals: {},
       },
     },
   };
 
   const config: FwConfig = {
-    "Lead Generation": { mode: "STANDARD" },
-    "Brand Awareness": { mode: "STANDARD" },
-    "Content Output": { mode: "STANDARD" },
-    Fatturato: { mode: "STANDARD" },
-    "Pipeline Value": { mode: "STANDARD" },
-    "Conversion Rate": { mode: "STANDARD" },
-    "Client Satisfaction": { mode: "LIMITI", limInf: 7.0, limSup: 8.5 },
-    "On-time Delivery": { mode: "STANDARD" },
-    "Churn Rate": { mode: "INVERSO" },
+    "POSIZIONE SU DIRECTORY": { mode: "PARTENZA", start: 10.0 },
+    "TRAFFICO SITO": { mode: "STANDARD" },
+    "TOTALE OFFERTE": { mode: "STANDARD" },
+    "TASSO DI CHIUSURA": { mode: "STANDARD" },
+    "VENDITA MEDIA": { mode: "STANDARD" },
+    "TOTALE VENDITE": { mode: "STANDARD" },
+    "DELTA RICORRENTE": { mode: "LIMITI", limInf: -300.0, limSup: 300.0 },
+    "ORE SU ORE": { mode: "INVERSO", limInf: 1.05, limSup: 1.0 },
+    "ADVOCACY": { mode: "STANDARD" },
+    "FATTURATO": { mode: "STANDARD" },
+    "M.O.L.": { mode: "STANDARD" },
+    "CASSA": { mode: "STANDARD" },
+    "COSTI TOTALI": { mode: "INVERSO" },
   };
 
   return { data, config };
 }
 
-// ── CAMPAIGNS ──
-
 export function getSquareCampaigns(): Campaign[] {
   return [
     {
-      id: "sq-c1", nome: "Performance Google IT", piattaforma: "Google Ads", canale: "Search",
-      obiettivo: "Lead Generation", stato: "ATTIVA", data_inizio: "2026-01-01", data_fine: "2026-12-31",
-      target: "PMI Nord Italia - Marketing Manager", landing_page: "https://squaremarketing.it/contatti", note: "Campagna always-on",
+      id: "36eb55bc-0bca-4c7f-a14a-654d7aab843f", nome: "WorldWide | Italian Agency", piattaforma: "Google Ads", canale: "Search",
+      obiettivo: "Lead gen", stato: "ATTIVA", data_inizio: "2026-03-12T23:00:00.000Z", data_fine: "2026-06-29T22:00:00.000Z",
+      target: "Generico - Worldwide", landing_page: "https://squaremarketing.it/", note: "",
+      periodi: {},
+    },
+    {
+      id: "23ae0778-1eb8-4dca-b3ac-a2e168c7f06b", nome: "Digital strategy IT", piattaforma: "Google Ads", canale: "Search",
+      obiettivo: "Lead Gen", stato: "ATTIVA", data_inizio: "2026-04-17T22:00:00.000Z", data_fine: "2026-06-29T22:00:00.000Z",
+      target: "Italy", landing_page: "https://squaremarketing.it/servizio/marketing-strategy/", note: "",
       periodi: {
-        BUDGET_FC: [1800, 1800, 2000, 2000, 2200, 2200, 2500, 2500, 2500, 2800, 2800, 3000],
-        BUDGET_RE: [1750, 1900, 2100, 1950, 2300, null, null, null, null, null, null, null],
-        LEAD_FC: [22, 22, 25, 25, 28, 28, 32, 32, 32, 35, 35, 38],
-        LEAD_RE: [20, 24, 28, 26, 30, null, null, null, null, null, null, null],
-        IMPRESSIONI: [42000, 45000, 48000, 50000, 52000, null, null, null, null, null, null, null],
-        CLICK: [2100, 2300, 2500, 2600, 2800, null, null, null, null, null, null, null],
-        ROAS: [4.2, 4.5, 4.1, 4.8, 4.3, null, null, null, null, null, null, null],
+        ROAS: [null, null, null, null, null, null, null, null, null, null, null, null],
+        LEAD_RE: [null, null, null, null, null, null, null, null, null, null, null, null],
+        IMPRESSIONI: [null, null, null, 192, null, null, null, null, null, null, null, null],
+        BUDGET_RE: [null, null, null, 60, null, null, null, null, null, null, null, null],
+        LEAD_FC: [null, null, null, 8, null, null, null, null, null, null, null, null],
+        BUDGET_FC: [null, null, null, 900, null, null, null, null, null, null, null, null],
+        CLICK: [null, null, null, 45, null, null, null, null, null, null, null, null],
       },
     },
     {
-      id: "sq-c2", nome: "Brand Social", piattaforma: "Meta Ads", canale: "Social",
-      obiettivo: "Brand Awareness", stato: "ATTIVA", data_inizio: "2026-02-01", data_fine: "2026-12-31",
-      target: "Imprenditori e marketing manager 30-55", landing_page: "", note: "Focus su Instagram e LinkedIn",
+      id: "7d25e71b-9bc8-43b2-873a-af3cec408bc0", nome: "Sortlist - Campagna Visibilità - Italy - all services", piattaforma: "Altro", canale: "Altro",
+      obiettivo: "Lead Gen", stato: "ATTIVA", data_inizio: "2025-12-31T23:00:00.000Z", data_fine: "2026-12-30T23:00:00.000Z",
+      target: "Italia", landing_page: "https://squaremarketing.it/", note: "",
       periodi: {
-        BUDGET_FC: [null, 1200, 1200, 1200, 1500, 1500, 1500, 1500, 1800, 1800, 1800, 2000],
-        BUDGET_RE: [null, 1100, 1300, 1150, 1600, null, null, null, null, null, null, null],
-        LEAD_FC: [null, 15, 15, 15, 18, 18, 18, 18, 22, 22, 22, 25],
-        LEAD_RE: [null, 12, 16, 14, 20, null, null, null, null, null, null, null],
-        IMPRESSIONI: [null, 95000, 102000, 98000, 110000, null, null, null, null, null, null, null],
-        CLICK: [null, 2800, 3100, 2900, 3400, null, null, null, null, null, null, null],
-        ROAS: [null, 2.8, 3.1, 2.6, 3.5, null, null, null, null, null, null, null],
+        BUDGET_FC: [6600, 6600, 6600, 6600, 6600, 6600, 6600, 6600, 6600, 6600, 6600, 6600],
+        LEAD_FC: [30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
       },
     },
     {
-      id: "sq-c3", nome: "LinkedIn B2B", piattaforma: "LinkedIn Ads", canale: "Social",
-      obiettivo: "Lead Generation", stato: "ATTIVA", data_inizio: "2026-03-01", data_fine: "2026-09-30",
-      target: "C-Level e Marketing Director", landing_page: "https://squaremarketing.it/case-studies", note: "InMail + Sponsored Content",
+      id: "c26898d7-3857-4e08-9eac-c865557e6593", nome: "0 volume strategy | branding Agritech", piattaforma: "SEO", canale: "Content",
+      obiettivo: "Brand", stato: "PIANIFICATA", data_inizio: "2026-05-31T22:00:00.000Z", data_fine: "",
+      target: "Aziende agritech", landing_page: "", note: "Pagina Nodo Comprare link su whitepress",
       periodi: {
-        BUDGET_FC: [null, null, 800, 800, 1000, 1000, 1000, 1000, 1000, null, null, null],
-        BUDGET_RE: [null, null, 780, 850, 950, null, null, null, null, null, null, null],
-        LEAD_FC: [null, null, 8, 8, 10, 10, 12, 12, 12, null, null, null],
-        LEAD_RE: [null, null, 7, 9, 11, null, null, null, null, null, null, null],
-        IMPRESSIONI: [null, null, 25000, 28000, 32000, null, null, null, null, null, null, null],
-        CLICK: [null, null, 450, 520, 580, null, null, null, null, null, null, null],
-        ROAS: [null, null, 3.8, 4.2, 5.1, null, null, null, null, null, null, null],
+        LEAD_FC: [null, null, null, null, null, null, null, 2, 2, 2, 2, 2],
+        BUDGET_FC: [null, null, null, null, null, null, 100, null, 100, 100, 100, 100],
       },
     },
     {
-      id: "sq-c4", nome: "Retargeting Multi-channel", piattaforma: "Google Ads", canale: "Display",
-      obiettivo: "Conversioni", stato: "PIANIFICATA", data_inizio: "2026-07-01", data_fine: "2026-12-31",
-      target: "Visitatori sito e lead non convertiti", landing_page: "https://squaremarketing.it/offerta", note: "Cross-platform retargeting",
-      periodi: {
-        BUDGET_FC: [null, null, null, null, null, null, 600, 600, 600, 800, 800, 800],
-        LEAD_FC: [null, null, null, null, null, null, 15, 15, 15, 20, 20, 20],
-      },
+      id: "ae4d228f-a443-42b3-8de8-b3831a61c88b", nome: "Visibilità Italia", piattaforma: "Sortlist", canale: "Content",
+      obiettivo: "Visibilità", stato: "ATTIVA", data_inizio: "", data_fine: "",
+      target: "", landing_page: "", note: "Dati aggregati da Sortlist - pagine Italia (sortlist.it + location IT)",
+      periodi: {},
     },
     {
-      id: "sq-c5", nome: "SEO Content Hub", piattaforma: "SEO", canale: "Content",
-      obiettivo: "Traffico Organico", stato: "ATTIVA", data_inizio: "2026-01-01", data_fine: "2026-12-31",
-      target: "Ricerche informazionali marketing", landing_page: "https://squaremarketing.it/blog", note: "4 articoli/mese + pillar pages",
-      periodi: {
-        BUDGET_FC: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500],
-        BUDGET_RE: [480, 520, 500, 500, 550, null, null, null, null, null, null, null],
-        IMPRESSIONI: [18000, 22000, 28000, 35000, 42000, null, null, null, null, null, null, null],
-        CLICK: [900, 1100, 1400, 1750, 2100, null, null, null, null, null, null, null],
-      },
+      id: "9486daa6-537f-470e-b965-1c293d3a97ae", nome: "Visibilità World", piattaforma: "Sortlist", canale: "Content",
+      obiettivo: "Visibilità", stato: "ATTIVA", data_inizio: "", data_fine: "",
+      target: "", landing_page: "", note: "Dati aggregati da Sortlist - pagine internazionali",
+      periodi: {},
     },
   ];
 }
-
-// ── TOOLS / PANNELLI ──
 
 export interface ToolItem {
   id: number;
@@ -194,31 +242,27 @@ export interface ToolItem {
 
 export function getSquareTools(): ToolItem[] {
   return [
-    { id: 1, label: "Google Analytics 4", url: "https://analytics.google.com", desc: "Dashboard analytics clienti", funzione: "MARKETING" },
-    { id: 2, label: "Semrush", url: "https://semrush.com", desc: "SEO, keyword research, competitor analysis", funzione: "MARKETING" },
-    { id: 3, label: "HubSpot CRM", url: "https://app.hubspot.com", desc: "CRM e pipeline commerciale", funzione: "SALES" },
-    { id: 4, label: "Google Ads Manager", url: "https://ads.google.com", desc: "Gestione campagne Google", funzione: "MARKETING" },
-    { id: 5, label: "Meta Business Suite", url: "https://business.facebook.com", desc: "Gestione campagne Meta", funzione: "MARKETING" },
-    { id: 6, label: "LinkedIn Campaign Manager", url: "https://www.linkedin.com/campaignmanager", desc: "Campagne LinkedIn B2B", funzione: "MARKETING" },
-    { id: 7, label: "Canva", url: "https://canva.com", desc: "Design grafiche e creativita", funzione: "MARKETING" },
-    { id: 8, label: "Notion", url: "https://notion.so", desc: "Knowledge base e project management", funzione: "OPERATION" },
-    { id: 9, label: "Slack", url: "https://slack.com", desc: "Comunicazione team", funzione: "OPERATION" },
-    { id: 10, label: "Google Drive", url: "https://drive.google.com", desc: "Documentazione condivisa", funzione: "DIREZIONE" },
-    { id: 11, label: "Fatture in Cloud", url: "https://fattureincloud.it", desc: "Fatturazione e contabilita", funzione: "AMMINISTRAZIONE" },
-    { id: 12, label: "Looker Studio", url: "https://lookerstudio.google.com", desc: "Report e dashboard clienti", funzione: "OPERATION" },
-    { id: 13, label: "Hotjar", url: "https://hotjar.com", desc: "Heatmap e UX analytics", funzione: "MARKETING" },
-    { id: 14, label: "Mailchimp", url: "https://mailchimp.com", desc: "Email marketing e automazioni", funzione: "MARKETING" },
+    { id: 1, label: "MARKETING DASHBOARD", url: "https://app-eu1.hubspot.com/reports-dashboard/25765022/view/111115780", desc: "", funzione: "MARKETING" },
+    { id: 2, label: "SALES DASHBOARD", url: "https://app-eu1.hubspot.com/reports-dashboard/25765022/view/111115780", desc: "", funzione: "SALES" },
+    { id: 3, label: "OPERATION CONSOLE", url: "https://script.google.com/a/macros/squaremarketing.it/s/AKfycbyvkxGxOIEjvgNdRHFvC29DhBhTl2Anz2DAgpjlEkZW/dev", desc: "", funzione: "OPERATION" },
+    { id: 4, label: "COSTI RICAVI", url: "https://script.google.com/a/macros/squaremarketing.it/s/AKfycbwTFI96np50EngiIPrPiCNnBMRHqdANYNv0-kUQDmVG8hMFOwomF2gYmZLVTYKirEonig/exec", desc: "tracking entrate/uscite banca e carte", funzione: "AMMINISTRAZIONE" },
+    { id: 5, label: "CROSSROADS", url: "https://script.google.com/a/macros/squaremarketing.it/s/AKfycbxop2tOHx9GocXirGCOANinabA_TI8tQhGAKJO2KqGboTXUyg3M08HTN0Twh_aVKWwXZg/exec", desc: "Scostamento tra dipendenti in cloud e workload asana", funzione: "AMMINISTRAZIONE" },
+    { id: 6, label: "CREDIT FLOW", url: "https://script.google.com/a/macros/squaremarketing.it/s/AKfycbxe6dBPT6halv2hYTGmZJETV9zAZ_8T712IuCzGk-xlaJL_vcSlGCp4QTgMX17AWWxhxA/exec", desc: "tool di calendarizzazione azioni da eseguire per recupero crediti", funzione: "AMMINISTRAZIONE" },
+    { id: 7, label: "SCADENZIARIO HUBSPOT", url: "https://script.google.com/a/macros/squaremarketing.it/s/AKfycbx1hP3Az8ldMPORr67nDQ2Ha20hUApdjEzNQtqvwQf_fQG1yZVVPH6c9frLdfvZF8TpYw/exec", desc: "tool di calendarizzazione/monitoring rate fatturazione attiva", funzione: "AMMINISTRAZIONE" },
+    { id: 8, label: "SCADENZIARIO", url: "https://script.google.com/a/macros/squaremarketing.it/s/AKfycbwXIoOHd_p9N0w9D5_3-t1D4S_gP_S_ZO4zfEsjuM1rkNV_kcExNjbiT0CcsnTr3hIn/exec", desc: "scadenziario fatture emesse (scadenziario incassi clienti)", funzione: "AMMINISTRAZIONE" },
+    { id: 9, label: "MICROTOOLS", url: "http://192.168.1.254:8080/", desc: "", funzione: "AMMINISTRAZIONE" },
+    { id: 10, label: "Gestione attrezzatura", url: "https://script.google.com/a/macros/squaremarketing.it/s/AKfycbwZWsPY8ib7NlUqrBWhq95COL7wWohTu2WkPjRQMbsIxQxuZ0U3rfErNtvItCHieZ0oxA/exec", desc: "", funzione: "" },
+    { id: 11, label: "Sorlist tracker V2", url: "https://docs.google.com/spreadsheets/d/1_uKWDk58kNvSW3GsI5jUsuzJUXCTibCzzpmlwEomUe4/edit?gid=1076170372#gid=1076170372", desc: "", funzione: "MARKETING" },
+    { id: 12, label: "Libreria Markdown", url: "https://claude.ai/public/artifacts/c0afd283-333b-41db-b15e-c4526c73ebf3", desc: "", funzione: "" },
   ];
 }
-
-// ── BUDGET MARKETING ──
 
 export interface BudgetItem {
   id: string;
   attivita: string;
   spesa_fc: number | null;
   spesa_re: number | null;
-  effort: number | null; // ore
+  effort: number | null;
   commenti: string;
   is_group: boolean;
   parent_gid: string;
@@ -227,23 +271,15 @@ export interface BudgetItem {
 
 export function getSquareBudget(): BudgetItem[] {
   return [
-    { id: "g1", attivita: "Performance Advertising", spesa_fc: 52800, spesa_re: 24100, effort: null, commenti: "", is_group: true, parent_gid: "", group_id: "g1" },
-    { id: "b1", attivita: "Google Ads Search", spesa_fc: 26400, spesa_re: 10700, effort: 120, commenti: "Campagna always-on", is_group: false, parent_gid: "g1", group_id: "" },
-    { id: "b2", attivita: "Meta Ads Social", spesa_fc: 17400, spesa_re: 8150, effort: 80, commenti: "Instagram + Facebook", is_group: false, parent_gid: "g1", group_id: "" },
-    { id: "b3", attivita: "LinkedIn Ads B2B", spesa_fc: 9000, spesa_re: 5250, effort: 60, commenti: "InMail + Sponsored", is_group: false, parent_gid: "g1", group_id: "" },
-
-    { id: "g2", attivita: "Content & SEO", spesa_fc: 12000, spesa_re: 5500, effort: null, commenti: "", is_group: true, parent_gid: "", group_id: "g2" },
-    { id: "b4", attivita: "Blog & Pillar Pages", spesa_fc: 6000, spesa_re: 3000, effort: 180, commenti: "4 articoli/mese", is_group: false, parent_gid: "g2", group_id: "" },
-    { id: "b5", attivita: "SEO Tools (Semrush)", spesa_fc: 3600, spesa_re: 1500, effort: 24, commenti: "Licenza annuale", is_group: false, parent_gid: "g2", group_id: "" },
-    { id: "b6", attivita: "Video Production", spesa_fc: 2400, spesa_re: 1000, effort: 60, commenti: "1 video/mese", is_group: false, parent_gid: "g2", group_id: "" },
-
-    { id: "g3", attivita: "Brand & PR", spesa_fc: 8000, spesa_re: 2800, effort: null, commenti: "", is_group: true, parent_gid: "", group_id: "g3" },
-    { id: "b7", attivita: "Eventi e Sponsorship", spesa_fc: 5000, spesa_re: 1800, effort: 40, commenti: "2 eventi H1", is_group: false, parent_gid: "g3", group_id: "" },
-    { id: "b8", attivita: "PR e Media Relations", spesa_fc: 3000, spesa_re: 1000, effort: 30, commenti: "", is_group: false, parent_gid: "g3", group_id: "" },
-
-    { id: "g4", attivita: "Tools & Infrastruttura", spesa_fc: 7200, spesa_re: 3100, effort: null, commenti: "", is_group: true, parent_gid: "", group_id: "g4" },
-    { id: "b9", attivita: "CRM (HubSpot)", spesa_fc: 3600, spesa_re: 1500, effort: 12, commenti: "Piano Professional", is_group: false, parent_gid: "g4", group_id: "" },
-    { id: "b10", attivita: "Analytics & Reporting", spesa_fc: 2400, spesa_re: 1100, effort: 48, commenti: "GA4 + Hotjar + Looker", is_group: false, parent_gid: "g4", group_id: "" },
-    { id: "b11", attivita: "Email Marketing (Mailchimp)", spesa_fc: 1200, spesa_re: 500, effort: 36, commenti: "", is_group: false, parent_gid: "g4", group_id: "" },
+    { id: "b1", attivita: "Meta Ads", spesa_fc: 9000, spesa_re: null, effort: null, commenti: "", is_group: false, parent_gid: "98307d94-7560-4e6f-bcf3-e8778e725f4b", group_id: "" },
+    { id: "b2", attivita: "Google Ads", spesa_fc: 9000, spesa_re: null, effort: null, commenti: "", is_group: false, parent_gid: "98307d94-7560-4e6f-bcf3-e8778e725f4b", group_id: "" },
+    { id: "b3", attivita: "Linkedin Ads", spesa_fc: 9000, spesa_re: null, effort: null, commenti: "", is_group: false, parent_gid: "98307d94-7560-4e6f-bcf3-e8778e725f4b", group_id: "" },
+    { id: "b4", attivita: "Il sole 24 ore", spesa_fc: 6000, spesa_re: 5000, effort: null, commenti: "", is_group: false, parent_gid: "cd31d1be-929e-480d-ac11-ea17888fd33f", group_id: "" },
+    { id: "b5", attivita: "Nuova attività", spesa_fc: null, spesa_re: null, effort: null, commenti: "", is_group: false, parent_gid: "cd31d1be-929e-480d-ac11-ea17888fd33f", group_id: "" },
+    { id: "b6", attivita: "Media", spesa_fc: null, spesa_re: null, effort: null, commenti: "", is_group: true, parent_gid: "", group_id: "98307d94-7560-4e6f-bcf3-e8778e725f4b" },
+    { id: "b7", attivita: "Partnership", spesa_fc: null, spesa_re: null, effort: null, commenti: "", is_group: true, parent_gid: "", group_id: "cd31d1be-929e-480d-ac11-ea17888fd33f" },
+    { id: "b8", attivita: "Pr/ Link", spesa_fc: null, spesa_re: null, effort: null, commenti: "", is_group: true, parent_gid: "", group_id: "5213c0dd-a829-4305-9a94-dce6a961619a" },
+    { id: "b9", attivita: "Engage", spesa_fc: 2000, spesa_re: null, effort: null, commenti: "", is_group: false, parent_gid: "5213c0dd-a829-4305-9a94-dce6a961619a", group_id: "" },
+    { id: "b10", attivita: "Meet the Agency", spesa_fc: 2000, spesa_re: 2000, effort: null, commenti: "", is_group: false, parent_gid: "5213c0dd-a829-4305-9a94-dce6a961619a", group_id: "" },
   ];
 }
