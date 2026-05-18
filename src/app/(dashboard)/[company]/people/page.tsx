@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
+import { dataVersion } from "@/lib/square-marketing-data";
 import {
   getMockPeopleForCompany, PE_FUNZIONI, PE_LIVELLI, PE_CONTRATTI,
   peFnColor, peLvlClass,
@@ -29,7 +30,8 @@ export default function PeoplePage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
-  const [people, setPeople] = useLocalState<Persona[]>(`themap:${slug}:people`, () => getMockPeopleForCompany(slug));
+  const dv = dataVersion(slug);
+  const [people, setPeople] = useLocalState<Persona[]>(`themap:${slug}:people`, () => getMockPeopleForCompany(slug), dv);
   const [editId, setEditId] = useState<string | null>(null); // nome of person being edited
   const [addRow, setAddRow] = useState<Persona | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);

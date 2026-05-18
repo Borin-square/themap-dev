@@ -3,6 +3,13 @@ import type { Campaign } from "./marketing";
 import type { Persona } from "./people";
 
 /* Data imported from THE MAP (Google Apps Script) */
+/** Bump this when default data changes to invalidate cached versions */
+export const SQUARE_DATA_VERSION = 2;
+
+/** Returns data version for a company slug (undefined = no versioning) */
+export function dataVersion(slug: string): number | undefined {
+  return slug === "square-marketing" ? SQUARE_DATA_VERSION : undefined;
+}
 
 export function getSquarePeople(): Persona[] {
   return [

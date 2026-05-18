@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany, COMPANIES } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
+import { dataVersion } from "@/lib/square-marketing-data";
 import { getMockPeopleForCompany, type Persona } from "@/lib/people";
 
 interface Evento {
@@ -80,8 +81,9 @@ export default function RitualsPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
-  const [events, setEvents] = useLocalState<Evento[]>(`themap:${slug}:events`, getMockEvents);
-  const [people] = useLocalState<Persona[]>(`themap:${slug}:people`, () => getMockPeopleForCompany(slug));
+  const dv = dataVersion(slug);
+  const [events, setEvents] = useLocalState<Evento[]>(`themap:${slug}:events`, getMockEvents, dv);
+  const [people] = useLocalState<Persona[]>(`themap:${slug}:people`, () => getMockPeopleForCompany(slug), dv);
   const [editId, setEditId] = useState<number | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [draft, setDraft] = useState<Evento | null>(null);

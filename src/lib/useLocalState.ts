@@ -8,13 +8,15 @@ import { supabase } from "./supabase";
  * Key format: "themap:<company>:<dataType>"
  * Syncs to Supabase (source of truth) with localStorage as cache/fallback.
  */
-export function useLocalState<T>(key: string, init: () => T): [T, Dispatch<SetStateAction<T>>] {
+export function useLocalState<T>(key: string, init: () => T, version?: number): [T, Dispatch<SetStateAction<T>>] {
+  // When version is provided, append it to storage keys so old cached data is ignored
+  const vKey = version != null ? `${key}:v${version}` : key;
   const [state, setState] = useState<T>(init);
   const [hydrated, setHydrated] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Parse key → company + dataKey
-  const parts = key.split(":");
+  const parts = vKey.split(":");
   const company = parts[1] || "";
   const dataKey = parts.slice(2).join(":") || parts[0];
 
@@ -35,7 +37,7 @@ export function useLocalState<T>(key: string, init: () => T): [T, Dispatch<SetSt
         if (!error && data && !cancelled) {
           setState(data.data as T);
           // Update localStorage cache
-          try { localStorage.setItem(key, JSON.stringify(data.data)); } catch {}
+          try { localStorage.setItem(vKey, JSON.stringify(data.data)); } catch {}
           setHydrated(true);
           return;
         }
@@ -44,7 +46,7 @@ export function useLocalState<T>(key: string, init: () => T): [T, Dispatch<SetSt
       // Fallback: localStorage
       if (!cancelled) {
         try {
-          const stored = localStorage.getItem(key);
+          const stored = localStorage.getItem(vKey);
           if (stored) setState(JSON.parse(stored));
         } catch {}
         setHydrated(true);
@@ -53,7 +55,7 @@ export function useLocalState<T>(key: string, init: () => T): [T, Dispatch<SetSt
 
     load();
     return () => { cancelled = true; };
-  }, [key, company, dataKey]);
+  }, [vKey, company, dataKey]);
 
   // Save: debounced write to both Supabase and localStorage
   const saveToSupabase = useCallback(
@@ -61,7 +63,7 @@ export function useLocalState<T>(key: string, init: () => T): [T, Dispatch<SetSt
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         // localStorage (immediate cache)
-        try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+        try { localStorage.setItem(vKey, JSON.stringify(value)); } catch {}
 
         // Supabase (upsert)
         try {
@@ -74,7 +76,7 @@ export function useLocalState<T>(key: string, init: () => T): [T, Dispatch<SetSt
         } catch { /* offline — localStorage has the data */ }
       }, 500);
     },
-    [key, company, dataKey],
+    [vKey, company, dataKey],
   );
 
   // Trigger save after hydration

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
+import { dataVersion } from "@/lib/square-marketing-data";
 import {
   MKTG_STATI, MKTG_PIATTAFORME, MKTG_CANALI, MKTG_MONTHS,
   MKTG_MET_EDIT, MKTG_MET_LABELS,
@@ -19,8 +20,9 @@ export default function MarketingPage() {
   const company = getCompany(params.company as string);
   const slug = params.company as string;
 
+  const dv = dataVersion(slug);
   const [campaigns, setCampaigns] = useLocalState<Campaign[]>(
-    `themap:${slug}:mktgCampaigns`, () => getMockCampaignsForCompany(slug),
+    `themap:${slug}:mktgCampaigns`, () => getMockCampaignsForCompany(slug), dv,
   );
   const [filterStato, setFilterStato] = useState("");
   const [filterPiatt, setFilterPiatt] = useState("");

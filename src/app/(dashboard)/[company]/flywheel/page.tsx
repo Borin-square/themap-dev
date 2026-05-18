@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
+import { dataVersion } from "@/lib/square-marketing-data";
 import {
   FW_SEGS, FW_IR, FW_OR, FW_MR, FW_SR, FW_LR, FW_GAP, FW_SEG_ANGLE, FW_PAD, FW_GDR, FW_SDR,
   FW_GRN, FW_YEL, FW_RED, FW_GRY, FW_MN, FW_PER, FW_PER_LBL,
@@ -43,8 +44,9 @@ export default function FlywheelOverviewPage() {
   const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
   const tipRef = useRef<HTMLDivElement>(null);
 
-  const [data] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data);
-  const [config] = useLocalState<FwConfig>(`themap:${slug}:fwConfig`, () => mock.config);
+  const dv = dataVersion(slug);
+  const [data] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data, dv);
+  const [config] = useLocalState<FwConfig>(`themap:${slug}:fwConfig`, () => mock.config, dv);
 
   const getCfg = (name: string): FwConfigEntry =>
     config[name] || { mode: "STANDARD" };

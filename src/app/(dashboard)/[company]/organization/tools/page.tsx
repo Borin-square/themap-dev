@@ -6,7 +6,7 @@ import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import { PE_FUNZIONI, peFnColor } from "@/lib/people";
-import { getSquareTools, type ToolItem } from "@/lib/square-marketing-data";
+import { getSquareTools, dataVersion, type ToolItem } from "@/lib/square-marketing-data";
 
 let _nextId = 100;
 
@@ -30,7 +30,8 @@ export default function ToolsPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
-  const [tools, setTools] = useLocalState<ToolItem[]>(`themap:${slug}:tools`, () => getMockToolsForCompany(slug));
+  const dv = dataVersion(slug);
+  const [tools, setTools] = useLocalState<ToolItem[]>(`themap:${slug}:tools`, () => getMockToolsForCompany(slug), dv);
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [draft, setDraft] = useState({ label: "", url: "", desc: "", funzione: "" });

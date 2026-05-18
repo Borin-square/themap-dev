@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
+import { dataVersion } from "@/lib/square-marketing-data";
 import {
   FW_FUNCS, FW_MN, getMockDataForCompany, fwSegColor,
   type FwData,
@@ -15,7 +16,8 @@ export default function FlywheelRealPage() {
   const company = getCompany(params.company as string);
   const slug = params.company as string;
   const mock = getMockDataForCompany(slug);
-  const [data, setData] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data);
+  const dv = dataVersion(slug);
+  const [data, setData] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data, dv);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<string | null>(null);
 
