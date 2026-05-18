@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
@@ -179,6 +179,8 @@ export default function OrganizationPage() {
   const [people, setPeople] = useLocalState<Persona[]>(`themap:${slug}:people`, () => getMockPeopleForCompany(slug), dv);
   const [orgMap, setOrgMap] = useLocalState<Record<string, string | null>>(`themap:${slug}:orgMap`, () => initOrgMap(getMockPeopleForCompany(slug)), dv);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [zoom, setZoom] = useState(1);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Persona> | null>(null);
@@ -197,6 +199,19 @@ export default function OrganizationPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Ctrl+wheel zoom
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom((z) => Math.min(Math.max(z - e.deltaY * 0.002, 0.15), 1.5));
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
   function showToast(msg: string) {
@@ -371,6 +386,14 @@ export default function OrganizationPage() {
   const offsetX = -minX + PAD;
   const offsetY = PAD;
 
+  const fitZoom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || svgW === 0) return;
+    const scaleX = el.clientWidth / svgW;
+    const scaleY = el.clientHeight / svgH;
+    setZoom(Math.min(scaleX, scaleY, 1));
+  }, [svgW, svgH]);
+
   const isEditing = editId !== null || addMode !== null;
 
   return (
@@ -397,10 +420,17 @@ export default function OrganizationPage() {
       <div className="og-topbar">
         <button className="pe-add-btn" onClick={startAddRoot}>+ Aggiungi al top</button>
         <span className="og-count">{people.length} persone</span>
+        <div className="og-zoom-controls">
+          <button className="og-zoom-btn" onClick={() => setZoom((z) => Math.min(z + 0.1, 1.5))} title="Zoom in">+</button>
+          <span className="og-zoom-label">{Math.round(zoom * 100)}%</span>
+          <button className="og-zoom-btn" onClick={() => setZoom((z) => Math.max(z - 0.1, 0.15))} title="Zoom out">&minus;</button>
+          <button className="og-zoom-btn" onClick={fitZoom} title="Adatta alla schermata">&#9634;</button>
+          <button className="og-zoom-btn" onClick={() => setZoom(1)} title="Reset zoom">1:1</button>
+        </div>
       </div>
 
-      <div className="og-scroll">
-        <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="og-svg">
+      <div className="og-scroll" ref={scrollRef}>
+        <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="og-svg" style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }}>
           {/* Connection lines */}
           {flat.map((f) => {
             if (f.parentX === undefined || f.parentY === undefined) return null;
