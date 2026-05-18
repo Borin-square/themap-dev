@@ -1478,3 +1478,43 @@ th.ee-inactive { opacity: .4; }
 .seo-sb-metrics>div{background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;display:flex;flex-direction:column;align-items:center;flex:1;min-width:70px}
 .seo-sb-met-n{font-size:16px;font-weight:700}
 .seo-sb-met-l{font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px}
+
+/* ── Workload ── */
+.wl-top-bar{display:flex;align-items:flex-start;gap:12px;margin-bottom:20px}
+.wl-filters{flex:1;display:flex;flex-direction:column;gap:8px}
+.wl-filter-group{display:flex;gap:4px;flex-wrap:wrap}
+.wl-filter-btn{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:var(--bg2);color:var(--fg2);transition:all .15s;font-family:var(--font);letter-spacing:.5px}
+.wl-filter-btn:hover{border-color:var(--fg3);color:var(--fg)}
+.wl-filter-btn.act{background:rgba(79,140,255,.15);border-color:var(--accent);color:var(--accent)}
+.wl-add-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap;flex-shrink:0}
+.wl-add-btn:hover{opacity:.85}
+.wl-add-row{display:flex;gap:8px;align-items:center;padding:10px 14px;background:var(--bg2);border:1px solid var(--bd);border-radius:8px;margin-bottom:16px;flex-wrap:wrap}
+.wl-add-inp{background:var(--bg);border:1px solid var(--bd);color:var(--fg);border-radius:5px;padding:5px 10px;font-size:12px;font-family:var(--font);min-width:140px}
+.wl-add-inp:focus{border-color:var(--accent);outline:none}
+.wl-add-sel{background:var(--bg);border:1px solid var(--bd);color:var(--fg);border-radius:5px;padding:5px 8px;font-size:12px;font-family:var(--font)}
+.wl-add-save{background:var(--accent);color:#fff;border:none;border-radius:5px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:var(--font)}
+.wl-add-cancel{background:transparent;color:var(--fg3);border:1px solid var(--bd);border-radius:5px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:var(--font)}
+.wl-section{margin-bottom:28px}
+.wl-section-title{font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:12px}
+.wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.wl-card{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:16px;transition:border-color .15s}
+.wl-card.overload{border-color:rgba(239,68,68,.5);box-shadow:0 0 12px rgba(239,68,68,.1)}
+.wl-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.wl-name{font-size:14px;font-weight:700}
+.wl-bar-text{font-size:11px;font-weight:700}
+.wl-bar-bg{width:100%;height:6px;background:#21262d;border-radius:3px;margin-bottom:8px;overflow:hidden}
+.wl-bar{height:100%;border-radius:3px;transition:width .3s}
+.wl-breakdown{font-size:11px;color:var(--fg3)}
+.wl-entry{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:3px;min-height:22px}
+.wl-entry-az{min-width:80px;font-weight:500;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-fn{color:var(--fg3);font-size:10px}
+.wl-badge{font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;background:rgba(79,140,255,.12);color:var(--accent);letter-spacing:.3px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.wl-eff{margin-left:auto;font-weight:600;color:var(--fg2);font-size:11px}
+.wl-ed{cursor:pointer;border-radius:3px;padding:1px 4px;transition:background .15s}
+.wl-ed:hover{background:rgba(79,140,255,.15);color:var(--fg)}
+.wl-edit-sel{background:var(--bg);border:1px solid var(--accent);color:var(--fg);border-radius:4px;padding:1px 4px;font-size:10px;font-family:var(--font)}
+.wl-edit-inp{width:52px;background:var(--bg);border:1px solid var(--accent);color:var(--fg);border-radius:4px;padding:2px 4px;font-size:11px;font-family:var(--font);text-align:right;margin-left:auto}
+.wl-del-btn{background:none;border:none;color:var(--fg3);font-size:13px;cursor:pointer;padding:0 2px;opacity:0;transition:opacity .15s,color .15s;line-height:1;flex-shrink:0}
+.wl-entry:hover .wl-del-btn{opacity:1}
+.wl-del-btn:hover{color:#ef4444}
+.wl-del-confirm{display:flex;gap:2px;flex-shrink:0}
