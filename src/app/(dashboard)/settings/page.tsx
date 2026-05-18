@@ -37,6 +37,10 @@ export default function SettingsPage() {
   const [editing, setEditing] = useState<UserProfile | "new" | null>(null);
   const [confirmDel, setConfirmDel] = useState<UserProfile | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [editingCo, setEditingCo] = useState<string | null>(null);
+  const [newCo, setNewCo] = useState(false);
+  const [coForm, setCoForm] = useState({ slug: "", name: "", color: "#4f8cff" });
+  const [confirmDelCo, setConfirmDelCo] = useState<string | null>(null);
 
   useEffect(() => { fetchCompanies().then(setCompanies); }, []);
 
@@ -71,6 +75,72 @@ export default function SettingsPage() {
     await loadUsers();
     setEditing(null);
     showToast(isEdit ? "Utente aggiornato" : "Utente creato");
+  }
+
+  async function reloadCompanies() {
+    const fresh = await fetchCompanies();
+    setCompanies(fresh);
+  }
+
+  function startNewCompany() {
+    setEditingCo(null);
+    setCoForm({ slug: "", name: "", color: "#4f8cff" });
+    setNewCo(true);
+  }
+
+  function startEditCompany(c: Company) {
+    setNewCo(false);
+    setConfirmDelCo(null);
+    setCoForm({ slug: c.slug, name: c.name, color: c.color });
+    setEditingCo(c.slug);
+  }
+
+  function cancelEditCompany() {
+    setEditingCo(null);
+    setNewCo(false);
+  }
+
+  async function handleSaveCompany() {
+    const { slug, name, color } = coForm;
+    if (!name.trim()) return;
+    const finalSlug = newCo
+      ? (slug.trim() || name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""))
+      : slug;
+    if (!finalSlug) return;
+
+    const token = await getToken();
+    const isNew = newCo;
+    const res = await fetch("/api/companies", {
+      method: isNew ? "POST" : "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ slug: finalSlug, name: name.trim(), color }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) { showToast(result.error || "Errore", false); return; }
+
+    await reloadCompanies();
+    cancelEditCompany();
+    showToast(isNew ? "Azienda creata" : "Azienda aggiornata");
+  }
+
+  async function handleDeleteCompany(slug: string) {
+    const token = await getToken();
+    const res = await fetch("/api/companies", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ slug }),
+    });
+
+    if (!res.ok) {
+      const r = await res.json();
+      showToast(r.error || "Errore", false);
+      return;
+    }
+
+    await reloadCompanies();
+    setConfirmDelCo(null);
+    showToast("Azienda rimossa");
   }
 
   async function handleDelete(user: UserProfile) {
@@ -193,17 +263,94 @@ export default function SettingsPage() {
       )}
 
       {tab === "aziende" && (
-        <div style={{ maxWidth: 700 }}>
+        <div className="ac-page">
+          <div className="ac-head">
+            Aziende
+            {admin && !newCo && !editingCo && (
+              <button onClick={startNewCompany}>+ Azienda</button>
+            )}
+          </div>
           <table className="ac-table">
-            <thead><tr><th style={{ width: 48 }}>Colore</th><th>Nome</th><th>Slug</th></tr></thead>
+            <thead>
+              <tr>
+                <th style={{ width: 48 }}>Colore</th>
+                <th>Nome</th>
+                <th>Slug</th>
+                {admin && <th></th>}
+              </tr>
+            </thead>
             <tbody>
-              {companies.map((c) => (
-                <tr key={c.slug}>
-                  <td><span className="ni-dot" style={{ background: c.color, display: "inline-block" }} /></td>
-                  <td>{c.name}</td>
-                  <td style={{ color: "var(--fg3)" }}>{c.slug}</td>
+              {companies.map((c) =>
+                editingCo === c.slug ? (
+                  <tr key={c.slug}>
+                    <td>
+                      <input type="color" value={coForm.color}
+                        onChange={(e) => setCoForm({ ...coForm, color: e.target.value })}
+                        style={{ width: 28, height: 28, padding: 0, border: "none", background: "none", cursor: "pointer" }} />
+                    </td>
+                    <td>
+                      <input className="setting-input" value={coForm.name}
+                        onChange={(e) => setCoForm({ ...coForm, name: e.target.value })}
+                        style={{ margin: 0 }} />
+                    </td>
+                    <td style={{ color: "var(--fg3)" }}>{c.slug}</td>
+                    <td>
+                      <div className="ac-actions">
+                        <button onClick={handleSaveCompany}>Salva</button>
+                        <button className="ac-del" onClick={cancelEditCompany}>Annulla</button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={c.slug}>
+                    <td><span className="ni-dot" style={{ background: c.color, display: "inline-block" }} /></td>
+                    <td>{c.name}</td>
+                    <td style={{ color: "var(--fg3)" }}>{c.slug}</td>
+                    {admin && (
+                      <td>
+                        {confirmDelCo === c.slug ? (
+                          <div className="ac-actions">
+                            <span style={{ fontSize: 12, color: "var(--fg2)" }}>Eliminare?</span>
+                            <button className="ac-del" onClick={() => handleDeleteCompany(c.slug)}>Si</button>
+                            <button onClick={() => setConfirmDelCo(null)}>No</button>
+                          </div>
+                        ) : (
+                          <div className="ac-actions">
+                            <button onClick={() => startEditCompany(c)}>Modifica</button>
+                            <button className="ac-del" onClick={() => setConfirmDelCo(c.slug)}>Elimina</button>
+                          </div>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                )
+              )}
+              {newCo && (
+                <tr>
+                  <td>
+                    <input type="color" value={coForm.color}
+                      onChange={(e) => setCoForm({ ...coForm, color: e.target.value })}
+                      style={{ width: 28, height: 28, padding: 0, border: "none", background: "none", cursor: "pointer" }} />
+                  </td>
+                  <td>
+                    <input className="setting-input" value={coForm.name}
+                      onChange={(e) => setCoForm({ ...coForm, name: e.target.value })}
+                      placeholder="Nome azienda" style={{ margin: 0 }} />
+                  </td>
+                  <td>
+                    <input className="setting-input" value={coForm.slug}
+                      onChange={(e) => setCoForm({ ...coForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
+                      placeholder={coForm.name ? coForm.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") : "slug"}
+                      style={{ margin: 0 }} />
+                  </td>
+                  <td>
+                    <div className="ac-actions">
+                      <button onClick={handleSaveCompany}>Salva</button>
+                      <button className="ac-del" onClick={cancelEditCompany}>Annulla</button>
+                    </div>
+                  </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
