@@ -1,16 +1,49 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { type SemanticCluster, type SCConfig, type LLMMention, generateQueries, LLM_LIST } from "@/lib/semantic-cluster";
+import OpenAI from "openai";
+import { type SemanticCluster, type SCConfig, generateQueries } from "@/lib/semantic-cluster";
 
 export const maxDuration = 120;
 
-function getClient() {
+function getAnthropicClient() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
+
+function getOpenAIClient() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+
+/** Send a single query and get a text response, regardless of LLM */
+async function askLLM(llm: string, query: string): Promise<string> {
+  try {
+    if (llm === "Claude") {
+      const r = await getAnthropicClient().messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        messages: [{ role: "user", content: query }],
+      });
+      const text = r.content.find((b) => b.type === "text");
+      return text ? text.text : "";
+    }
+
+    if (llm === "ChatGPT") {
+      const r = await getOpenAIClient().chat.completions.create({
+        model: "gpt-4o",
+        max_tokens: 1024,
+        messages: [{ role: "user", content: query }],
+      });
+      return r.choices[0]?.message?.content || "";
+    }
+
+    return "";
+  } catch {
+    return "";
+  }
 }
 
 interface ScanRequest {
   cluster: SemanticCluster;
   config: SCConfig;
-  llm: string; // which LLM to simulate — for now only "Claude"
+  llm: string;
 }
 
 interface ScanResult {
@@ -33,33 +66,25 @@ export async function POST(req: Request) {
       return Response.json({ error: "Inserisci il nome del brand nella configurazione." }, { status: 400 });
     }
 
+    if (llm === "ChatGPT" && !process.env.OPENAI_API_KEY) {
+      return Response.json({ error: "OPENAI_API_KEY non configurata." }, { status: 400 });
+    }
+
     const queries = generateQueries(cluster, config, 20);
-    const client = getClient();
     const brand = config.brandName.trim();
 
-    // Phase 1: Send all queries to the LLM and collect responses
-    // Batch in groups of 5 to avoid rate limits
+    // Phase 1: Send all queries to the selected LLM
     const allResponses: string[] = [];
     const BATCH = 5;
 
     for (let i = 0; i < queries.length; i += BATCH) {
       const batch = queries.slice(i, i + BATCH);
-      const promises = batch.map((query) =>
-        client.messages.create({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1024,
-          messages: [{ role: "user", content: query }],
-        }).then((r) => {
-          const text = r.content.find((b) => b.type === "text");
-          return text ? text.text : "";
-        }).catch(() => ""),
-      );
-      const results = await Promise.all(promises);
+      const results = await Promise.all(batch.map((q) => askLLM(llm, q)));
       allResponses.push(...results);
     }
 
-    // Phase 2: Analyze all responses with a single call
-    const analysisPrompt = `Analizza le seguenti ${allResponses.length} risposte date da un LLM a query di raccomandazione.
+    // Phase 2: Analyze all responses with Claude (always the analyzer)
+    const analysisPrompt = `Analizza le seguenti ${allResponses.length} risposte date da ${llm} a query di raccomandazione.
 
 BRAND DA CERCARE: "${brand}"
 
@@ -79,7 +104,7 @@ Rispondi ESCLUSIVAMENTE con un JSON valido (nessun testo prima o dopo) con quest
   "shortlisted": <numero di volte in cui il brand appare nelle prime 3 posizioni>
 }`;
 
-    const analysis = await client.messages.create({
+    const analysis = await getAnthropicClient().messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 2048,
       messages: [{ role: "user", content: analysisPrompt }],
@@ -87,7 +112,6 @@ Rispondi ESCLUSIVAMENTE con un JSON valido (nessun testo prima o dopo) con quest
 
     const analysisText = analysis.content.find((b) => b.type === "text")?.text || "{}";
 
-    // Parse JSON from response (handle markdown code blocks)
     let parsed: {
       mentionCount: number;
       totalResponses: number;
