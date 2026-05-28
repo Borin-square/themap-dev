@@ -350,6 +350,20 @@ function ConfigPanel({ config, onUpdate }: {
             className="sc-brand-input"
           />
         </div>
+        <div className="sc-config-section">
+          <div className="sc-config-label">Shortlist Size</div>
+          <select
+            value={config.shortlistSize || 5}
+            onChange={(e) => onUpdate({ shortlistSize: Number(e.target.value) })}
+            className="sc-brand-input"
+          >
+            <option value={3}>3 aziende</option>
+            <option value={5}>5 aziende</option>
+            <option value={10}>10 aziende</option>
+            <option value={15}>15 aziende</option>
+            <option value={20}>20 aziende</option>
+          </select>
+        </div>
         <ChipSection
           label="Buyer Personas"
           items={config.buyerPersonas}

@@ -50,6 +50,7 @@ export interface SCProject {
 
 export interface SCConfig {
   brandName: string;
+  shortlistSize: number;
   buyerPersonas: string[];
   intents: string[];
   cognitiveAngles: string[];
@@ -114,7 +115,7 @@ export function emptyProject(label = "Nuovo Progetto"): SCProject {
   return {
     id: crypto.randomUUID(), label,
     config: {
-      brandName: "", buyerPersonas: [], intents: [], cognitiveAngles: [],
+      brandName: "", shortlistSize: 5, buyerPersonas: [], intents: [], cognitiveAngles: [],
       semanticAssociations: [], competitors: [],
       geography: { area: "Italia", lingua: "it", industry: "", mercato: "B2B" },
     },
@@ -177,16 +178,16 @@ export function pendingActions(clusters: SemanticCluster[]): number {
 /* ── Query generation ── */
 
 const QUERY_TEMPLATES = [
-  "Sono un {persona} e sto cercando {intent}. Quali aziende o agenzie mi consigli per {cluster} in {area}?",
-  "Consigliami le migliori agenzie/aziende per {cluster} nel mercato {mercato} in {area}.",
-  "Chi sono i principali player per {cluster} in {area}? Sto valutando soluzioni per {intent}.",
-  "Come {persona}, ho bisogno di supporto su {cluster}. Quali sono le opzioni migliori in {area}?",
-  "Qual e' la migliore agenzia per {cluster} in {area}? Cerco qualcuno che mi aiuti a {intent}.",
-  "Sto cercando un partner per {cluster}. Sono {persona} in un'azienda {mercato} in {area}. Chi consigli?",
-  "Fammi una lista di aziende esperte in {cluster} in {area}, con focus su {angle}.",
-  "Ho bisogno di {intent}. Quali agenzie in {area} sono specializzate in {cluster}?",
-  "Chi e' il leader in {cluster} in {area}? Devo scegliere un fornitore come {persona}.",
-  "Suggeriscimi 5-10 aziende che possano aiutarmi con {cluster} in {area}. Sono un {persona} e il mio obiettivo e' {intent}.",
+  "Sono un {persona} e sto cercando {intent}. Consigliami {shortlist} aziende o agenzie per {cluster} in {area}.",
+  "Consigliami le migliori {shortlist} agenzie/aziende per {cluster} nel mercato {mercato} in {area}.",
+  "Chi sono i principali {shortlist} player per {cluster} in {area}? Sto valutando soluzioni per {intent}.",
+  "Come {persona}, ho bisogno di supporto su {cluster}. Dammi una shortlist di {shortlist} opzioni in {area}.",
+  "Qual e' la migliore agenzia per {cluster} in {area}? Dammi {shortlist} nomi. Cerco qualcuno che mi aiuti a {intent}.",
+  "Sto cercando un partner per {cluster}. Sono {persona} in un'azienda {mercato} in {area}. Dammi {shortlist} consigli.",
+  "Fammi una lista di {shortlist} aziende esperte in {cluster} in {area}, con focus su {angle}.",
+  "Ho bisogno di {intent}. Quali {shortlist} agenzie in {area} sono specializzate in {cluster}?",
+  "Chi e' il leader in {cluster} in {area}? Dammi una classifica di {shortlist} fornitori. Sono un {persona}.",
+  "Suggeriscimi {shortlist} aziende che possano aiutarmi con {cluster} in {area}. Sono un {persona} e il mio obiettivo e' {intent}.",
 ] as const;
 
 export function generateQueries(
@@ -199,6 +200,7 @@ export function generateQueries(
   const angles = config.cognitiveAngles.length > 0 ? config.cognitiveAngles : ["qualita'"];
   const area = config.geography.area || "Italia";
   const mercato = config.geography.mercato || "B2B";
+  const shortlist = String(config.shortlistSize || 5);
 
   const queries: string[] = [];
   let templateIdx = 0;
@@ -216,7 +218,8 @@ export function generateQueries(
           .replace("{cluster}", cluster.name)
           .replace("{area}", area)
           .replace("{mercato}", mercato)
-          .replace("{angle}", angles[queries.length % angles.length]),
+          .replace("{angle}", angles[queries.length % angles.length])
+          .replace("{shortlist}", shortlist),
       );
     }
     if (queries.length >= count) break;
@@ -236,7 +239,8 @@ export function generateQueries(
         .replace("{cluster}", cluster.name)
         .replace("{area}", area)
         .replace("{mercato}", mercato)
-        .replace("{angle}", angle),
+        .replace("{angle}", angle)
+        .replace("{shortlist}", shortlist),
     );
   }
 
@@ -250,7 +254,7 @@ export function getMockSCProject(): SCProject {
     id: crypto.randomUUID(),
     label: "Semantic Intelligence 2026",
     config: {
-      brandName: "Square Marketing",
+      brandName: "Square Marketing", shortlistSize: 5,
       buyerPersonas: ["CEO PMI", "Responsabile Marketing", "Founder SaaS", "Export Manager", "Direttore Commerciale"],
       intents: ["Trovare nuova agenzia", "Adottare AI", "Aumentare lead", "Migliorare execution", "Strutturare team marketing"],
       cognitiveAngles: ["Performance", "AI anxiety", "Efficienza", "Controllo", "Strategic clarity", "Velocita execution"],
