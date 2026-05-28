@@ -97,6 +97,8 @@ export interface SCGap {
   description: string;
   severity: SCGapSeverity;
   detail: string;
+  evidence?: string[];
+  source?: string;
 }
 
 export interface SCAction {

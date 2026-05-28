@@ -1701,6 +1701,12 @@ th.ee-inactive { opacity: .4; }
 .sc-gap-medium{border-left:3px solid var(--org)}
 .sc-gap-high{border-left:3px solid #f97316}
 .sc-gap-critical{border-left:3px solid var(--red)}
+.sc-gap-source{font-size:9px;color:var(--accent);background:rgba(79,140,255,.1);padding:2px 6px;border-radius:4px;white-space:nowrap}
+.sc-gap-evidence{margin-top:6px;border-top:1px solid var(--bd);padding-top:6px}
+.sc-gap-evidence-toggle{background:none;border:none;color:var(--accent);font-size:10px;font-family:var(--font);cursor:pointer;padding:0;display:flex;align-items:center;gap:4px}
+.sc-gap-evidence-toggle:hover{color:var(--fg)}
+.sc-gap-evidence-list{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.sc-gap-quote{margin:0;padding:6px 10px;background:var(--bg3);border-left:2px solid var(--org);border-radius:0 4px 4px 0;font-size:10px;color:var(--fg2);line-height:1.5;font-style:italic}
 
 /* Action Cards */
 .sc-actions-list{display:flex;flex-direction:column;gap:8px}

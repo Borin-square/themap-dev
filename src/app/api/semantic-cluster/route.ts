@@ -46,6 +46,14 @@ interface ScanRequest {
   llm: string;
 }
 
+interface GapResult {
+  type: string;
+  description: string;
+  severity: string;
+  detail: string;
+  evidence: string[];
+}
+
 interface ScanResult {
   mentioned: boolean;
   position?: number;
@@ -56,6 +64,7 @@ interface ScanResult {
   shortlistProb: number;
   queries: string[];
   rawResponses: string[];
+  gaps: GapResult[];
 }
 
 export async function POST(req: Request) {
@@ -135,6 +144,56 @@ Rispondi ESCLUSIVAMENTE con un JSON valido (nessun testo prima o dopo) con quest
       ? Math.round(parsed.positions.reduce((a, b) => a + b, 0) / parsed.positions.length)
       : undefined;
 
+    // Phase 3: Gap analysis with evidence
+    const gapPrompt = `Sei un analista di brand positioning nell'era degli LLM.
+
+BRAND: "${brand}"
+CLUSTER SEMANTICO: "${cluster.name}" — ${cluster.description}
+COMPETITOR NOTI: ${config.competitors.join(", ") || "non specificati"}
+
+Hai ${allResponses.length} risposte di ${llm} a query su questo cluster. Il brand "${brand}" e' stato menzionato in ${parsed.mentionCount}/${allResponses.length} risposte.
+
+RISPOSTE:
+${allResponses.map((r, i) => `--- Risposta ${i + 1} ---\n${r}\n`).join("\n")}
+
+Identifica i GAP del brand rispetto a questo cluster. Per ogni gap, estrai EVIDENZE concrete dalle risposte (citazioni testuali che dimostrano il gap).
+
+Tipi di gap possibili:
+- "semantic": il brand non viene associato ai termini/concetti chiave del cluster
+- "narrative": il brand non ha una narrativa differenziante, viene descritto genericamente o confuso con altri
+- "authority": il brand non viene posizionato come autorevole/esperto, manca da liste di leader
+- "proof": mancano prove concrete (case study, numeri, risultati) nelle menzioni
+- "competitor_delta": i competitor vengono menzionati piu' spesso, in posizione migliore, o con attributi piu' forti
+
+Rispondi ESCLUSIVAMENTE con un JSON valido:
+{
+  "gaps": [
+    {
+      "type": "semantic|narrative|authority|proof|competitor_delta",
+      "description": "<descrizione breve del gap>",
+      "severity": "low|medium|high|critical",
+      "detail": "<spiegazione dettagliata del gap e del suo impatto>",
+      "evidence": ["<citazione testuale dalla risposta che dimostra il gap>", "<altra citazione>"]
+    }
+  ]
+}
+
+Sii specifico e basa ogni gap su evidenze reali dalle risposte. Se il brand non e' menzionato affatto, evidenzia chi viene menzionato al suo posto e perche'.`;
+
+    const gapAnalysis = await getAnthropicClient().messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4096,
+      messages: [{ role: "user", content: gapPrompt }],
+    });
+
+    const gapText = gapAnalysis.content.find((b) => b.type === "text")?.text || "{}";
+    let gaps: GapResult[] = [];
+    try {
+      const gapJson = gapText.match(/\{[\s\S]*\}/);
+      const gapParsed = JSON.parse(gapJson ? gapJson[0] : gapText);
+      gaps = gapParsed.gaps || [];
+    } catch { /* gap analysis failed, continue without */ }
+
     const result: ScanResult = {
       mentioned: parsed.mentionCount > 0,
       position: avgPosition,
@@ -145,6 +204,7 @@ Rispondi ESCLUSIVAMENTE con un JSON valido (nessun testo prima o dopo) con quest
       shortlistProb,
       queries,
       rawResponses: allResponses,
+      gaps,
     };
 
     return Response.json(result);

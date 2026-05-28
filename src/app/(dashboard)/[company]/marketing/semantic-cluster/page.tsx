@@ -99,10 +99,23 @@ export default function SemanticClusterPage() {
         scanResponses: data.rawResponses,
         scannedAt: new Date().toISOString(),
       };
+      // Merge scan gaps with existing manual gaps
+      const scanGaps: SCGap[] = (data.gaps || []).map((g: { type: string; description: string; severity: string; detail: string; evidence?: string[] }) => ({
+        id: crypto.randomUUID(),
+        type: g.type as SCGapType,
+        description: g.description,
+        severity: g.severity as SCGapSeverity,
+        detail: g.detail,
+        evidence: g.evidence || [],
+        source: `${scanLlm} scan`,
+      }));
+      // Keep manual gaps (no source), replace previous scan gaps for this LLM
+      const manualGaps = cluster.gaps.filter((g) => !g.source || !g.source.includes("scan"));
       updateCluster(clusterId, {
         llmMentions: newMentions,
         mentionRate: data.mentionRate,
         shortlistProb: data.shortlistProb,
+        gaps: [...manualGaps, ...scanGaps],
       });
       showToast(`Scan completato: ${data.mentioned ? `menzionato (pos. ${data.position || "?"})` : "non menzionato"}`);
     } catch {
@@ -724,6 +737,8 @@ function GapsTab({ gaps, onChange }: {
     onChange(gaps.filter((_, i) => i !== idx));
   }
 
+  const [expandedEvidence, setExpandedEvidence] = useState<string | null>(null);
+
   return (
     <div className="sc-gaps-list">
       {gaps.map((g, i) => (
@@ -735,10 +750,28 @@ function GapsTab({ gaps, onChange }: {
             <select value={g.severity} onChange={(e) => updateGap(i, { severity: e.target.value as SCGapSeverity })}>
               {SC_GAP_SEVERITIES.map((s) => <option key={s} value={s}>{SC_GAP_SEV_LABELS[s]}</option>)}
             </select>
+            {g.source && <span className="sc-gap-source">{g.source}</span>}
             <button className="comp-del" onClick={() => removeGap(i)}>{"\u2715"}</button>
           </div>
           <input value={g.description} onChange={(e) => updateGap(i, { description: e.target.value })} placeholder="Descrizione gap" />
           <textarea value={g.detail} onChange={(e) => updateGap(i, { detail: e.target.value })} rows={2} placeholder="Dettaglio e impatto" />
+          {g.evidence && g.evidence.length > 0 && (
+            <div className="sc-gap-evidence">
+              <button
+                className="sc-gap-evidence-toggle"
+                onClick={() => setExpandedEvidence(expandedEvidence === g.id ? null : g.id)}
+              >
+                {expandedEvidence === g.id ? "\u25BC" : "\u25B6"} Evidenze ({g.evidence.length})
+              </button>
+              {expandedEvidence === g.id && (
+                <div className="sc-gap-evidence-list">
+                  {g.evidence.map((e, ei) => (
+                    <blockquote key={ei} className="sc-gap-quote">{e}</blockquote>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ))}
       <button className="sc-add-btn" onClick={addGap}>+ Gap</button>
