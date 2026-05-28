@@ -18,7 +18,7 @@ async function askLLM(llm: string, query: string): Promise<string> {
     if (llm === "Claude") {
       const r = await getAnthropicClient().messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
+        max_tokens: 4096,
         messages: [{ role: "user", content: query }],
       });
       const text = r.content.find((b) => b.type === "text");
@@ -28,7 +28,7 @@ async function askLLM(llm: string, query: string): Promise<string> {
     if (llm === "ChatGPT") {
       const r = await getOpenAIClient().chat.completions.create({
         model: "gpt-4o",
-        max_tokens: 1024,
+        max_tokens: 4096,
         messages: [{ role: "user", content: query }],
       });
       return r.choices[0]?.message?.content || "";
