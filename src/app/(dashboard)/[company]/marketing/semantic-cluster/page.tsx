@@ -662,13 +662,23 @@ function LLMTab({ cluster: c, onUpdate }: {
             <div className="sc-qa-section">
               <button
                 className="sc-qa-toggle"
-                onClick={() => setExpandedQA(expandedQA === m.llm ? null : m.llm)}
+                onClick={() => { setExpandedQA(m.llm); setOpenResponse(null); }}
               >
-                {expandedQA === m.llm ? "\u25BC" : "\u25B6"} Query & Risposte ({m.scanQueries.length})
+                {"\u25B6"} Query & Risposte ({m.scanQueries.length})
                 {m.scannedAt && <span className="sc-qa-date">{new Date(m.scannedAt).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>}
               </button>
-              {expandedQA === m.llm && (
-                <div className="sc-qa-list">
+            </div>
+          )}
+          {/* Q&A Overlay */}
+          {expandedQA === m.llm && m.scanQueries && (
+            <div className="sc-qa-overlay" onClick={() => setExpandedQA(null)}>
+              <div className="sc-qa-panel" onClick={(e) => e.stopPropagation()}>
+                <div className="sc-qa-panel-head">
+                  <span>{m.llm} — Query & Risposte ({m.scanQueries.length})</span>
+                  {m.scannedAt && <span className="sc-qa-date">{new Date(m.scannedAt).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>}
+                  <button className="sc-sb-close" onClick={() => setExpandedQA(null)}>{"\u2715"}</button>
+                </div>
+                <div className="sc-qa-panel-body">
                   {m.scanQueries.map((q, qi) => (
                     <div key={qi} className="sc-qa-item">
                       <div
@@ -685,7 +695,7 @@ function LLMTab({ cluster: c, onUpdate }: {
                     </div>
                   ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
