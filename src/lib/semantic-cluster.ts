@@ -85,6 +85,9 @@ export interface LLMMention {
   confidence: "low" | "medium" | "high";
   reasoning: string;
   coMentions: string[];
+  scanQueries?: string[];
+  scanResponses?: string[];
+  scannedAt?: string;
 }
 
 export interface SCGap {

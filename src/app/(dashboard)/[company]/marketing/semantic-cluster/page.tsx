@@ -95,6 +95,9 @@ export default function SemanticClusterPage() {
         confidence: data.confidence,
         reasoning: data.reasoning,
         coMentions: data.coMentions,
+        scanQueries: data.queries,
+        scanResponses: data.rawResponses,
+        scannedAt: new Date().toISOString(),
       };
       updateCluster(clusterId, {
         llmMentions: newMentions,
@@ -584,6 +587,9 @@ function LLMTab({ cluster: c, onUpdate }: {
   cluster: SemanticCluster;
   onUpdate: (patch: Partial<SemanticCluster>) => void;
 }) {
+  const [expandedQA, setExpandedQA] = useState<string | null>(null);
+  const [openResponse, setOpenResponse] = useState<number | null>(null);
+
   function updateMention(idx: number, patch: Partial<SemanticCluster["llmMentions"][0]>) {
     const next = [...c.llmMentions];
     next[idx] = { ...next[idx], ...patch };
@@ -637,6 +643,37 @@ function LLMTab({ cluster: c, onUpdate }: {
             placeholder="Co-menzioni (separa con virgola)"
             style={{ marginTop: 4 }}
           />
+          {/* Scan Q&A */}
+          {m.scanQueries && m.scanQueries.length > 0 && (
+            <div className="sc-qa-section">
+              <button
+                className="sc-qa-toggle"
+                onClick={() => setExpandedQA(expandedQA === m.llm ? null : m.llm)}
+              >
+                {expandedQA === m.llm ? "\u25BC" : "\u25B6"} Query & Risposte ({m.scanQueries.length})
+                {m.scannedAt && <span className="sc-qa-date">{new Date(m.scannedAt).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>}
+              </button>
+              {expandedQA === m.llm && (
+                <div className="sc-qa-list">
+                  {m.scanQueries.map((q, qi) => (
+                    <div key={qi} className="sc-qa-item">
+                      <div
+                        className="sc-qa-query"
+                        onClick={() => setOpenResponse(openResponse === qi ? null : qi)}
+                      >
+                        <span className="sc-qa-num">{qi + 1}</span>
+                        <span className="sc-qa-q">{q}</span>
+                        <span className="sc-qa-arrow">{openResponse === qi ? "\u25BC" : "\u25B6"}</span>
+                      </div>
+                      {openResponse === qi && m.scanResponses?.[qi] && (
+                        <div className="sc-qa-response">{m.scanResponses[qi]}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ))}
     </div>
