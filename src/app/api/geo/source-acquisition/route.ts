@@ -10,6 +10,7 @@ interface SourceRequest {
   competitors: string[];
   industry: string;
   country: string;
+  market: string;
   existingCitations: { domain: string; type: string; brandMentioned: boolean }[];
 }
 
@@ -34,6 +35,7 @@ SERVIZI: ${body.services.join(", ") || "non specificati"}
 COMPETITOR: ${body.competitors.join(", ") || "non specificati"}
 SETTORE: ${body.industry || "non specificato"}
 PAESE: ${body.country || "Italia"}
+MERCATO: ${body.market || "B2B"}
 
 CITAZIONI GIA' TROVATE (${body.existingCitations.length}):
 ${body.existingCitations.map((c) => `- ${c.domain} (${c.type}) - Brand menzionato: ${c.brandMentioned}`).join("\n") || "Nessuna"}

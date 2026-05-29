@@ -56,6 +56,7 @@ export default function SourceAcquisitionPage() {
           competitors: cfg.competitors,
           industry: cfg.industry,
           country: cfg.country,
+          market: cfg.market,
           existingCitations,
         }),
       });

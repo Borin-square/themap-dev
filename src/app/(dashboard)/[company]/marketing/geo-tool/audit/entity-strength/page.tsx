@@ -73,6 +73,7 @@ export default function EntityStrengthPage() {
           competitors: cfg.competitors,
           country: cfg.country,
           industry: cfg.industry,
+          market: cfg.market,
         }),
       });
       const data = await res.json();

@@ -7,6 +7,10 @@ interface PlanRequest {
   brandName: string;
   siteUrl: string;
   industry: string;
+  country: string;
+  market: string;
+  services: string[];
+  problems: string[];
   auditIssues: AuditIssue[];
   contentGaps: { topic: string; priority: string }[];
   sourceTargets: { domain: string; priority: string; actionRequired: string }[];
@@ -31,6 +35,10 @@ export async function POST(req: Request) {
 BRAND: ${body.brandName}
 SITO: ${body.siteUrl || "non specificato"}
 SETTORE: ${body.industry || "non specificato"}
+PAESE: ${body.country || "Italia"}
+MERCATO: ${body.market || "B2B"}
+SERVIZI: ${(body.services || []).join(", ") || "non specificati"}
+PROBLEMI TARGET: ${(body.problems || []).join(", ") || "non specificati"}
 
 PUNTEGGI AUDIT:
 ${Object.entries(body.auditScores).filter(([, v]) => v != null).map(([k, v]) => `- ${k}: ${v}/100`).join("\n") || "Non disponibili"}

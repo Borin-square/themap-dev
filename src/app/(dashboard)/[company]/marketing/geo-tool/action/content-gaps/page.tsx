@@ -57,6 +57,10 @@ export default function ContentGapsPage() {
           services: cfg.services,
           competitors: cfg.competitors,
           industry: cfg.industry,
+          country: cfg.country,
+          market: cfg.market,
+          buyerPersonas: cfg.buyerPersonas,
+          problems: cfg.problems,
           scannedPrompts,
         }),
       });

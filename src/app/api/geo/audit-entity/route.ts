@@ -10,11 +10,12 @@ interface EntityRequest {
   competitors: string[];
   country: string;
   industry: string;
+  market: string;
 }
 
 export async function POST(req: Request) {
   try {
-    const { brandName, siteUrl, services, competitors, country, industry } = (await req.json()) as EntityRequest;
+    const { brandName, siteUrl, services, competitors, country, industry, market } = (await req.json()) as EntityRequest;
 
     if (!brandName?.trim()) {
       return Response.json({ error: "Brand name richiesto." }, { status: 400 });
@@ -71,6 +72,7 @@ SERVIZI: ${services.join(", ") || "non specificati"}
 COMPETITOR: ${competitors.join(", ") || "non specificati"}
 PAESE: ${country || "Italia"}
 SETTORE: ${industry || "non specificato"}
+MERCATO: ${market || "B2B"}
 
 DATI STRUTTURATI TROVATI:
 ${jsonLdData.length > 0 ? JSON.stringify(jsonLdData, null, 2).slice(0, 3000) : "Nessuno"}

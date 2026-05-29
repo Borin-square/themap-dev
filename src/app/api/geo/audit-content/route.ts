@@ -6,11 +6,13 @@ export const maxDuration = 60;
 interface ContentRequest {
   url: string;
   brandName?: string;
+  industry?: string;
+  services?: string[];
 }
 
 export async function POST(req: Request) {
   try {
-    const { url, brandName } = (await req.json()) as ContentRequest;
+    const { url, brandName, industry, services } = (await req.json()) as ContentRequest;
     if (!url?.trim()) {
       return Response.json({ error: "URL richiesto." }, { status: 400 });
     }
@@ -65,6 +67,8 @@ export async function POST(req: Request) {
 URL: ${url}
 TITOLO: ${title}
 ${brandName ? `BRAND: ${brandName}` : ""}
+${industry ? `SETTORE: ${industry}` : ""}
+${services && services.length > 0 ? `SERVIZI: ${services.join(", ")}` : ""}
 
 HEADINGS:
 ${headings.map((h, i) => `${i + 1}. ${h}`).join("\n")}

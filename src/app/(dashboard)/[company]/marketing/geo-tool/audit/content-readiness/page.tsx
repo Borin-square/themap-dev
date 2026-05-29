@@ -45,7 +45,12 @@ export default function ContentReadinessPage() {
       const res = await fetch("/api/geo/audit-content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: fullUrl, brandName: project.config.brandName }),
+        body: JSON.stringify({
+              url: fullUrl,
+              brandName: project.config.brandName,
+              industry: project.config.industry,
+              services: project.config.services,
+            }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Errore");

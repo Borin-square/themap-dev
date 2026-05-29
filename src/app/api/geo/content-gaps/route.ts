@@ -9,6 +9,10 @@ interface GapsRequest {
   services: string[];
   competitors: string[];
   industry: string;
+  country: string;
+  market: string;
+  buyerPersonas: string[];
+  problems: string[];
   scannedPrompts: { text: string; mentioned: boolean; sentiment: string }[];
 }
 
@@ -32,6 +36,10 @@ SITO: ${body.siteUrl || "non specificato"}
 SERVIZI: ${body.services.join(", ") || "non specificati"}
 COMPETITOR: ${body.competitors.join(", ") || "non specificati"}
 SETTORE: ${body.industry || "non specificato"}
+PAESE: ${body.country || "Italia"}
+MERCATO: ${body.market || "B2B"}
+BUYER PERSONAS: ${(body.buyerPersonas || []).join(", ") || "non specificate"}
+PROBLEMI TARGET: ${(body.problems || []).join(", ") || "non specificati"}
 
 PROMPT ANALIZZATI (${body.scannedPrompts.length}):
 ${body.scannedPrompts.map((p, i) => `${i + 1}. "${p.text}" - Menzionato: ${p.mentioned} - Sentiment: ${p.sentiment}`).join("\n")}
