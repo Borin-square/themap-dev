@@ -50,7 +50,7 @@ export default function Sidebar() {
           next[`${c.slug}-strategy`] = true;
           if (pathname.includes("/flywheel")) next[`${c.slug}-fw`] = true;
           if (pathname.includes("/economic-engine")) next[`${c.slug}-ee`] = true;
-          if (pathname.includes("/people")) next[`${c.slug}-org`] = true;
+          if (pathname.includes("/people") || pathname.includes("/organization")) next[`${c.slug}-org`] = true;
           if (pathname.includes("/marketing")) next[`${c.slug}-mktg`] = true;
         }
       }

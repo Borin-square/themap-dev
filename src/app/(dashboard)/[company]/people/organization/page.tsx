@@ -403,6 +403,7 @@ export default function OrganizationPage() {
         <span className="ee-tab active">Organigramma</span>
         <Link href={`/${params.company}/people/rituals`} className="ee-tab">Rituals</Link>
         <Link href={`/${params.company}/organization/tools`} className="ee-tab">Tools</Link>
+        <Link href={`/${params.company}/organization/mcp`} className="ee-tab">MCP</Link>
       </div>
 
       {toast && <div className="fws-toast">{toast}</div>}

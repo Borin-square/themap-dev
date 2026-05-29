@@ -172,6 +172,7 @@ export default function RitualsPage() {
         <Link href={`/${params.company}/people/organization`} className="ee-tab">Organigramma</Link>
         <span className="ee-tab active">Rituals</span>
         <Link href={`/${params.company}/organization/tools`} className="ee-tab">Tools</Link>
+        <Link href={`/${params.company}/organization/mcp`} className="ee-tab">MCP</Link>
       </div>
 
       {toast && <div className="fws-toast">{toast}</div>}

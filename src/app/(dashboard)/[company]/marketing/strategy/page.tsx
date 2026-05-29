@@ -109,6 +109,8 @@ export default function StrategyPage() {
         <span className="ee-tab active">Strategy</span>
         <Link href={`/${slug}/marketing/brand-asset`} className="ee-tab">Brand Asset</Link>
         <Link href={`/${slug}/marketing/seo-cluster`} className="ee-tab">SEO Cluster</Link>
+        <Link href={`/${slug}/marketing/geo-tool`} className="ee-tab">GEO Tool</Link>
+        <Link href={`/${slug}/marketing/flywheel`} className="ee-tab">Flywheel</Link>
       </div>
 
       {toast && <div className="fws-toast">{toast}</div>}

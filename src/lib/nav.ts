@@ -47,6 +47,16 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           { id: `${c.slug}-mktg-strat`, label: "Strategy", href: `/${c.slug}/marketing/strategy` },
           { id: `${c.slug}-mktg-brand`, label: "Brand Asset", href: `/${c.slug}/marketing/brand-asset` },
           { id: `${c.slug}-mktg-seo`, label: "SEO Cluster", href: `/${c.slug}/marketing/seo-cluster` },
+          { id: `${c.slug}-mktg-geo`, label: "GEO Tool", href: `/${c.slug}/marketing/geo-tool` },
+          {
+            id: `${c.slug}-mktg-fw`,
+            label: "Flywheel",
+            children: [
+              { id: `${c.slug}-mktg-fw-ov`, label: "Overview", href: `/${c.slug}/marketing/flywheel` },
+              { id: `${c.slug}-mktg-fw-su`, label: "Setup", href: `/${c.slug}/marketing/flywheel/setup` },
+              { id: `${c.slug}-mktg-fw-re`, label: "Consuntivo", href: `/${c.slug}/marketing/flywheel/real` },
+            ],
+          },
         ],
       },
       {
@@ -57,6 +67,7 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           { id: `${c.slug}-orgchart`, label: "Organigramma", href: `/${c.slug}/people/organization` },
           { id: `${c.slug}-rituals`, label: "Rituals", href: `/${c.slug}/people/rituals` },
           { id: `${c.slug}-tools`, label: "Tools", href: `/${c.slug}/organization/tools` },
+          { id: `${c.slug}-mcp`, label: "MCP", href: `/${c.slug}/organization/mcp` },
         ],
       },
     ],
@@ -68,7 +79,7 @@ export function buildNav(companies: Company[]): NavItem[] {
     { id: "home", label: "Home", href: "/" },
     {
       id: "holding",
-      label: "Holding",
+      label: "Panoramica",
       children: [
         { id: "overview", label: "Overview", href: "/holding/overview" },
         { id: "vision", label: "Vision", href: "/holding/vision" },

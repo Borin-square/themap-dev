@@ -81,6 +81,7 @@ export default function ToolsPage() {
         <Link href={`/${params.company}/people/organization`} className="ee-tab">Organigramma</Link>
         <Link href={`/${params.company}/people/rituals`} className="ee-tab">Rituals</Link>
         <span className="ee-tab active">Tools</span>
+        <Link href={`/${params.company}/organization/mcp`} className="ee-tab">MCP</Link>
       </div>
 
       {toast && <div className="fws-toast">{toast}</div>}

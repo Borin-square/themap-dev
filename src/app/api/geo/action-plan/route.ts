@@ -1,0 +1,92 @@
+import Anthropic from "@anthropic-ai/sdk";
+import type { ActionPlanResult, AuditIssue } from "@/lib/geo/types";
+
+export const maxDuration = 60;
+
+interface PlanRequest {
+  brandName: string;
+  siteUrl: string;
+  industry: string;
+  auditIssues: AuditIssue[];
+  contentGaps: { topic: string; priority: string }[];
+  sourceTargets: { domain: string; priority: string; actionRequired: string }[];
+  auditScores: { crawlability?: number; contentReadiness?: number; structuredData?: number; entityStrength?: number };
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = (await req.json()) as PlanRequest;
+    if (!body.brandName?.trim()) {
+      return Response.json({ error: "Brand name richiesto." }, { status: 400 });
+    }
+
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const analysis = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4096,
+      messages: [{
+        role: "user",
+        content: `Genera un piano d'azione prioritizzato per migliorare la visibilita' AI del brand "${body.brandName}".
+
+BRAND: ${body.brandName}
+SITO: ${body.siteUrl || "non specificato"}
+SETTORE: ${body.industry || "non specificato"}
+
+PUNTEGGI AUDIT:
+${Object.entries(body.auditScores).filter(([, v]) => v != null).map(([k, v]) => `- ${k}: ${v}/100`).join("\n") || "Non disponibili"}
+
+PROBLEMI RILEVATI (${body.auditIssues.length}):
+${body.auditIssues.slice(0, 20).map((i) => `- [${i.type}] ${i.message}${i.fix ? ` → ${i.fix}` : ""}`).join("\n") || "Nessuno"}
+
+CONTENT GAPS (${body.contentGaps.length}):
+${body.contentGaps.slice(0, 10).map((g) => `- [${g.priority}] ${g.topic}`).join("\n") || "Nessuno"}
+
+SOURCE TARGETS (${body.sourceTargets.length}):
+${body.sourceTargets.slice(0, 10).map((s) => `- [${s.priority}] ${s.domain}: ${s.actionRequired}`).join("\n") || "Nessuno"}
+
+Crea un piano d'azione con max 20 item, ordinati per priorita' e impatto. Ogni item deve avere:
+- category: content|technical|source|entity|structured-data
+- title: titolo breve
+- description: cosa fare concretamente
+- priority: alta|media|bassa
+- effort: basso|medio|alto
+- impact: basso|medio|alto
+
+Rispondi ESCLUSIVAMENTE con JSON valido:
+{
+  "items": [
+    {"id": "<uuid>", "category": "<cat>", "title": "<titolo>", "description": "<desc>", "priority": "<p>", "effort": "<e>", "impact": "<i>", "status": "da-fare"}
+  ],
+  "summary": "<riassunto del piano in 2-3 frasi>"
+}`,
+      }],
+    });
+
+    const text = analysis.content.find((b) => b.type === "text")?.text || "{}";
+    let parsed: { items: ActionPlanResult["items"]; summary: string };
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
+    } catch {
+      return Response.json({ error: "Errore nel parsing dell'analisi" }, { status: 500 });
+    }
+
+    // Ensure IDs
+    const items = (parsed.items || []).map((item) => ({
+      ...item,
+      id: item.id || crypto.randomUUID(),
+      status: item.status || "da-fare" as const,
+    }));
+
+    const result: ActionPlanResult = {
+      id: crypto.randomUUID(),
+      generatedAt: new Date().toISOString(),
+      items,
+      summary: parsed.summary || "",
+    };
+
+    return Response.json(result);
+  } catch (err) {
+    return Response.json({ error: err instanceof Error ? err.message : "Errore" }, { status: 500 });
+  }
+}
