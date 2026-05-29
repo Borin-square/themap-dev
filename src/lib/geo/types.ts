@@ -261,6 +261,27 @@ export interface SourceAcquisitionResult {
   suggestions: string[];
 }
 
+/* ── Digital PR ── */
+
+export interface DigitalPRTarget {
+  name: string;
+  url: string;
+  type: "testata" | "blog" | "podcast" | "directory" | "associazione" | "portale" | "newsletter" | "altro";
+  relevance: number; // 0-100
+  difficulty: number; // 0-100
+  contentType: "guest-post" | "intervista" | "comunicato" | "case-study" | "listing" | "menzione" | "partnership";
+  approach: string;
+  why: string;
+}
+
+export interface DigitalPRResult {
+  id: string;
+  scannedAt: string;
+  targets: DigitalPRTarget[];
+  summary: string;
+  suggestions: string[];
+}
+
 export type ActionStatus = "da-fare" | "in-corso" | "completato";
 
 export interface ActionItem {
@@ -306,6 +327,7 @@ export interface AIReferralEntry {
 export interface GEOActions {
   contentGaps: ContentGapsResult[];
   sourceAcquisition: SourceAcquisitionResult[];
+  digitalPR: DigitalPRResult[];
   actionPlan: ActionPlanResult | null;
 }
 
@@ -349,7 +371,7 @@ export function emptyAudits(): GEOAudits {
 }
 
 export function emptyActions(): GEOActions {
-  return { contentGaps: [], sourceAcquisition: [], actionPlan: null };
+  return { contentGaps: [], sourceAcquisition: [], digitalPR: [], actionPlan: null };
 }
 
 export function emptyMonitoring(): GEOMonitoring {

@@ -23,6 +23,7 @@ const GEO_NAV = [
   { section: "ACTION PLANNER" },
   { href: "/action/content-gaps", label: "Content Gaps", icon: "\u25CB" },
   { href: "/action/source-acquisition", label: "Source Acquisition", icon: "\u2192" },
+  { href: "/action/digital-pr", label: "Digital PR", icon: "\u260E" },
   { href: "/action/plan", label: "Action Plan", icon: "\u2611" },
   { section: "MONITORING" },
   { href: "/monitoring/bot-traffic", label: "Bot Traffic", icon: "\u2302" },
