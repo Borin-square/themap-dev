@@ -26,12 +26,17 @@ async function askLLM(llm: string, query: string): Promise<string> {
     }
 
     if (llm === "ChatGPT") {
-      const r = await getOpenAIClient().chat.completions.create({
+      const r = await getOpenAIClient().responses.create({
         model: "gpt-4o",
-        max_tokens: 4096,
-        messages: [{ role: "user", content: query }],
+        tools: [{ type: "web_search_preview" }],
+        input: query,
       });
-      return r.choices[0]?.message?.content || "";
+      const msg = r.output.find((b) => b.type === "message");
+      if (msg && "content" in msg) {
+        const text = msg.content.find((c: { type: string }) => c.type === "output_text");
+        return text && "text" in text ? (text as { text: string }).text : "";
+      }
+      return "";
     }
 
     return "";
