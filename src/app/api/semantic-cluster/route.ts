@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { type SemanticCluster, type SCConfig, generateQueries } from "@/lib/semantic-cluster";
 
 export const maxDuration = 120;
@@ -10,6 +11,10 @@ function getAnthropicClient() {
 
 function getOpenAIClient() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+
+function getGeminiClient() {
+  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 }
 
 /** Send a single query and get a text response, regardless of LLM */
@@ -37,6 +42,16 @@ async function askLLM(llm: string, query: string): Promise<string> {
         return text && "text" in text ? (text as { text: string }).text : "";
       }
       return "";
+    }
+
+    if (llm === "Gemini") {
+      const ai = getGeminiClient();
+      const r = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: query,
+        config: { tools: [{ googleSearch: {} }] },
+      });
+      return r.text ?? "";
     }
 
     return "";

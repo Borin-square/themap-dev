@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import type { GEOScan, GEOSentimentData, GEOCompetitorMention, GEOCitation, GEOSentimentLabel, GEOSourceType } from "@/lib/geo/types";
 
 export const maxDuration = 120;
@@ -10,6 +11,10 @@ function getAnthropicClient() {
 
 function getOpenAIClient() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+
+function getGeminiClient() {
+  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 }
 
 async function askLLM(llm: string, query: string): Promise<string> {
@@ -36,7 +41,16 @@ async function askLLM(llm: string, query: string): Promise<string> {
       }
       return "";
     }
-    // Gemini, Perplexity, AI Overviews: placeholder
+    if (llm === "Gemini") {
+      const ai = getGeminiClient();
+      const r = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: query,
+        config: { tools: [{ googleSearch: {} }] },
+      });
+      return r.text ?? "";
+    }
+    // Perplexity, AI Overviews: placeholder
     return "";
   } catch {
     return "";
@@ -66,6 +80,9 @@ export async function POST(req: Request) {
     }
     if (llm === "Claude" && !process.env.ANTHROPIC_API_KEY) {
       return Response.json({ error: "ANTHROPIC_API_KEY non configurata." }, { status: 400 });
+    }
+    if (llm === "Gemini" && !process.env.GEMINI_API_KEY) {
+      return Response.json({ error: "GEMINI_API_KEY non configurata." }, { status: 400 });
     }
 
     // Phase 1: Send the prompt to the selected LLM
