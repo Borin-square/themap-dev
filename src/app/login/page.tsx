@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
     if (session) router.replace("/");
@@ -29,13 +31,18 @@ export default function LoginPage() {
       setError(err === "Invalid login credentials" ? "Email o password non validi." : err);
     }
     setLoading(false);
-    // redirect handled by useEffect when session updates
   }
 
-  function fillDemo(e: string, p: string) {
-    setEmail(e);
-    setPassword(p);
+  async function handleReset() {
     setError(null);
+    if (!email.trim()) { setError("Inserisci la tua email per il recupero"); return; }
+    setLoading(true);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/set-password`,
+    });
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    setResetSent(true);
   }
 
   return (
@@ -65,27 +72,27 @@ export default function LoginPage() {
           />
 
           {error && <div className="login-error">{error}</div>}
+          {resetSent && (
+            <div style={{ fontSize: 13, color: "var(--grn, #22c55e)", margin: "8px 0" }}>
+              Email inviata. Controlla la posta per reimpostare la password.
+            </div>
+          )}
 
           <button className="login-btn" type="submit" disabled={loading}>
             {loading ? "Accesso in corso..." : "Accedi"}
           </button>
         </form>
 
-        <div className="login-hint">
-          <div className="login-hint-title">Account demo:</div>
-          <div className="login-hint-item" onClick={() => fillDemo("admin@themap.it", "admin123!")}>
-            admin@themap.it <span>ADMIN</span>
-          </div>
-          <div className="login-hint-item" onClick={() => fillDemo("marco@acme.com", "demo123!")}>
-            marco@acme.com <span>OPERATIVO — Acme</span>
-          </div>
-          <div className="login-hint-item" onClick={() => fillDemo("anna@beta.com", "demo123!")}>
-            anna@beta.com <span>OPERATIVO — Beta</span>
-          </div>
-          <div className="login-hint-item" onClick={() => fillDemo("luca@gamma.com", "demo123!")}>
-            luca@gamma.com <span>OPERATIVO — Acme, Gamma</span>
-          </div>
-        </div>
+        <button
+          onClick={handleReset}
+          disabled={loading}
+          style={{
+            background: "none", border: "none", color: "var(--fg3)", fontSize: 12,
+            cursor: "pointer", marginTop: 12, textDecoration: "underline",
+          }}
+        >
+          Password dimenticata?
+        </button>
       </div>
     </div>
   );
