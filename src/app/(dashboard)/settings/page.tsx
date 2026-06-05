@@ -59,7 +59,7 @@ export default function SettingsPage() {
     if (res.ok) setUsers(await res.json());
   }
 
-  async function handleSave(data: { id?: string; email: string; password?: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) {
+  async function handleSave(data: { id?: string; email: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) {
     const token = await getToken();
     const isEdit = !!data.id;
 
@@ -74,7 +74,7 @@ export default function SettingsPage() {
 
     await loadUsers();
     setEditing(null);
-    showToast(isEdit ? "Utente aggiornato" : "Utente creato");
+    showToast(isEdit ? "Utente aggiornato" : "Invito inviato via email");
   }
 
   async function reloadCompanies() {
@@ -393,48 +393,20 @@ export default function SettingsPage() {
           companies={companies}
           onSave={handleSave}
           onClose={() => setEditing(null)}
-          senderName={session?.nome || ""}
         />
       )}
     </div>
   );
 }
 
-function generateTempPassword(): string {
-  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
-  let pw = "";
-  for (let i = 0; i < 8; i++) pw += chars[Math.floor(Math.random() * chars.length)];
-  return pw + "!";
-}
-
-function getInviteMessage(nome: string, email: string, password: string, senderName: string): string {
-  const firstName = nome.split(" ")[0] || nome;
-  return `Ciao ${firstName},
-
-ogni azienda è un viaggio.
-
-Ci sono strade già tracciate, bivi da scegliere, territori ancora da scoprire.
-
-The Map nasce per questo: non per dirti ogni passo, ma per aiutarti a capire dove sei, dove stiamo andando e quale direzione vale la pena seguire.
-
-Benvenuto/a.
-
-${senderName}
-
----
-Accedi a The Map: https://the-map-v2.vercel.app/login
-Email: ${email}
-Password: ${password}`;
-}
 
 function UserModal({
-  user, companies, onSave, onClose, senderName,
+  user, companies, onSave, onClose,
 }: {
   user: UserProfile | null;
   companies: Company[];
-  onSave: (data: { id?: string; email: string; password?: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) => void;
+  onSave: (data: { id?: string; email: string; nome: string; ruolo: Ruolo; funzione: string; aziende: string }) => void;
   onClose: () => void;
-  senderName: string;
 }) {
   const isEdit = !!user;
   const [email, setEmail] = useState(user?.email || "");
@@ -446,8 +418,6 @@ function UserModal({
     if (!user || user.aziende === "*") return companies.map((c) => c.slug);
     return user.aziende.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   });
-  const [copied, setCopied] = useState(false);
-  const [tempPassword] = useState(() => generateTempPassword());
 
   function toggleAz(slug: string) {
     setSelectedAz((prev) =>
@@ -459,18 +429,7 @@ function UserModal({
     if (!email.trim()) return;
     if (!isEdit && !nome.trim()) return;
     const aziende = allAz ? "*" : selectedAz.join(",");
-    if (isEdit && user) {
-      onSave({ id: user.id, email: email.trim().toLowerCase(), nome, ruolo, funzione, aziende });
-    } else {
-      onSave({ email: email.trim().toLowerCase(), password: tempPassword, nome, ruolo, funzione, aziende });
-    }
-  }
-
-  function copyMessage() {
-    const msg = getInviteMessage(nome || "\u2014", email, tempPassword, senderName);
-    navigator.clipboard.writeText(msg);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    onSave({ id: user?.id, email: email.trim().toLowerCase(), nome, ruolo, funzione, aziende });
   }
 
   return (
@@ -522,23 +481,15 @@ function UserModal({
           ))}
         </div>
 
-        {/* Messaggio invito (solo per nuovi utenti) */}
-        {!isEdit && nome.trim() && (
-          <div className="invite-msg-box">
-            <label>Messaggio di invito</label>
-            <pre className="invite-msg-text">{getInviteMessage(nome, email, tempPassword, senderName)}</pre>
-            <button className="invite-copy-btn" onClick={copyMessage}>
-              {copied ? "Copiato!" : "Copia messaggio"}
-            </button>
-            <p className="invite-msg-hint">
-              Copia il messaggio e invialo alla persona. Contiene link e credenziali di accesso.
-            </p>
-          </div>
+        {!isEdit && (
+          <p style={{ fontSize: 12, color: "var(--fg3)", marginTop: 12 }}>
+            L&apos;utente riceverà un&apos;email con il link per impostare la password e accedere a The Map.
+          </p>
         )}
 
         <div className="modal-foot">
           <button className="btn-cancel" onClick={onClose}>Annulla</button>
-          <button className="btn-save" onClick={handleSave}>{isEdit ? "Salva" : "Crea accesso"}</button>
+          <button className="btn-save" onClick={handleSave}>{isEdit ? "Salva" : "Invia invito"}</button>
         </div>
       </div>
     </div>

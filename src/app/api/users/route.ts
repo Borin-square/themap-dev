@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data);
 }
 
-// POST — create user (auth + profile)
+// POST — invite user (auth + profile + email)
 export async function POST(req: NextRequest) {
   const caller = await getCallerProfile(req);
   if (!caller || caller.ruolo !== "ADMIN") {
@@ -42,21 +42,19 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { email, password, nome, ruolo, funzione, aziende } = body;
+  const { email, nome, ruolo, funzione, aziende } = body;
   if (!email) {
     return NextResponse.json({ error: "Email richiesta" }, { status: 400 });
-  }
-  if (!password) {
-    return NextResponse.json({ error: "Password richiesta" }, { status: 400 });
   }
 
   const svc = createServiceClient();
 
-  // Create auth user with temporary password
-  const { data: authData, error: authErr } = await svc.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
+  // Build redirect URL from request origin
+  const origin = req.headers.get("origin") || `https://${req.headers.get("host")}`;
+
+  // Invite user via Supabase — sends email automatically
+  const { data: authData, error: authErr } = await svc.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${origin}/set-password`,
   });
 
   if (authErr) {
@@ -77,7 +75,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: profErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, invited: true });
 }
 
 // PUT — update user profile

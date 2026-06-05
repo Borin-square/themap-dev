@@ -251,6 +251,9 @@ export interface SourceTarget {
   actionRequired: string;
   priority: "alta" | "media" | "bassa";
   difficulty: number;
+  citedBy: string[];
+  brandFoundBy: string[];
+  evidence: string;
 }
 
 export interface SourceAcquisitionResult {
@@ -259,6 +262,8 @@ export interface SourceAcquisitionResult {
   targets: SourceTarget[];
   currentCoverage: number;
   suggestions: string[];
+  llmsScanned: string[];
+  fromExistingScans: number;
 }
 
 /* ── Digital PR ── */
