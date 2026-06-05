@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { supabase, supabaseReady } from "@/lib/supabase";
 import type { Session, UserProfile } from "@/lib/auth";
 
@@ -41,6 +41,8 @@ async function loadProfile(userId: string): Promise<Session | null> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
   useEffect(() => {
     const timeout = setTimeout(() => setLoading(false), 5000);
@@ -65,9 +67,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(timeout);
       });
 
-    // Only handle sign-out — login() handles sign-in directly
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
-      if (!authSession) setSession(null);
+    // Handle ALL auth state changes (sign-in from invite/reset + sign-out)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, authSession) => {
+      if (!authSession) {
+        setSession(null);
+      } else if (!sessionRef.current) {
+        const profile = await loadProfile(authSession.user.id);
+        if (profile) setSession(profile);
+        setLoading(false);
+      }
     });
 
     return () => {

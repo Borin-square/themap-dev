@@ -14,24 +14,41 @@ export default function SetPasswordPage() {
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
-    // Listen for session from invite hash params
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) setReady(true);
     });
 
-    // Check if session already exists
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    async function processAuth() {
+      // 1. PKCE flow: ?code=xxx in query params (password reset)
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      if (code) {
+        const { error: err } = await supabase.auth.exchangeCodeForSession(code);
+        if (!err) {
+          // Clean URL
+          window.history.replaceState({}, "", window.location.pathname);
+          setReady(true);
+          return;
+        }
+      }
+
+      // 2. Implicit flow: #access_token=xxx in hash (invite)
+      // Supabase client auto-detects hash — just check if session exists
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setReady(true);
-      } else {
-        // If no session after 4s (hash processing), link is invalid/expired
-        setTimeout(() => {
-          supabase.auth.getSession().then(({ data: { session: s } }) => {
-            if (!s) setExpired(true);
-          });
-        }, 4000);
+        return;
       }
-    });
+
+      // 3. Wait for async hash processing
+      setTimeout(async () => {
+        const { data: { session: s } } = await supabase.auth.getSession();
+        if (s) setReady(true);
+        else setExpired(true);
+      }, 5000);
+    }
+
+    processAuth();
 
     return () => subscription.unsubscribe();
   }, []);
