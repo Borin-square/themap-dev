@@ -3,21 +3,26 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { supabase, supabaseReady } from "@/lib/supabase";
 import type { Session, UserProfile } from "@/lib/auth";
+import { type DisabledFeatures, fetchDisabledFeatures } from "@/lib/features";
 
 interface AuthCtx {
   session: Session | null;
   loading: boolean;
+  disabledFeatures: DisabledFeatures;
   login: (email: string, password: string) => Promise<string | null>;
   logout: () => void;
   refresh: () => void;
+  refreshFeatures: () => void;
 }
 
 const AuthContext = createContext<AuthCtx>({
   session: null,
   loading: true,
+  disabledFeatures: new Set(),
   login: async () => null,
   logout: () => {},
   refresh: () => {},
+  refreshFeatures: () => {},
 });
 
 function toSession(p: UserProfile): Session {
@@ -41,6 +46,7 @@ async function loadProfile(userId: string): Promise<Session | null> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [disabledFeatures, setDisabledFeatures] = useState<DisabledFeatures>(new Set());
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
@@ -58,7 +64,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(async ({ data: { session: authSession } }) => {
         if (authSession?.user) {
           const profile = await loadProfile(authSession.user.id);
-          if (profile) setSession(profile);
+          if (profile) {
+            setSession(profile);
+            fetchDisabledFeatures().then(setDisabledFeatures);
+          }
         }
       })
       .catch(() => {})
@@ -68,13 +77,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
     // Handle ALL auth state changes (sign-in from invite/reset + sign-out)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, authSession) => {
+    // IMPORTANTE: non fare await su operazioni che usano supabase dentro questo
+    // callback — l'SDK tiene il lock e causa deadlock con getSession/updateUser.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
+      // Recovery flow: porta l'utente a /set-password indipendentemente da dove è atterrato
+      if (_event === "PASSWORD_RECOVERY" && authSession) {
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/set-password")) {
+          window.location.replace("/set-password");
+          return;
+        }
+      }
       if (!authSession) {
         setSession(null);
       } else if (!sessionRef.current) {
-        const profile = await loadProfile(authSession.user.id);
-        if (profile) setSession(profile);
-        setLoading(false);
+        // Fire-and-forget: non bloccare _notifyAllSubscribers
+        loadProfile(authSession.user.id).then(profile => {
+          if (profile) setSession(profile);
+          setLoading(false);
+        });
       }
     });
 
@@ -93,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const profile = await loadProfile(data.user.id);
         if (!profile) return "Profilo utente non trovato. Contatta l'amministratore.";
         setSession(profile);
+        fetchDisabledFeatures().then(setDisabledFeatures);
       }
       return null;
     } catch (e) {
@@ -115,8 +136,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
 
+  const refreshFeatures = useCallback(() => {
+    fetchDisabledFeatures().then(setDisabledFeatures);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ session, loading, login, logout, refresh }}>
+    <AuthContext.Provider value={{ session, loading, disabledFeatures, login, logout, refresh, refreshFeatures }}>
       {children}
     </AuthContext.Provider>
   );

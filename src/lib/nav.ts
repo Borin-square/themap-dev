@@ -1,10 +1,12 @@
 import type { Company } from "./companies";
+import { type DisabledFeatures, isFeatureEnabled } from "./features";
 
 export interface NavItem {
   id: string;
   label: string;
   href?: string;
   color?: string;
+  featureKey?: string;
   children?: NavItem[];
 }
 
@@ -21,6 +23,7 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           {
             id: `${c.slug}-fw`,
             label: "Flywheel",
+            featureKey: "strategy.flywheel",
             children: [
               { id: `${c.slug}-fw-ov`, label: "Overview", href: `/${c.slug}/flywheel` },
               { id: `${c.slug}-fw-su`, label: "Setup", href: `/${c.slug}/flywheel/setup` },
@@ -30,6 +33,7 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           {
             id: `${c.slug}-ee`,
             label: "Economic Engine",
+            featureKey: "strategy.economic-engine",
             children: [
               { id: `${c.slug}-ee-pg`, label: "Playground", href: `/${c.slug}/economic-engine` },
               { id: `${c.slug}-ee-fc`, label: "Forecast", href: `/${c.slug}/economic-engine/forecast` },
@@ -43,14 +47,15 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
         id: `${c.slug}-mktg`,
         label: "Marketing",
         children: [
-          { id: `${c.slug}-mktg-camp`, label: "Campaign Manager", href: `/${c.slug}/marketing` },
-          { id: `${c.slug}-mktg-strat`, label: "Strategy", href: `/${c.slug}/marketing/strategy` },
-          { id: `${c.slug}-mktg-brand`, label: "Brand Asset", href: `/${c.slug}/marketing/brand-asset` },
-          { id: `${c.slug}-mktg-seo`, label: "SEO Cluster", href: `/${c.slug}/marketing/seo-cluster` },
-          { id: `${c.slug}-mktg-geo`, label: "GEO Tool", href: `/${c.slug}/marketing/geo-tool` },
+          { id: `${c.slug}-mktg-camp`, label: "Campaign Manager", featureKey: "marketing.campaigns", href: `/${c.slug}/marketing` },
+          { id: `${c.slug}-mktg-strat`, label: "Strategy", featureKey: "marketing.strategy", href: `/${c.slug}/marketing/strategy` },
+          { id: `${c.slug}-mktg-brand`, label: "Brand Asset", featureKey: "marketing.brand-asset", href: `/${c.slug}/marketing/brand-asset` },
+          { id: `${c.slug}-mktg-seo`, label: "SEO Cluster", featureKey: "marketing.seo-cluster", href: `/${c.slug}/marketing/seo-cluster` },
+          { id: `${c.slug}-mktg-geo`, label: "GEO Tool", featureKey: "marketing.geo-tool", href: `/${c.slug}/marketing/geo-tool` },
           {
             id: `${c.slug}-mktg-fw`,
             label: "Flywheel",
+            featureKey: "marketing.flywheel",
             children: [
               { id: `${c.slug}-mktg-fw-ov`, label: "Overview", href: `/${c.slug}/marketing/flywheel` },
               { id: `${c.slug}-mktg-fw-su`, label: "Setup", href: `/${c.slug}/marketing/flywheel/setup` },
@@ -63,15 +68,40 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
         id: `${c.slug}-org`,
         label: "Organization",
         children: [
-          { id: `${c.slug}-pe`, label: "People", href: `/${c.slug}/people` },
-          { id: `${c.slug}-orgchart`, label: "Organigramma", href: `/${c.slug}/people/organization` },
-          { id: `${c.slug}-rituals`, label: "Rituals", href: `/${c.slug}/people/rituals` },
-          { id: `${c.slug}-tools`, label: "Tools", href: `/${c.slug}/organization/tools` },
-          { id: `${c.slug}-mcp`, label: "MCP", href: `/${c.slug}/organization/mcp` },
+          { id: `${c.slug}-pe`, label: "People", featureKey: "organization.people", href: `/${c.slug}/people` },
+          { id: `${c.slug}-orgchart`, label: "Organigramma", featureKey: "organization.organigramma", href: `/${c.slug}/people/organization` },
+          { id: `${c.slug}-rituals`, label: "Rituals", featureKey: "organization.rituals", href: `/${c.slug}/people/rituals` },
+          { id: `${c.slug}-tools`, label: "Tools", featureKey: "organization.tools", href: `/${c.slug}/organization/tools` },
+          { id: `${c.slug}-mcp`, label: "MCP", featureKey: "organization.mcp", href: `/${c.slug}/organization/mcp` },
         ],
       },
     ],
   }));
+}
+
+/** Filtra i nav items in base alle feature flags. I company slug sono estratti dal contesto nav. */
+export function filterNavByFeatures(items: NavItem[], disabled: DisabledFeatures, companySlug?: string): NavItem[] {
+  return items.reduce<NavItem[]>((acc, item) => {
+    // Determina il company slug: se l'item è una company root (ha color), usa il suo id
+    const slug = item.color ? item.id : companySlug;
+
+    // Se l'item ha una featureKey e la feature è disabilitata, skip
+    if (item.featureKey && slug && !isFeatureEnabled(disabled, slug, item.featureKey)) {
+      return acc;
+    }
+
+    // Filtra ricorsivamente i children
+    if (item.children) {
+      const filteredChildren = filterNavByFeatures(item.children, disabled, slug);
+      // Se aveva children ma ora sono tutti filtrati, nascondi il parent
+      if (filteredChildren.length === 0) return acc;
+      acc.push({ ...item, children: filteredChildren });
+    } else {
+      acc.push(item);
+    }
+
+    return acc;
+  }, []);
 }
 
 export function buildNav(companies: Company[]): NavItem[] {

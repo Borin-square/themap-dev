@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
-import { buildNav, FOOTER_NAV, type NavItem } from "@/lib/nav";
+import { buildNav, filterNavByFeatures, FOOTER_NAV, type NavItem } from "@/lib/nav";
 import { fetchCompanies, getCachedCompanies, type Company } from "@/lib/companies";
 import { useAuth } from "./AuthProvider";
-import { getAllowedSlugs } from "@/lib/auth";
+import { getAllowedSlugs, isSuperAdmin } from "@/lib/auth";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { session, logout } = useAuth();
+  const { session, logout, disabledFeatures } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({ holding: true });
   const [companies, setCompanies] = useState<Company[]>(getCachedCompanies);
@@ -26,18 +26,21 @@ export default function Sidebar() {
   /* Filter nav based on user access */
   const allowed = getAllowedSlugs(session);
   const isOp = allowed !== "*";
-  const filteredNav = isOp
-    ? NAV
-        .filter((item) => item.id !== "holding") // hide Holding for operativi
-        .flatMap((item) => {
-          if (item.id !== "operative") return [item];
-          // Flatten: remove "Operative" wrapper, show allowed companies directly at root
-          const kids = item.children?.filter((child) =>
-            (allowed as string[]).includes(child.id.toLowerCase()),
-          ) || [];
-          return kids;
-        })
-    : NAV;
+  const filteredNav = useMemo(() => {
+    let nav = isOp
+      ? NAV
+          .filter((item) => item.id !== "holding")
+          .flatMap((item) => {
+            if (item.id !== "operative") return [item];
+            const kids = item.children?.filter((child) =>
+              (allowed as string[]).includes(child.id.toLowerCase()),
+            ) || [];
+            return kids;
+          })
+      : NAV;
+    // Apply feature flags filtering
+    return filterNavByFeatures(nav, disabledFeatures);
+  }, [NAV, isOp, allowed, disabledFeatures]);
 
   useEffect(() => {
     setOpen((prev) => {
@@ -131,12 +134,13 @@ export default function Sidebar() {
       <div className="sb-nav">{renderItems(filteredNav, 0)}</div>
       <div className="sb-foot">
         {renderItems(FOOTER_NAV, 0)}
+        {isSuperAdmin(session) && renderItems([{ id: "admin", label: "Admin", href: "/admin" }], 0)}
         {session && (
           <div className="sb-user">
             <div className="sb-user-name">{session.nome || session.email}</div>
             <div className="sb-user-meta">
-              <span className={`sb-user-role ${session.ruolo === "ADMIN" ? "admin" : "op"}`}>
-                {session.ruolo}
+              <span className={`sb-user-role ${session.ruolo === "OPERATIVO" ? "op" : "admin"}`}>
+                {session.ruolo === "SUPER_ADMIN" ? "SUPER ADMIN" : session.ruolo}
               </span>
               <button className="sb-logout" onClick={handleLogout}>Esci</button>
             </div>

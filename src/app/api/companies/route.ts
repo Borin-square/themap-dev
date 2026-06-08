@@ -23,7 +23,7 @@ async function getCallerProfile(req: NextRequest) {
 // POST — create company
 export async function POST(req: NextRequest) {
   const caller = await getCallerProfile(req);
-  if (!caller || caller.ruolo !== "ADMIN") {
+  if (!caller || (caller.ruolo !== "SUPER_ADMIN" && caller.ruolo !== "ADMIN")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 // PUT — update company (slug is immutable, only name and color)
 export async function PUT(req: NextRequest) {
   const caller = await getCallerProfile(req);
-  if (!caller || caller.ruolo !== "ADMIN") {
+  if (!caller || (caller.ruolo !== "SUPER_ADMIN" && caller.ruolo !== "ADMIN")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -59,7 +59,7 @@ export async function PUT(req: NextRequest) {
 // DELETE — remove company
 export async function DELETE(req: NextRequest) {
   const caller = await getCallerProfile(req);
-  if (!caller || caller.ruolo !== "ADMIN") {
+  if (!caller || (caller.ruolo !== "SUPER_ADMIN" && caller.ruolo !== "ADMIN")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 

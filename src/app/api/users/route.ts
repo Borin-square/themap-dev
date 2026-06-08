@@ -24,7 +24,7 @@ async function getCallerProfile(req: NextRequest) {
 // GET — list all user profiles
 export async function GET(req: NextRequest) {
   const caller = await getCallerProfile(req);
-  if (!caller || caller.ruolo !== "ADMIN") {
+  if (!caller || (caller.ruolo !== "SUPER_ADMIN" && caller.ruolo !== "ADMIN")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 // POST — invite user (auth + profile + email)
 export async function POST(req: NextRequest) {
   const caller = await getCallerProfile(req);
-  if (!caller || caller.ruolo !== "ADMIN") {
+  if (!caller || (caller.ruolo !== "SUPER_ADMIN" && caller.ruolo !== "ADMIN")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
 // PUT — update user profile
 export async function PUT(req: NextRequest) {
   const caller = await getCallerProfile(req);
-  if (!caller || caller.ruolo !== "ADMIN") {
+  if (!caller || (caller.ruolo !== "SUPER_ADMIN" && caller.ruolo !== "ADMIN")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -103,7 +103,7 @@ export async function PUT(req: NextRequest) {
 // DELETE — remove user (auth + profile)
 export async function DELETE(req: NextRequest) {
   const caller = await getCallerProfile(req);
-  if (!caller || caller.ruolo !== "ADMIN") {
+  if (!caller || (caller.ruolo !== "SUPER_ADMIN" && caller.ruolo !== "ADMIN")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 

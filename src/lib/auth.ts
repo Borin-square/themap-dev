@@ -1,4 +1,4 @@
-export type Ruolo = "ADMIN" | "OPERATIVO";
+export type Ruolo = "SUPER_ADMIN" | "ADMIN" | "OPERATIVO";
 
 export interface UserProfile {
   id: string;
@@ -20,7 +20,7 @@ export interface Session {
 /* Visibility helpers */
 export function getAllowedSlugs(session: Session | null): string[] | "*" {
   if (!session) return [];
-  if (session.ruolo === "ADMIN" || session.aziende === "*") return "*";
+  if (session.ruolo === "SUPER_ADMIN" || session.ruolo === "ADMIN" || session.aziende === "*") return "*";
   return session.aziende.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
 
@@ -31,5 +31,9 @@ export function canAccessCompany(session: Session | null, slug: string): boolean
 }
 
 export function isAdmin(session: Session | null): boolean {
-  return session?.ruolo === "ADMIN";
+  return session?.ruolo === "SUPER_ADMIN" || session?.ruolo === "ADMIN";
+}
+
+export function isSuperAdmin(session: Session | null): boolean {
+  return session?.ruolo === "SUPER_ADMIN";
 }
