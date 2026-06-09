@@ -213,8 +213,8 @@ export default function SettingsPage() {
                     <td>{u.nome || "\u2014"}</td>
                     <td className="ac-email">{u.email}</td>
                     <td>
-                      <span className={`ac-ruolo ${u.ruolo === "ADMIN" ? "admin" : "operativo"}`}>
-                        {u.ruolo}
+                      <span className={`ac-ruolo ${u.ruolo === "OPERATIVO" ? "operativo" : "admin"}`}>
+                        {u.ruolo === "SUPER_ADMIN" ? "SUPER ADMIN" : u.ruolo}
                       </span>
                     </td>
                     <td>
@@ -450,6 +450,7 @@ function UserModal({
             <select value={ruolo} onChange={(e) => setRuolo(e.target.value as Ruolo)}>
               <option value="OPERATIVO">OPERATIVO</option>
               <option value="ADMIN">ADMIN</option>
+              <option value="SUPER_ADMIN">SUPER ADMIN</option>
             </select>
           </div>
           <div>
