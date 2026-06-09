@@ -14,43 +14,34 @@ export default function SetPasswordPage() {
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) setReady(true);
-    });
+    let resolved = false;
 
-    async function processAuth() {
-      // 1. PKCE flow: ?code=xxx in query params (password reset)
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      if (code) {
-        const { error: err } = await supabase.auth.exchangeCodeForSession(code);
-        if (!err) {
-          // Clean URL
-          window.history.replaceState({}, "", window.location.pathname);
-          setReady(true);
-          return;
-        }
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        setExpired(true);
       }
+    }, 10000);
 
-      // 2. Implicit flow: #access_token=xxx in hash (invite)
-      // Supabase client auto-detects hash — just check if session exists
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setReady(true);
-        return;
-      }
-
-      // 3. Wait for async hash processing
-      setTimeout(async () => {
-        const { data: { session: s } } = await supabase.auth.getSession();
-        if (s) setReady(true);
-        else setExpired(true);
-      }, 5000);
+    function resolve(hasSession: boolean) {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+      if (hasSession) setReady(true);
+      else setExpired(true);
     }
 
-    processAuth();
+    // L'SDK processa automaticamente #access_token=... dall'hash (implicit flow)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) resolve(true);
+      else if (_event === "INITIAL_SESSION") resolve(false);
+    });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      resolved = true;
+      clearTimeout(timer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -67,14 +58,21 @@ export default function SetPasswordPage() {
     }
 
     setLoading(true);
-    const { error: err } = await supabase.auth.updateUser({ password });
-    if (err) {
-      setError(err.message);
-      setLoading(false);
-      return;
-    }
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password });
+      if (err) {
+        setError(err.message);
+        return;
+      }
 
-    router.replace("/");
+      // Pulisci la sessione recovery e forza un login pulito con la nuova password
+      try { await supabase.auth.signOut(); } catch {}
+      router.replace("/login");
+    } catch (e) {
+      setError((e as Error).message || "Errore durante il salvataggio");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (expired) {

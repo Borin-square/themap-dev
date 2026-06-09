@@ -26,11 +26,16 @@ export default function LoginPage() {
     if (!email.trim()) { setError("Inserisci la tua email"); return; }
     if (!password) { setError("Inserisci la password"); return; }
     setLoading(true);
-    const err = await login(email, password);
-    if (err) {
-      setError(err === "Invalid login credentials" ? "Email o password non validi." : err);
+    try {
+      const err = await login(email, password);
+      if (err) {
+        setError(err === "Invalid login credentials" ? "Email o password non validi." : err);
+      }
+    } catch {
+      setError("Errore di connessione. Riprova.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function handleReset() {
