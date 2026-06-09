@@ -8,6 +8,7 @@ export interface FeatureDef {
 
 export const FEATURE_DEFS: FeatureDef[] = [
   // Strategy
+  { key: "strategy.deck", label: "Strategy Deck", group: "Strategy" },
   { key: "strategy.flywheel", label: "Flywheel", group: "Strategy" },
   { key: "strategy.economic-engine", label: "Economic Engine", group: "Strategy" },
   // Marketing

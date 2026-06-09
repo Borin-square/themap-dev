@@ -21,6 +21,12 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
         label: "Strategy",
         children: [
           {
+            id: `${c.slug}-deck`,
+            label: "Strategy Deck",
+            featureKey: "strategy.deck",
+            href: `/${c.slug}/strategy`,
+          },
+          {
             id: `${c.slug}-fw`,
             label: "Flywheel",
             featureKey: "strategy.flywheel",

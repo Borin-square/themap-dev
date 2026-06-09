@@ -22,6 +22,13 @@ export interface EeMonthlyRow {
   costiTot: number;
 }
 
+export interface EeNote {
+  id: string;
+  titolo: string;
+  contenuto: string;
+  data: string;
+}
+
 export interface EeScenario {
   id: number;
   nome: string;
@@ -29,6 +36,7 @@ export interface EeScenario {
   anno: number;
   data: string;
   values: Record<string, number>;
+  notes?: EeNote[];
 }
 
 // === CONSTANTS ===

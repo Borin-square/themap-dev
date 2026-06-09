@@ -11,7 +11,7 @@ import {
   eeIsPercent, eeGetDelta, eeSparkPoints, eeMarginSparkPoints,
   EE_SECTION_ORDER, EE_SECTION_LABELS, EE_SECTION_SLUGS, EE_FN_ORDER,
   EE_INVERTED, EE_AUTO_CALC, EE_KPI_ITEMS, EE_KPI_DEPS, EE_MONTHS,
-  type EeMetric, type EeMonthlyRow, type EeScenario,
+  type EeMetric, type EeMonthlyRow, type EeScenario, type EeNote,
 } from "@/lib/economic-engine";
 
 export default function EconomicEnginePage() {
@@ -33,6 +33,8 @@ export default function EconomicEnginePage() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [scName, setScName] = useState("");
   const [scDesc, setScDesc] = useState("");
+  const [notesOpen, setNotesOpen] = useState<number | null>(null);
+  const [noteForm, setNoteForm] = useState({ titolo: "", contenuto: "" });
 
   const { calc, monthly } = eeRecalc(vals);
   const warnings = eeCheckConstraints(vals);
@@ -91,6 +93,36 @@ export default function EconomicEnginePage() {
 
   function deleteScenario(id: number) {
     setScenarios((p) => p.filter((s) => s.id !== id));
+    if (notesOpen === id) setNotesOpen(null);
+  }
+
+  function addNote(scId: number) {
+    if (!noteForm.titolo.trim()) return;
+    const note: EeNote = {
+      id: crypto.randomUUID(),
+      titolo: noteForm.titolo.trim(),
+      contenuto: noteForm.contenuto.trim(),
+      data: new Date().toLocaleDateString("it-IT"),
+    };
+    setScenarios((p) =>
+      p.map((s) => s.id === scId ? { ...s, notes: [...(s.notes || []), note] } : s),
+    );
+    setNoteForm({ titolo: "", contenuto: "" });
+  }
+
+  function deleteNote(scId: number, noteId: string) {
+    setScenarios((p) =>
+      p.map((s) => s.id === scId ? { ...s, notes: (s.notes || []).filter((n) => n.id !== noteId) } : s),
+    );
+  }
+
+  function updateNote(scId: number, noteId: string, field: "titolo" | "contenuto", value: string) {
+    setScenarios((p) =>
+      p.map((s) => s.id === scId
+        ? { ...s, notes: (s.notes || []).map((n) => n.id === noteId ? { ...n, [field]: value } : n) }
+        : s
+      ),
+    );
   }
 
   // Funzioni uniche nei dati
@@ -139,7 +171,54 @@ export default function EconomicEnginePage() {
                         <div className="ee-sc-name" onClick={() => loadScenario(sc)}>{sc.nome}</div>
                         {sc.descrizione && <div className="ee-sc-desc">{sc.descrizione}</div>}
                         <span className="ee-sc-date">{sc.data}</span>
+                        <span className="ee-sc-notes-btn" onClick={(e) => { e.stopPropagation(); setNotesOpen(notesOpen === sc.id ? null : sc.id); }}>
+                          Note {sc.notes?.length ? `(${sc.notes.length})` : ""}
+                        </span>
                         <span className="ee-sc-del" onClick={() => deleteScenario(sc.id)}>&times;</span>
+                        {notesOpen === sc.id && (
+                          <div className="ee-notes-panel" onClick={(e) => e.stopPropagation()}>
+                            <div className="ee-notes-list">
+                              {(sc.notes || []).map((n) => (
+                                <div key={n.id} className="ee-note-item">
+                                  <input
+                                    className="ee-note-title"
+                                    value={n.titolo}
+                                    onChange={(e) => updateNote(sc.id, n.id, "titolo", e.target.value)}
+                                    placeholder="Titolo"
+                                  />
+                                  <textarea
+                                    className="ee-note-content"
+                                    value={n.contenuto}
+                                    onChange={(e) => updateNote(sc.id, n.id, "contenuto", e.target.value)}
+                                    placeholder="Contenuto nota..."
+                                  />
+                                  <div className="ee-note-foot">
+                                    <span className="ee-note-date">{n.data}</span>
+                                    <span className="ee-sc-del" onClick={() => deleteNote(sc.id, n.id)}>&times;</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="ee-note-add">
+                              <input
+                                className="ee-note-title"
+                                value={noteForm.titolo}
+                                onChange={(e) => setNoteForm({ ...noteForm, titolo: e.target.value })}
+                                placeholder="Titolo nuova nota"
+                                onKeyDown={(e) => { if (e.key === "Enter") addNote(sc.id); }}
+                              />
+                              <textarea
+                                className="ee-note-content"
+                                value={noteForm.contenuto}
+                                onChange={(e) => setNoteForm({ ...noteForm, contenuto: e.target.value })}
+                                placeholder="Contenuto..."
+                              />
+                              <button className="ee-btn ee-btn-primary" style={{ fontSize: 11, padding: "4px 10px" }} onClick={() => addNote(sc.id)}>
+                                + Aggiungi nota
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
