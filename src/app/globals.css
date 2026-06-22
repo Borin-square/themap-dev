@@ -2130,13 +2130,18 @@ th.ee-inactive { opacity: .4; }
 
 @media print{
   @page{size:A4;margin:14mm 12mm}
-  body{background:#fff!important;color:#000!important}
-  .ee-subnav,.geo-nav,.app-sidebar,.app-topbar,.geo-report-toolbar{display:none!important}
+  html,body{background:#fff!important;color:#000!important}
+  #sidebar,.sb,.topbar,.ee-subnav,.geo-nav,.geo-report-toolbar{display:none!important}
+  .shell,.main,.content,main{margin:0!important;padding:0!important;width:100%!important;max-width:none!important;display:block!important}
   .geo-suite{display:block!important;min-height:auto!important}
-  .geo-main{max-height:none!important;overflow:visible!important}
-  .geo-report{max-width:none;padding:0}
-  .geo-report-cover{background:#fff;border-color:#ddd}
-  .geo-report-kpi,.geo-report-li{background:#fff;border-color:#ddd;break-inside:avoid}
+  .geo-main{max-height:none!important;overflow:visible!important;padding:0!important}
+  .geo-page{padding:0!important}
+  .geo-report{max-width:none;padding:0;margin:0}
+  .geo-report-cover{background:#fff;border-color:#ddd;break-after:avoid}
+  .geo-report-kpi,.geo-report-li{background:#fff;border-color:#ddd;break-inside:avoid;page-break-inside:avoid}
   .geo-report-section{break-inside:auto;page-break-inside:auto}
   .geo-report-h2,.geo-report-h3{break-after:avoid}
+  .geo-report-badge-alta{background:#fee!important;color:#c00!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .geo-report-badge-media{background:#fef3c7!important;color:#92400e!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .geo-report-badge-bassa{background:#f1f5f9!important;color:#475569!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
