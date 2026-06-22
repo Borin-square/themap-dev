@@ -2,7 +2,7 @@ import type { DigitalPRResult } from "@/lib/geo/types";
 import { CLAUDE_MODEL, DEFAULT_MAX_TOKENS, extractJson, getAnthropicClient, joinAnthropicText } from "@/lib/geo/llm-helpers";
 import { buildDigitalPRPrompt } from "@/lib/geo/prompts/digital-pr";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface PRRequest {
   brandName: string;

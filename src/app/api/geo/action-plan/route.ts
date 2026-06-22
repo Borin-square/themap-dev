@@ -2,7 +2,7 @@ import type { ActionPlanResult, AuditIssue } from "@/lib/geo/types";
 import { CLAUDE_MODEL, DEFAULT_MAX_TOKENS, extractJson, getAnthropicClient, joinAnthropicText } from "@/lib/geo/llm-helpers";
 import { buildActionPlanPrompt } from "@/lib/geo/prompts/action-plan";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface PlanRequest {
   brandName: string;

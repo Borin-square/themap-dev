@@ -6,7 +6,7 @@ export const CLAUDE_MODEL = "claude-sonnet-4-6";
 export const OPENAI_MODEL = "gpt-4o";
 export const GEMINI_MODEL = "gemini-2.5-flash";
 
-export const LLM_TIMEOUT_MS = 60_000;
+export const LLM_TIMEOUT_MS = 110_000;
 export const DEFAULT_MAX_TOKENS = 4096;
 
 export function getAnthropicClient() {

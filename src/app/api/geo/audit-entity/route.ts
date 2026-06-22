@@ -2,7 +2,7 @@ import type { EntityStrengthResult, AuditIssue } from "@/lib/geo/types";
 import { CLAUDE_MODEL, DEFAULT_MAX_TOKENS, extractJson, getAnthropicClient, joinAnthropicText } from "@/lib/geo/llm-helpers";
 import { buildAuditEntityPrompt } from "@/lib/geo/prompts/audit-entity";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface EntityRequest {
   brandName: string;

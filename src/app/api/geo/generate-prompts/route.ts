@@ -2,7 +2,7 @@ import type { GEOConfig, GEOPrompt, GEOIntent, GEOFunnel } from "@/lib/geo/types
 import { CLAUDE_MODEL, DEFAULT_MAX_TOKENS, extractJson, getAnthropicClient, joinAnthropicText } from "@/lib/geo/llm-helpers";
 import { buildGeneratePromptsPrompt } from "@/lib/geo/prompts/generate-prompts";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface GenerateRequest {
   config: GEOConfig;

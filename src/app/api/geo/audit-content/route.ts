@@ -2,7 +2,7 @@ import type { ContentReadinessResult, AuditIssue } from "@/lib/geo/types";
 import { CLAUDE_MODEL, DEFAULT_MAX_TOKENS, extractJson, getAnthropicClient, joinAnthropicText } from "@/lib/geo/llm-helpers";
 import { buildAuditContentPrompt } from "@/lib/geo/prompts/audit-content";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface ContentRequest {
   url: string;
