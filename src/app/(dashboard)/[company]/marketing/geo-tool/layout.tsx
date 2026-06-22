@@ -5,6 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 
 const GEO_NAV = [
   { href: "", label: "Dashboard", icon: "\u25A0" },
+  { href: "/report", label: "Executive Report", icon: "\u2316" },
   { href: "/settings", label: "Settings", icon: "\u2699" },
   { section: "BRAND REPORT" },
   { href: "/brand-report/prompt-monitor", label: "Prompt Monitor", icon: "\u25B6" },
