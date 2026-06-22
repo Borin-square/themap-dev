@@ -56,8 +56,24 @@ async function askLLM(llm: string, query: string): Promise<{ text: string; error
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[scan/askLLM] ${llm} failed:`, msg);
-    return { text: "", error: msg };
+    return { text: "", error: humanizeLLMError(llm, msg) };
   }
+}
+
+function humanizeLLMError(llm: string, raw: string): string {
+  if (/429|RESOURCE_EXHAUSTED|rate.?limit|quota/i.test(raw)) {
+    const retryMatch = raw.match(/retry in ([\d.]+)s/i) || raw.match(/"retryDelay":\s*"(\d+)s"/);
+    const retryHint = retryMatch ? ` Riprova tra ${Math.ceil(Number(retryMatch[1]))}s` : "";
+    const upgradeHint = llm === "Gemini" ? " (free tier 20 req/giorno — passa al piano paid su https://ai.google.dev/pricing)" : "";
+    return `Quota ${llm} esaurita.${retryHint} Usa un altro LLM nel frattempo.${upgradeHint}`;
+  }
+  if (/401|invalid.?api.?key|unauthorized/i.test(raw)) {
+    return `${llm}: API key non valida o scaduta.`;
+  }
+  if (/404|not.?found|model/i.test(raw) && /model/i.test(raw)) {
+    return `${llm}: modello non trovato o non accessibile con questa API key.`;
+  }
+  return raw;
 }
 
 interface ScanRequest {
