@@ -1,5 +1,5 @@
 import type { ActionPlanResult, AuditIssue } from "@/lib/geo/types";
-import { CLAUDE_MODEL, DEFAULT_MAX_TOKENS, extractJson, getAnthropicClient, joinAnthropicText } from "@/lib/geo/llm-helpers";
+import { CLAUDE_MODEL, extractJson, getAnthropicClient, joinAnthropicText } from "@/lib/geo/llm-helpers";
 import { buildActionPlanPrompt } from "@/lib/geo/prompts/action-plan";
 
 export const maxDuration = 120;
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
     const analysis = await getAnthropicClient().messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: DEFAULT_MAX_TOKENS,
+      max_tokens: 8192,
       temperature: 0,
       system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
       messages: [{ role: "user", content: analysisPrompt }],
@@ -44,7 +44,8 @@ export async function POST(req: Request) {
     const parsed = extractJson<ParsedPlan>(text);
 
     if (!parsed) {
-      return Response.json({ error: "Errore nel parsing dell'analisi" }, { status: 500 });
+      console.error("[action-plan] JSON parse failed", { stopReason: analysis.stop_reason, raw: text.slice(0, 2000) });
+      return Response.json({ error: "Errore nel parsing dell'analisi", stopReason: analysis.stop_reason, raw: text.slice(0, 2000) }, { status: 500 });
     }
 
     const items = (parsed.items || []).map((item) => ({
