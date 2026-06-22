@@ -1,5 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { EntityStrengthResult, AuditIssue } from "@/lib/geo/types";
+import { CLAUDE_MODEL, DEFAULT_MAX_TOKENS, extractJson, getAnthropicClient, joinAnthropicText } from "@/lib/geo/llm-helpers";
+import { buildAuditEntityPrompt } from "@/lib/geo/prompts/audit-entity";
 
 export const maxDuration = 60;
 
@@ -13,6 +14,13 @@ interface EntityRequest {
   market: string;
 }
 
+interface ParsedEntity {
+  scores: EntityStrengthResult["scores"];
+  entities: EntityStrengthResult["entities"];
+  issues: AuditIssue[];
+  suggestions: string[];
+}
+
 export async function POST(req: Request) {
   try {
     const { brandName, siteUrl, services, competitors, country, industry, market } = (await req.json()) as EntityRequest;
@@ -21,9 +29,8 @@ export async function POST(req: Request) {
       return Response.json({ error: "Brand name richiesto." }, { status: 400 });
     }
 
-    // Fetch homepage for structured data and content
     let homepageContent = "";
-    let jsonLdData: Record<string, unknown>[] = [];
+    const jsonLdData: Record<string, unknown>[] = [];
     if (siteUrl) {
       try {
         const baseUrl = siteUrl.startsWith("http") ? siteUrl : `https://${siteUrl}`;
@@ -34,7 +41,6 @@ export async function POST(req: Request) {
         });
         if (res.ok) {
           const html = await res.text();
-          // Extract JSON-LD
           const jsonLdRegex = /<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
           let match;
           while ((match = jsonLdRegex.exec(html)) !== null) {
@@ -45,7 +51,6 @@ export async function POST(req: Request) {
               else jsonLdData.push(parsed);
             } catch { /* skip */ }
           }
-          // Extract text
           homepageContent = html
             .replace(/<script[\s\S]*?<\/script>/gi, "")
             .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -57,82 +62,22 @@ export async function POST(req: Request) {
       } catch { /* site unreachable */ }
     }
 
-    // Analyze with Claude
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const analysis = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      messages: [{
-        role: "user",
-        content: `Analizza la forza dell'entita' "${brandName}" come entita' riconoscibile dagli LLM.
-
-BRAND: ${brandName}
-SITO: ${siteUrl || "non specificato"}
-SERVIZI: ${services.join(", ") || "non specificati"}
-COMPETITOR: ${competitors.join(", ") || "non specificati"}
-PAESE: ${country || "Italia"}
-SETTORE: ${industry || "non specificato"}
-MERCATO: ${market || "B2B"}
-
-DATI STRUTTURATI TROVATI:
-${jsonLdData.length > 0 ? JSON.stringify(jsonLdData, null, 2).slice(0, 3000) : "Nessuno"}
-
-CONTENUTO HOMEPAGE (estratto):
-${homepageContent || "Non disponibile"}
-
-Valuta questi aspetti da 0 a 100:
-
-1. CONSISTENCY: coerenza del brand tra sito, descrizioni, servizi dichiarati
-2. EXTERNAL_PRESENCE: presenza stimata su fonti esterne (directory, media, articoli)
-3. STRUCTURED_DATA: qualita' dei dati strutturati per l'identita' dell'entita'
-4. CITATIONS: probabilita' che il brand venga citato da fonti autorevoli
-5. REVIEWS: presenza stimata di recensioni e social proof
-6. SERVICE_CLARITY: chiarezza dei servizi offerti
-7. GEO_CLARITY: chiarezza della localizzazione geografica e mercato servito
-
-Per le entita', elenca le principali entita' che il brand dovrebbe avere riconosciute:
-- Nome azienda
-- Servizi principali
-- Sede/localita'
-- Fondatori/team
-- Settori serviti
-- Clienti/case study
-- Certificazioni/premi
-
-Rispondi ESCLUSIVAMENTE con JSON valido:
-{
-  "scores": {
-    "consistency": <0-100>,
-    "externalPresence": <0-100>,
-    "structuredData": <0-100>,
-    "citations": <0-100>,
-    "reviews": <0-100>,
-    "serviceClarity": <0-100>,
-    "geoClarity": <0-100>
-  },
-  "entities": [
-    {"name": "<nome entita'>", "type": "<tipo: brand|service|location|person|industry|client|certification>", "status": "strong|weak|missing", "description": "<breve descrizione dello stato attuale dell'entita' e perche'>", "confidence": "low|medium|high"}
-  ],
-  "issues": [
-    {"type": "critical|warning|info", "category": "<cat>", "message": "<problema>", "fix": "<soluzione>"}
-  ],
-  "suggestions": ["<suggerimento concreto>"]
-}`,
-      }],
+    const analysisPrompt = buildAuditEntityPrompt({
+      brandName, siteUrl, services, competitors, country, industry, market, jsonLdData, homepageContent,
     });
 
-    const text = analysis.content.find((b) => b.type === "text")?.text || "{}";
-    let parsed: {
-      scores: EntityStrengthResult["scores"];
-      entities: EntityStrengthResult["entities"];
-      issues: AuditIssue[];
-      suggestions: string[];
-    };
+    const analysis = await getAnthropicClient().messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: DEFAULT_MAX_TOKENS,
+      temperature: 0,
+      system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
+      messages: [{ role: "user", content: analysisPrompt }],
+    });
 
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
-    } catch {
+    const text = joinAnthropicText(analysis.content);
+    const parsed = extractJson<ParsedEntity>(text);
+
+    if (!parsed) {
       return Response.json({ error: "Errore nel parsing dell'analisi" }, { status: 500 });
     }
 

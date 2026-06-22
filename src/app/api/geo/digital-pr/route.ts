@@ -1,5 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { DigitalPRResult } from "@/lib/geo/types";
+import { CLAUDE_MODEL, DEFAULT_MAX_TOKENS, extractJson, getAnthropicClient, joinAnthropicText } from "@/lib/geo/llm-helpers";
+import { buildDigitalPRPrompt } from "@/lib/geo/prompts/digital-pr";
 
 export const maxDuration = 60;
 
@@ -14,6 +15,12 @@ interface PRRequest {
   problems: string[];
 }
 
+interface ParsedPR {
+  targets: DigitalPRResult["targets"];
+  summary: string;
+  suggestions: string[];
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as PRRequest;
@@ -21,61 +28,21 @@ export async function POST(req: Request) {
       return Response.json({ error: "Brand name richiesto." }, { status: 400 });
     }
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const analysis = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      messages: [{
-        role: "user",
-        content: `Sei un esperto di Digital PR e link building. Identifica i siti piu' rilevanti dove il brand "${body.brandName}" dovrebbe ottenere visibilita', menzioni e backlink per migliorare la sua authority e la citabilita' da parte degli LLM.
+    const analysisPrompt = buildDigitalPRPrompt(body);
 
-BRAND: ${body.brandName}
-SITO: ${body.siteUrl || "non specificato"}
-SERVIZI: ${body.services.join(", ") || "non specificati"}
-COMPETITOR: ${body.competitors.join(", ") || "non specificati"}
-SETTORE: ${body.industry || "non specificato"}
-PAESE: ${body.country || "Italia"}
-MERCATO: ${body.market || "B2B"}
-PROBLEMI TARGET: ${body.problems.join(", ") || "non specificati"}
-
-Suggerisci 15-25 siti concreti e reali, suddivisi tra:
-- Testate di settore e media specializzati
-- Blog autorevoli nel settore
-- Podcast rilevanti
-- Directory verticali e portali di nicchia
-- Associazioni di categoria
-- Newsletter di settore
-- Portali generalisti ma con sezioni rilevanti
-
-Per OGNI sito indica:
-- name: nome del sito/testata
-- url: URL reale del sito
-- type: testata|blog|podcast|directory|associazione|portale|newsletter|altro
-- relevance: rilevanza per il brand 0-100
-- difficulty: difficolta' di accesso 0-100 (0=facile, 100=molto difficile)
-- contentType: tipo di contenuto da proporre (guest-post|intervista|comunicato|case-study|listing|menzione|partnership)
-- approach: come approcciare concretamente (chi contattare, che proporre, che angolo usare)
-- why: perche' questo sito e' strategico per il brand
-
-Ordina per rilevanza decrescente.
-
-Rispondi ESCLUSIVAMENTE con JSON valido:
-{
-  "targets": [
-    {"name": "<nome>", "url": "<url>", "type": "<tipo>", "relevance": <0-100>, "difficulty": <0-100>, "contentType": "<tipo>", "approach": "<come approcciare>", "why": "<perche' e' strategico>"}
-  ],
-  "summary": "<riassunto strategia digital PR in 2-3 frasi>",
-  "suggestions": ["<suggerimento tattico>"]
-}`,
-      }],
+    const analysis = await getAnthropicClient().messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: DEFAULT_MAX_TOKENS,
+      temperature: 0.3,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
+      system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
+      messages: [{ role: "user", content: analysisPrompt }],
     });
 
-    const text = analysis.content.find((b) => b.type === "text")?.text || "{}";
-    let parsed: { targets: DigitalPRResult["targets"]; summary: string; suggestions: string[] };
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
-    } catch {
+    const text = joinAnthropicText(analysis.content);
+    const parsed = extractJson<ParsedPR>(text);
+
+    if (!parsed) {
       return Response.json({ error: "Errore nel parsing dell'analisi" }, { status: 500 });
     }
 

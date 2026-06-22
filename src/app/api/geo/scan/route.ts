@@ -1,36 +1,35 @@
-import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
-import { GoogleGenAI } from "@google/genai";
 import type { GEOScan, GEOSentimentData, GEOCompetitorMention, GEOCitation, GEOSentimentLabel, GEOSourceType } from "@/lib/geo/types";
+import {
+  CLAUDE_MODEL,
+  GEMINI_MODEL,
+  OPENAI_MODEL,
+  DEFAULT_MAX_TOKENS,
+  extractJson,
+  getAnthropicClient,
+  getGeminiClient,
+  getOpenAIClient,
+  joinAnthropicText,
+  timeoutSignal,
+} from "@/lib/geo/llm-helpers";
+import { buildScanAnalysisPrompt } from "@/lib/geo/prompts/scan";
 
 export const maxDuration = 120;
-
-function getAnthropicClient() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-}
-
-function getOpenAIClient() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-}
-
-function getGeminiClient() {
-  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-}
 
 async function askLLM(llm: string, query: string): Promise<string> {
   try {
     if (llm === "Claude") {
       const r = await getAnthropicClient().messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
+        model: CLAUDE_MODEL,
+        max_tokens: DEFAULT_MAX_TOKENS,
+        temperature: 0.7,
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
         messages: [{ role: "user", content: query }],
       });
-      const text = r.content.find((b) => b.type === "text");
-      return text ? text.text : "";
+      return joinAnthropicText(r.content);
     }
     if (llm === "ChatGPT") {
       const r = await getOpenAIClient().responses.create({
-        model: "gpt-4o",
+        model: OPENAI_MODEL,
         tools: [{ type: "web_search_preview" }],
         input: query,
       });
@@ -44,13 +43,15 @@ async function askLLM(llm: string, query: string): Promise<string> {
     if (llm === "Gemini") {
       const ai = getGeminiClient();
       const r = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: GEMINI_MODEL,
         contents: query,
-        config: { tools: [{ googleSearch: {} }] },
+        config: {
+          tools: [{ googleSearch: {} }],
+          abortSignal: timeoutSignal(),
+        },
       });
       return r.text ?? "";
     }
-    // Perplexity, AI Overviews: placeholder
     return "";
   } catch {
     return "";
@@ -63,6 +64,18 @@ interface ScanRequest {
   brandName: string;
   competitors: string[];
   siteUrl?: string;
+}
+
+interface ParsedScan {
+  brandMentioned: boolean;
+  brandPosition?: number | null;
+  brandContext?: string | null;
+  brandAttributes: string[];
+  sentiment: GEOSentimentData;
+  competitorMentions: GEOCompetitorMention[];
+  citations: GEOCitation[];
+  confidence: "low" | "medium" | "high";
+  reasoning: string;
 }
 
 export async function POST(req: Request) {
@@ -85,100 +98,35 @@ export async function POST(req: Request) {
       return Response.json({ error: "GEMINI_API_KEY non configurata." }, { status: 400 });
     }
 
-    // Phase 1: Send the prompt to the selected LLM
     const rawResponse = await askLLM(llm, prompt);
 
     if (!rawResponse) {
-      return Response.json({
-        error: `LLM "${llm}" non supportato o risposta vuota.`,
-      }, { status: 400 });
+      return Response.json(
+        { error: `LLM "${llm}" non supportato o risposta vuota.` },
+        { status: 400 },
+      );
     }
 
-    // Phase 2: Analyze the response with Claude
-    const analysisPrompt = `Analizza questa risposta data da ${llm} al prompt "${prompt}".
-
-BRAND DA CERCARE: "${brandName}"
-${siteUrl ? `SITO DEL BRAND: "${siteUrl}"` : ""}
-COMPETITOR DA CERCARE: ${competitors.length > 0 ? competitors.join(", ") : "non specificati"}
-
-RISPOSTA DA ANALIZZARE:
----
-${rawResponse}
----
-
-Rispondi ESCLUSIVAMENTE con un JSON valido (nessun testo prima o dopo):
-{
-  "brandMentioned": true/false,
-  "brandPosition": <posizione numerica nella lista se presente, null se non in lista>,
-  "brandContext": "<frase esatta in cui il brand viene menzionato, o null>",
-  "brandAttributes": ["<aggettivi o attributi usati per descrivere il brand>"],
-  "sentiment": {
-    "score": <da -1.0 a 1.0>,
-    "label": "negativo" | "neutro" | "positivo",
-    "phrases": ["<frasi chiave sul brand>"],
-    "strengths": ["<punti di forza citati>"],
-    "weaknesses": ["<punti deboli citati>"],
-    "alignmentScore": <0-100, quanto la descrizione e' coerente con un posizionamento premium>
-  },
-  "competitorMentions": [
-    {
-      "name": "<nome competitor>",
-      "position": <posizione in lista o null>,
-      "attributes": ["<attributi associati>"],
-      "sentiment": "negativo" | "neutro" | "positivo",
-      "strengths": ["<punti di forza>"],
-      "weaknesses": ["<debolezze o spazi scoperti>"]
-    }
-  ],
-  "citations": [
-    {
-      "url": "<URL citato>",
-      "title": "<titolo della pagina se menzionato>",
-      "domain": "<dominio>",
-      "type": "owned" | "competitor" | "directory" | "media" | "blog" | "marketplace" | "forum" | "review" | "social" | "other",
-      "brandMentioned": true/false,
-      "competitorMentioned": "<nome competitor o null>",
-      "authority": "low" | "medium" | "high",
-      "controllable": true/false
-    }
-  ],
-  "confidence": "low" | "medium" | "high",
-  "reasoning": "<spiegazione sintetica dei risultati>"
-}
-
-Nota:
-- Cerca il brand "${brandName}" anche con varianti del nome
-- Per i competitor, cerca solo quelli nella lista fornita piu' eventuali altri menzionati
-- Per le citazioni, estrai tutti gli URL o fonti menzionate nella risposta
-- ${siteUrl ? `Il dominio "${(() => { try { return new URL(siteUrl).hostname; } catch { return siteUrl.replace(/^https?:\/\//, "").split("/")[0]; } })()}" e' "owned"` : ""}
-- Se il brand non e' menzionato, brandContext e brandAttributes possono essere vuoti/null
-- Sii accurato nel sentiment: positivo solo se ci sono elogi chiari`;
+    const analysisPrompt = buildScanAnalysisPrompt({
+      llm, prompt, brandName, siteUrl, competitors, rawResponse,
+    });
 
     const analysis = await getAnthropicClient().messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      model: CLAUDE_MODEL,
+      max_tokens: DEFAULT_MAX_TOKENS,
+      temperature: 0,
+      system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
       messages: [{ role: "user", content: analysisPrompt }],
     });
 
-    const analysisText = analysis.content.find((b) => b.type === "text")?.text || "{}";
+    const analysisText = joinAnthropicText(analysis.content);
+    const parsed = extractJson<ParsedScan>(analysisText);
 
-    let parsed: {
-      brandMentioned: boolean;
-      brandPosition?: number | null;
-      brandContext?: string | null;
-      brandAttributes: string[];
-      sentiment: GEOSentimentData;
-      competitorMentions: GEOCompetitorMention[];
-      citations: GEOCitation[];
-      confidence: "low" | "medium" | "high";
-      reasoning: string;
-    };
-
-    try {
-      const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : analysisText);
-    } catch {
-      return Response.json({ error: "Errore nel parsing della risposta.", raw: analysisText }, { status: 500 });
+    if (!parsed) {
+      return Response.json(
+        { error: "Errore nel parsing della risposta.", raw: analysisText },
+        { status: 500 },
+      );
     }
 
     const result: GEOScan = {
