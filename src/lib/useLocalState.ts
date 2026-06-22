@@ -7,25 +7,27 @@ import { supabase } from "./supabase";
  * Persisted state hook.
  * Key format: "themap:<company>:<dataType>"
  * Syncs to Supabase (source of truth) with localStorage as cache/fallback.
+ *
+ * Guarantees:
+ * - Initial mock data from `init()` is NEVER persisted unless the user actually modifies the state.
+ * - Late hydration from Supabase does NOT overwrite changes the user has already made.
  */
 export function useLocalState<T>(key: string, init: () => T, version?: number): [T, Dispatch<SetStateAction<T>>] {
-  // When version is provided, append it to storage keys so old cached data is ignored
   const vKey = version != null ? `${key}:v${version}` : key;
   const [state, setState] = useState<T>(init);
   const [hydrated, setHydrated] = useState(false);
+  const hasRealDataRef = useRef(false);
+  const dirtyRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Parse key → company + dataKey
   const parts = vKey.split(":");
   const company = parts[1] || "";
   const dataKey = parts.slice(2).join(":") || parts[0];
 
-  // Load: try Supabase first, fall back to localStorage
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      // Try Supabase
       try {
         const { data, error } = await supabase
           .from("app_state")
@@ -35,20 +37,26 @@ export function useLocalState<T>(key: string, init: () => T, version?: number): 
           .single();
 
         if (!error && data && !cancelled) {
-          setState(data.data as T);
-          // Update localStorage cache
-          try { localStorage.setItem(vKey, JSON.stringify(data.data)); } catch {}
+          if (!dirtyRef.current) {
+            setState(data.data as T);
+            try { localStorage.setItem(vKey, JSON.stringify(data.data)); } catch {}
+          }
+          hasRealDataRef.current = true;
           setHydrated(true);
           return;
         }
-      } catch { /* Supabase unreachable, fall through */ }
+      } catch { /* fall through */ }
 
-      // Fallback: localStorage
       if (!cancelled) {
+        let loadedFromLocal = false;
         try {
           const stored = localStorage.getItem(vKey);
-          if (stored) setState(JSON.parse(stored));
+          if (stored && !dirtyRef.current) {
+            setState(JSON.parse(stored));
+            loadedFromLocal = true;
+          }
         } catch {}
+        hasRealDataRef.current = loadedFromLocal;
         setHydrated(true);
       }
     }
@@ -57,15 +65,11 @@ export function useLocalState<T>(key: string, init: () => T, version?: number): 
     return () => { cancelled = true; };
   }, [vKey, company, dataKey]);
 
-  // Save: debounced write to both Supabase and localStorage
   const saveToSupabase = useCallback(
     (value: T) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
-        // localStorage (immediate cache)
         try { localStorage.setItem(vKey, JSON.stringify(value)); } catch {}
-
-        // Supabase (upsert)
         try {
           await supabase
             .from("app_state")
@@ -79,11 +83,16 @@ export function useLocalState<T>(key: string, init: () => T, version?: number): 
     [vKey, company, dataKey],
   );
 
-  // Trigger save after hydration
+  const setStateDirty = useCallback<Dispatch<SetStateAction<T>>>((v) => {
+    dirtyRef.current = true;
+    setState(v);
+  }, []);
+
   useEffect(() => {
     if (!hydrated) return;
+    if (!hasRealDataRef.current && !dirtyRef.current) return;
     saveToSupabase(state);
   }, [state, hydrated, saveToSupabase]);
 
-  return [state, setState];
+  return [state, setStateDirty];
 }
