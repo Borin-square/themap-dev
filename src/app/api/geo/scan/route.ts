@@ -15,7 +15,7 @@ import { buildScanAnalysisPrompt } from "@/lib/geo/prompts/scan";
 
 export const maxDuration = 120;
 
-async function askLLM(llm: string, query: string): Promise<string> {
+async function askLLM(llm: string, query: string): Promise<{ text: string; error?: string }> {
   try {
     if (llm === "Claude") {
       const r = await getAnthropicClient().messages.create({
@@ -25,7 +25,7 @@ async function askLLM(llm: string, query: string): Promise<string> {
         tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
         messages: [{ role: "user", content: query }],
       });
-      return joinAnthropicText(r.content);
+      return { text: joinAnthropicText(r.content) };
     }
     if (llm === "ChatGPT") {
       const r = await getOpenAIClient().responses.create({
@@ -36,9 +36,9 @@ async function askLLM(llm: string, query: string): Promise<string> {
       const msg = r.output.find((b) => b.type === "message");
       if (msg && "content" in msg) {
         const text = msg.content.find((c: { type: string }) => c.type === "output_text");
-        return text && "text" in text ? (text as { text: string }).text : "";
+        return { text: text && "text" in text ? (text as { text: string }).text : "" };
       }
-      return "";
+      return { text: "" };
     }
     if (llm === "Gemini") {
       const ai = getGeminiClient();
@@ -50,11 +50,13 @@ async function askLLM(llm: string, query: string): Promise<string> {
           abortSignal: timeoutSignal(),
         },
       });
-      return r.text ?? "";
+      return { text: r.text ?? "" };
     }
-    return "";
-  } catch {
-    return "";
+    return { text: "", error: `LLM "${llm}" non implementato.` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[scan/askLLM] ${llm} failed:`, msg);
+    return { text: "", error: msg };
   }
 }
 
@@ -98,15 +100,16 @@ export async function POST(req: Request) {
       return Response.json({ error: "GEMINI_API_KEY non configurata." }, { status: 400 });
     }
 
-    const rawResponse = await askLLM(llm, prompt);
+    const askResult = await askLLM(llm, prompt);
 
-    if (!rawResponse) {
+    if (!askResult.text) {
       return Response.json(
-        { error: `LLM "${llm}" non supportato o risposta vuota.` },
+        { error: askResult.error ? `${llm}: ${askResult.error}` : `LLM "${llm}" ha restituito una risposta vuota.` },
         { status: 400 },
       );
     }
 
+    const rawResponse = askResult.text;
     const analysisPrompt = buildScanAnalysisPrompt({
       llm, prompt, brandName, siteUrl, competitors, rawResponse,
     });
