@@ -26,24 +26,48 @@ const synthClient = () =>
     maxRetries: 2,
   });
 
+function isRetryableErr(msg: string): boolean {
+  return /\b(500|502|503|504|529)\b|overload|UNAVAILABLE|high demand|temporar|api_error|internal server/i.test(msg);
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3, initialDelayMs = 1500): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (i === attempts - 1 || !isRetryableErr(msg)) throw err;
+      const delay = initialDelayMs * Math.pow(2, i); // 1.5s, 3s, 6s
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 async function askLLM(llm: string, query: string): Promise<{ text: string; error?: string }> {
   try {
     if (llm === "Claude") {
-      const r = await getAnthropicClient().messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: DEFAULT_MAX_TOKENS,
-        temperature: 0.4,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
-        messages: [{ role: "user", content: query }],
-      });
+      const r = await withRetry(() =>
+        getAnthropicClient().messages.create({
+          model: CLAUDE_MODEL,
+          max_tokens: DEFAULT_MAX_TOKENS,
+          temperature: 0.4,
+          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
+          messages: [{ role: "user", content: query }],
+        }),
+      );
       return { text: joinAnthropicText(r.content) };
     }
     if (llm === "ChatGPT") {
-      const r = await getOpenAIClient().responses.create({
-        model: OPENAI_MODEL,
-        tools: [{ type: "web_search_preview" }],
-        input: query,
-      });
+      const r = await withRetry(() =>
+        getOpenAIClient().responses.create({
+          model: OPENAI_MODEL,
+          tools: [{ type: "web_search_preview" }],
+          input: query,
+        }),
+      );
       const msg = r.output.find((b) => b.type === "message");
       if (msg && "content" in msg) {
         const text = msg.content.find((c: { type: string }) => c.type === "output_text");
@@ -53,22 +77,33 @@ async function askLLM(llm: string, query: string): Promise<{ text: string; error
     }
     if (llm === "Gemini") {
       const ai = getGeminiClient();
-      const r = await ai.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: query,
-        config: {
-          tools: [{ googleSearch: {} }],
-          abortSignal: timeoutSignal(),
-        },
-      });
+      const r = await withRetry(() =>
+        ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: query,
+          config: {
+            tools: [{ googleSearch: {} }],
+            abortSignal: timeoutSignal(),
+          },
+        }),
+      );
       return { text: r.text ?? "" };
     }
     return { text: "", error: `LLM "${llm}" non implementato.` };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[source-acquisition/askLLM] ${llm} failed:`, msg);
-    return { text: "", error: msg };
+    return { text: "", error: humanizeProviderErr(llm, msg) };
   }
+}
+
+function humanizeProviderErr(llm: string, raw: string): string {
+  if (/529|overload/i.test(raw)) return `${llm} sovraccarico (529). Riprova fra qualche minuto.`;
+  if (/503|UNAVAILABLE|high demand/i.test(raw)) return `${llm} in overload (503). Riprova fra qualche minuto.`;
+  if (/500|api_error|internal server/i.test(raw)) return `${llm} errore interno (500). Riprova.`;
+  if (/429|quota|rate.?limit/i.test(raw)) return `${llm} quota esaurita. Cambia LLM o aspetta il reset.`;
+  if (/401|invalid.?api.?key|unauthorized/i.test(raw)) return `${llm} API key non valida.`;
+  return raw.slice(0, 200);
 }
 
 interface SourceRequest {
@@ -141,23 +176,48 @@ export async function POST(req: Request) {
       existingCitations: body.existingCitations,
     });
 
-    let synthesis;
+    // Synthesis: Anthropic Haiku con retry, fallback OpenAI se anche dopo retry e' giu'
+    let synthesisText = "";
+    let synthLLM: "Claude" | "OpenAI" = "Claude";
     try {
-      synthesis = await synthClient().messages.create({
-        model: SYNTH_MODEL,
-        max_tokens: DEFAULT_MAX_TOKENS,
-        temperature: 0,
-        system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
-        messages: [{ role: "user", content: synthesisPrompt }],
-      });
+      const synthesis = await withRetry(() =>
+        synthClient().messages.create({
+          model: SYNTH_MODEL,
+          max_tokens: DEFAULT_MAX_TOKENS,
+          temperature: 0,
+          system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
+          messages: [{ role: "user", content: synthesisPrompt }],
+        }),
+      );
+      synthesisText = joinAnthropicText(synthesis.content);
     } catch (synthErr) {
       const msg = synthErr instanceof Error ? synthErr.message : String(synthErr);
-      console.error("[source-acquisition/synth] failed:", msg);
-      return Response.json({ error: `Synthesis fallita: ${msg}` }, { status: 502 });
+      console.error("[source-acquisition/synth] Anthropic failed, trying OpenAI fallback:", msg);
+      if (!process.env.OPENAI_API_KEY) {
+        return Response.json({ error: `Synthesis fallita: ${humanizeProviderErr("Claude", msg)} (OpenAI fallback non configurato)` }, { status: 502 });
+      }
+      try {
+        const r = await withRetry(() =>
+          getOpenAIClient().chat.completions.create({
+            model: "gpt-4o-mini",
+            temperature: 0,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo." },
+              { role: "user", content: synthesisPrompt },
+            ],
+          }),
+        );
+        synthesisText = r.choices[0]?.message?.content ?? "";
+        synthLLM = "OpenAI";
+      } catch (oaErr) {
+        const omsg = oaErr instanceof Error ? oaErr.message : String(oaErr);
+        return Response.json({ error: `Synthesis fallita su Claude (${humanizeProviderErr("Claude", msg)}) e OpenAI fallback (${humanizeProviderErr("OpenAI", omsg)}).` }, { status: 502 });
+      }
     }
 
-    const text = joinAnthropicText(synthesis.content);
-    const parsed = extractJson<ParsedSynthesis>(text);
+    const parsed = extractJson<ParsedSynthesis>(synthesisText);
+    void synthLLM; // tracciato in console se serve debugging
 
     if (!parsed) {
       return Response.json({ error: "Errore nel parsing dell'analisi." }, { status: 500 });
