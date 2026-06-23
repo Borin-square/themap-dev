@@ -141,29 +141,48 @@ export async function POST(req: Request) {
       return Response.json({ error: "Nessuna API key LLM configurata." }, { status: 400 });
     }
 
-    // Filtro user-side: se l'utente sceglie un sottoinsieme, rispettiamo
-    const requested = body.llms?.filter((l) => availableLLMs.includes(l));
-    const llmsToUse = requested && requested.length > 0 ? requested : availableLLMs;
+    // Filtro user-side + fallback chain: se l'LLM scelto fallisce, prova gli altri disponibili
+    const requested = body.llms?.filter((l) => availableLLMs.includes(l)) ?? [];
+    const primary = requested.length > 0 ? requested : availableLLMs;
+    const fallbacks = availableLLMs.filter((l) => !primary.includes(l));
+    const llmsToTry = [...primary, ...fallbacks];
 
     const discoveryPrompt = buildDiscoveryPrompt(body);
 
-    const discoveryResults = await Promise.all(
-      llmsToUse.map(async (llm) => {
+    // Prima passata: prova tutti i primary in parallelo
+    const primaryResults = await Promise.all(
+      primary.map(async (llm) => {
         const { text, error } = await askLLM(llm, discoveryPrompt);
         return { llm, response: text, error };
       }),
     );
 
-    const validResults = discoveryResults.filter((r) => r.response.length > 0);
-    const failures = discoveryResults.filter((r) => r.response.length === 0);
+    let validResults = primaryResults.filter((r) => r.response.length > 0);
+    const failures = [...primaryResults.filter((r) => r.response.length === 0)];
+    const fallbackTried: string[] = [];
+
+    // Se nessun primary risponde, tenta i fallback uno alla volta (sequenziale per non sprecare quota)
+    if (validResults.length === 0 && fallbacks.length > 0) {
+      for (const llm of fallbacks) {
+        fallbackTried.push(llm);
+        const { text, error } = await askLLM(llm, discoveryPrompt);
+        if (text.length > 0) {
+          validResults = [{ llm, response: text, error: undefined }];
+          break;
+        }
+        failures.push({ llm, response: "", error });
+      }
+    }
 
     if (validResults.length === 0) {
       const detail = failures.map((f) => `${f.llm}: ${f.error || "vuoto"}`).join(" | ");
+      const triedSummary = `Tentativi: primary [${primary.join(", ")}]${fallbackTried.length > 0 ? `, fallback [${fallbackTried.join(", ")}]` : ""}.`;
       return Response.json(
-        { error: `Nessun LLM ha restituito risultati. ${detail}` },
-        { status: 500 },
+        { error: `Nessun LLM ha restituito risultati. ${triedSummary} ${detail}` },
+        { status: 503 },
       );
     }
+    void llmsToTry; // tracking
 
     const llmResponsesBlock = validResults
       .map((r) => `=== ${r.llm} ===\n${r.response}`)
