@@ -4,7 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 
 export const CLAUDE_MODEL = "claude-sonnet-4-6";
 export const OPENAI_MODEL = "gpt-4o";
-export const GEMINI_MODEL = "gemini-2.0-flash";
+export const GEMINI_MODEL = "gemini-2.5-flash-lite";
 
 export const LLM_TIMEOUT_MS = 110_000;
 export const DEFAULT_MAX_TOKENS = 4096;
