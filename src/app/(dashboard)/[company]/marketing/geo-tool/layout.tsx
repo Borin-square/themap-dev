@@ -20,6 +20,7 @@ const GEO_NAV = [
   { href: "/audit/crawlability", label: "AI Crawlability", icon: "\u2699" },
   { href: "/audit/content-readiness", label: "Content Readiness", icon: "\u2637" },
   { href: "/audit/structured-data", label: "Structured Data", icon: "\u2630" },
+  { href: "/audit/kg-optimizer", label: "KG Optimizer", icon: "\u26ED" },
   { href: "/audit/entity-strength", label: "Entity Strength", icon: "\u2726" },
   { section: "ACTION PLANNER" },
   { href: "/action/content-gaps", label: "Content Gaps", icon: "\u25CB" },

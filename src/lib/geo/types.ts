@@ -225,6 +225,78 @@ export interface GEOAudits {
   entityStrength: EntityStrengthResult[];
 }
 
+/* ── KG Optimizer (structured-data avanzato con LLM + accept/generate) ── */
+
+export const KG_SUGGESTION_CATEGORIES = ["schema-org", "rich-results", "knowledge-graph"] as const;
+export type KGSuggestionCategory = typeof KG_SUGGESTION_CATEGORIES[number];
+
+export const KG_SUGGESTION_SEVERITIES = ["critical", "warning", "info"] as const;
+export type KGSuggestionSeverity = typeof KG_SUGGESTION_SEVERITIES[number];
+
+export const KG_SUGGESTION_OPS = ["add", "modify", "remove", "add-schema"] as const;
+export type KGSuggestionOp = typeof KG_SUGGESTION_OPS[number];
+
+/** Singolo blocco JSON-LD estratto dalla pagina. */
+export interface KGExtractedBlock {
+  index: number;
+  schemaType: string;          // es. "Organization" o "Article" — letto da @type
+  raw: string;                 // JSON originale serializzato (per round-trip)
+  parsed: Record<string, unknown>;
+}
+
+/** Risultato della fase extract (per singolo URL). */
+export interface KGExtractedUrl {
+  url: string;
+  status: "ok" | "fetch-error" | "no-jsonld";
+  httpStatus?: number;
+  error?: string;
+  jsRenderedHint?: boolean;    // true se la pagina sembra JS-app senza JSON-LD lato server
+  hasMicrodata?: boolean;
+  blocks: KGExtractedBlock[];
+  extractedAt: string;
+}
+
+/** Singolo suggerimento puntuale generato dall'LLM. */
+export interface KGSuggestion {
+  id: string;                  // uuid stabile per accept/reject
+  category: KGSuggestionCategory;
+  severity: KGSuggestionSeverity;
+  op: KGSuggestionOp;          // add | modify | remove | add-schema
+  schemaIndex: number | null;  // null per add-schema (nuovo blocco)
+  targetSchemaType?: string;   // per add-schema: il nuovo @type proposto
+  fieldPath?: string;          // es. "sameAs", "address.addressLocality"
+  currentValue?: unknown;
+  proposedValue?: unknown;
+  why: string;                 // motivazione user-friendly
+}
+
+/** Analisi per singolo blocco esistente. */
+export interface KGSchemaAnalysis {
+  schemaIndex: number;
+  schemaType: string;
+  summary: string;
+  suggestions: KGSuggestion[];
+}
+
+/** Risposta dell'analyze route per un URL. */
+export interface KGAnalysis {
+  schemas: KGSchemaAnalysis[];
+  newSchemas: KGSuggestion[];          // suggestion op=add-schema (nuovi blocchi consigliati)
+  overallNotes: string;
+  analyzedAt: string;
+}
+
+/** Audit completo (uno per URL) — persistito in Supabase. */
+export interface KGAudit {
+  id: string;
+  url: string;
+  extracted?: KGExtractedUrl;
+  analysis?: KGAnalysis;
+  acceptedSuggestionIds: string[];
+  finalMarkup?: string;
+  updatedAt: string;
+}
+
 /* ── Phase 4: Action Planner ── */
 
 export interface ContentGap {
