@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import type { GEOScan, GEOSentimentData, GEOCompetitorMention, GEOCitation, GEOSentimentLabel, GEOSourceType } from "@/lib/geo/types";
 import {
   CLAUDE_MODEL,
@@ -14,6 +15,16 @@ import {
 import { buildScanAnalysisPrompt } from "@/lib/geo/prompts/scan";
 
 export const maxDuration = 120;
+
+// Analisi: Haiku 4.5 + fallback OpenAI per essere resilienti agli overload di Sonnet
+const ANALYSIS_MODEL = "claude-haiku-4-5";
+const ANALYSIS_TIMEOUT_MS = 90_000;
+const analysisAnthropicClient = () =>
+  new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    timeout: ANALYSIS_TIMEOUT_MS,
+    maxRetries: 2,
+  });
 
 function isRetryableErr(msg: string): boolean {
   return /\b(500|502|503|504|529)\b|overload|UNAVAILABLE|high demand|temporar|api_error|internal server/i.test(msg);
@@ -165,20 +176,51 @@ export async function POST(req: Request) {
       llm, prompt, brandName, siteUrl, competitors, rawResponse,
     });
 
-    const analysis = await getAnthropicClient().messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: DEFAULT_MAX_TOKENS,
-      temperature: 0,
-      system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
-      messages: [{ role: "user", content: analysisPrompt }],
-    });
+    // Analisi: Anthropic Haiku con retry, fallback OpenAI se Anthropic giu'
+    let analysisText = "";
+    try {
+      const analysis = await withRetry(() =>
+        analysisAnthropicClient().messages.create({
+          model: ANALYSIS_MODEL,
+          max_tokens: DEFAULT_MAX_TOKENS,
+          temperature: 0,
+          system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
+          messages: [{ role: "user", content: analysisPrompt }],
+        }),
+      );
+      analysisText = joinAnthropicText(analysis.content);
+    } catch (anaErr) {
+      const msg = anaErr instanceof Error ? anaErr.message : String(anaErr);
+      console.error("[scan/analysis] Anthropic failed, trying OpenAI:", msg);
+      if (!process.env.OPENAI_API_KEY) {
+        return Response.json({ error: `Analisi fallita: ${humanizeLLMError("Claude", msg)}` }, { status: 502 });
+      }
+      try {
+        const r = await withRetry(() =>
+          getOpenAIClient().chat.completions.create({
+            model: "gpt-4o-mini",
+            temperature: 0,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo." },
+              { role: "user", content: analysisPrompt },
+            ],
+          }),
+        );
+        analysisText = r.choices[0]?.message?.content ?? "";
+      } catch (oaErr) {
+        const omsg = oaErr instanceof Error ? oaErr.message : String(oaErr);
+        return Response.json({
+          error: `Analisi fallita su Claude (${humanizeLLMError("Claude", msg)}) e OpenAI fallback (${humanizeLLMError("OpenAI", omsg)}).`,
+        }, { status: 502 });
+      }
+    }
 
-    const analysisText = joinAnthropicText(analysis.content);
     const parsed = extractJson<ParsedScan>(analysisText);
 
     if (!parsed) {
       return Response.json(
-        { error: "Errore nel parsing della risposta.", raw: analysisText },
+        { error: "Errore nel parsing della risposta.", raw: analysisText.slice(0, 500) },
         { status: 500 },
       );
     }
