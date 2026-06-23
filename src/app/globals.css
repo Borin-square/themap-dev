@@ -1780,6 +1780,20 @@ th.ee-inactive { opacity: .4; }
 .geo-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
 .geo-title{font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px}
 .geo-head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.geo-section-card{background:var(--bg2);border:1px solid var(--bd);border-radius:10px}
+.geo-page-box{background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:20px}
+.geo-summary-card{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.geo-summary-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.geo-summary-stat{display:flex;flex-direction:column;align-items:flex-start;min-width:90px}
+.geo-summary-stat .geo-summary-n{font-size:22px;font-weight:700;color:var(--fg);line-height:1}
+.geo-summary-stat .geo-summary-l{font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+.geo-summary-divider{width:1px;align-self:stretch;background:var(--bd)}
+.geo-summary-chips{display:flex;gap:6px;flex-wrap:wrap}
+.geo-summary-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;font-size:11px;border-radius:6px;border:1px solid var(--bd);background:var(--bg)}
+.geo-summary-chip-crit{border-color:var(--red);color:var(--red)}
+.geo-summary-chip-warn{border-color:var(--org);color:var(--org)}
+.geo-summary-chip-info{border-color:var(--accent);color:var(--accent)}
+.geo-summary-notes{font-size:12px;color:var(--fg2);line-height:1.5;padding-top:8px;border-top:1px dashed var(--bd)}
 
 /* KPI Grid */
 .geo-kpi-grid{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}

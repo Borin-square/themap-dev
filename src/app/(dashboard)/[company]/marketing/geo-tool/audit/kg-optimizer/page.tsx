@@ -336,77 +336,79 @@ export default function KGOptimizerPage() {
         Estrai JSON-LD da una o piu' pagine, analizza con LLM (validita' schema.org + Google Rich Results + ottimizzazione Knowledge Graph), accetta i suggerimenti e genera il markup finale pronto da incollare.
       </div>
 
-      {showInput && (
-        <div className="geo-section-card" style={{ padding: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 11, color: "var(--fg2)", marginBottom: 6 }}>
-            Incolla fino a {MAX_URLS} URL, uno per riga
+      <div className="geo-page-box">
+        {showInput && (
+          <div className="geo-section-card" style={{ padding: 12, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: "var(--fg2)", marginBottom: 6 }}>
+              Incolla fino a {MAX_URLS} URL, uno per riga
+            </div>
+            <textarea
+              className="geo-add-input"
+              rows={5}
+              placeholder="https://example.com/pagina-1&#10;https://example.com/pagina-2"
+              value={urlsInput}
+              onChange={(e) => setUrlsInput(e.target.value)}
+              style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button
+                className="geo-btn geo-btn-accent"
+                disabled={extracting || !urlsInput.trim()}
+                onClick={handleExtract}
+              >
+                {extracting ? "Estrazione..." : "Estrai dati strutturati"}
+              </button>
+              <button className="geo-btn" onClick={() => { setUrlsInput(""); setShowInput(false); }}>
+                Annulla
+              </button>
+            </div>
           </div>
-          <textarea
-            className="geo-add-input"
-            rows={5}
-            placeholder="https://example.com/pagina-1&#10;https://example.com/pagina-2"
-            value={urlsInput}
-            onChange={(e) => setUrlsInput(e.target.value)}
-            style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }}
-          />
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button
-              className="geo-btn geo-btn-accent"
-              disabled={extracting || !urlsInput.trim()}
-              onClick={handleExtract}
-            >
-              {extracting ? "Estrazione..." : "Estrai dati strutturati"}
-            </button>
-            <button className="geo-btn" onClick={() => { setUrlsInput(""); setShowInput(false); }}>
-              Annulla
-            </button>
+        )}
+
+        {!loaded && <div className="geo-empty">Caricamento...</div>}
+
+        {loaded && audits.length === 0 && !showInput && (
+          <div className="geo-empty">
+            <div className="geo-empty-title">Nessun audit</div>
+            Clicca <strong>+ URL</strong> per iniziare. Puoi caricare fino a {MAX_URLS} URL alla volta.
           </div>
-        </div>
-      )}
+        )}
 
-      {!loaded && <div className="geo-empty">Caricamento...</div>}
-
-      {loaded && audits.length === 0 && !showInput && (
-        <div className="geo-empty">
-          <div className="geo-empty-title">Nessun audit</div>
-          Clicca <strong>+ URL</strong> per iniziare. Puoi caricare fino a {MAX_URLS} URL alla volta.
-        </div>
-      )}
-
-      {audits.length > 0 && (
-        <div className="geo-table-wrap">
-          <table className="geo-table">
-            <thead>
-              <tr>
-                <th>URL</th>
-                <th>Stato</th>
-                <th>Blocchi JSON-LD</th>
-                <th>Schema trovati</th>
-                <th>Analisi</th>
-                <th>Suggerimenti accettati</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {audits.map((a) => (
-                <AuditRow
-                  key={a.id}
-                  audit={a}
-                  expanded={expandedId === a.id}
-                  busy={busyId === a.id ? busyKind : null}
-                  busyElapsed={busyId === a.id ? busyElapsed : 0}
-                  onToggleExpand={() => setExpandedId(expandedId === a.id ? null : a.id)}
-                  onAnalyze={() => handleAnalyze(a)}
-                  onToggleSuggestion={(sid) => toggleSuggestion(a, sid)}
-                  onGenerate={() => handleGenerate(a)}
-                  onViewMarkup={() => setViewMarkup(a)}
-                  onDelete={() => handleDelete(a)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+        {audits.length > 0 && (
+          <div className="geo-table-wrap">
+            <table className="geo-table">
+              <thead>
+                <tr>
+                  <th>URL</th>
+                  <th>Stato</th>
+                  <th>Blocchi JSON-LD</th>
+                  <th>Schema trovati</th>
+                  <th>Analisi</th>
+                  <th>Suggerimenti accettati</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {audits.map((a) => (
+                  <AuditRow
+                    key={a.id}
+                    audit={a}
+                    expanded={expandedId === a.id}
+                    busy={busyId === a.id ? busyKind : null}
+                    busyElapsed={busyId === a.id ? busyElapsed : 0}
+                    onToggleExpand={() => setExpandedId(expandedId === a.id ? null : a.id)}
+                    onAnalyze={() => handleAnalyze(a)}
+                    onToggleSuggestion={(sid) => toggleSuggestion(a, sid)}
+                    onGenerate={() => handleGenerate(a)}
+                    onViewMarkup={() => setViewMarkup(a)}
+                    onDelete={() => handleDelete(a)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {viewMarkup?.finalMarkup && (
         <MarkupModal
@@ -587,11 +589,7 @@ function AuditDetail({ audit, onToggleSuggestion }: { audit: KGAudit; onToggleSu
 
       {audit.analysis && (
         <>
-          {audit.analysis.overallNotes && (
-            <div className="geo-audit-issue geo-audit-issue-info">
-              <div className="geo-audit-issue-msg">{audit.analysis.overallNotes}</div>
-            </div>
-          )}
+          <AnalysisSummary audit={audit} />
 
           {audit.analysis.schemas.map((sa) => (
             <SchemaSuggestions
@@ -639,6 +637,88 @@ function BlockView({ index, schemaType, parsed }: { index: number; schemaType: s
         <pre className="geo-audit-code" style={{ marginTop: 8, maxHeight: 280, overflow: "auto" }}>
           {JSON.stringify(parsed, null, 2)}
         </pre>
+      )}
+    </div>
+  );
+}
+
+/* ── Analysis Summary ── */
+
+function AnalysisSummary({ audit }: { audit: KGAudit }) {
+  const analysis = audit.analysis;
+  if (!analysis) return null;
+  const all = collectAllSuggestions(analysis);
+  const accepted = all.filter((s) => audit.acceptedSuggestionIds.includes(s.id));
+
+  const byCat = {
+    "knowledge-graph": all.filter((s) => s.category === "knowledge-graph"),
+    "rich-results": all.filter((s) => s.category === "rich-results"),
+    "schema-org": all.filter((s) => s.category === "schema-org"),
+  };
+  const bySev = {
+    critical: all.filter((s) => s.severity === "critical").length,
+    warning: all.filter((s) => s.severity === "warning").length,
+    info: all.filter((s) => s.severity === "info").length,
+  };
+  const newSchemas = analysis.newSchemas.length;
+  const pct = all.length > 0 ? Math.round((accepted.length / all.length) * 100) : 0;
+
+  return (
+    <div className="geo-summary-card">
+      <div className="geo-summary-row">
+        <div className="geo-summary-stat">
+          <span className="geo-summary-n">{all.length}</span>
+          <span className="geo-summary-l">Suggerimenti totali</span>
+        </div>
+        <div className="geo-summary-stat">
+          <span className="geo-summary-n" style={{ color: accepted.length > 0 ? "var(--grn)" : "var(--fg)" }}>
+            {accepted.length}<span style={{ fontSize: 14, color: "var(--fg3)", fontWeight: 500 }}> ({pct}%)</span>
+          </span>
+          <span className="geo-summary-l">Accettati</span>
+        </div>
+        <div className="geo-summary-divider" />
+        <div className="geo-summary-stat">
+          <span className="geo-summary-n">{byCat["knowledge-graph"].length}</span>
+          <span className="geo-summary-l">Knowledge Graph</span>
+        </div>
+        <div className="geo-summary-stat">
+          <span className="geo-summary-n">{byCat["rich-results"].length}</span>
+          <span className="geo-summary-l">Rich Results</span>
+        </div>
+        <div className="geo-summary-stat">
+          <span className="geo-summary-n">{byCat["schema-org"].length}</span>
+          <span className="geo-summary-l">Schema.org</span>
+        </div>
+        {newSchemas > 0 && (
+          <>
+            <div className="geo-summary-divider" />
+            <div className="geo-summary-stat">
+              <span className="geo-summary-n" style={{ color: "var(--accent)" }}>{newSchemas}</span>
+              <span className="geo-summary-l">Nuovi schemi proposti</span>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="geo-summary-chips">
+        {bySev.critical > 0 && (
+          <span className="geo-summary-chip geo-summary-chip-crit">● {bySev.critical} critici</span>
+        )}
+        {bySev.warning > 0 && (
+          <span className="geo-summary-chip geo-summary-chip-warn">● {bySev.warning} attenzione</span>
+        )}
+        {bySev.info > 0 && (
+          <span className="geo-summary-chip geo-summary-chip-info">● {bySev.info} info</span>
+        )}
+        <span className="geo-summary-chip">
+          Analizzato {new Date(analysis.analyzedAt).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+        </span>
+      </div>
+
+      {analysis.overallNotes && (
+        <div className="geo-summary-notes">
+          <strong>Sintesi LLM:</strong> {analysis.overallNotes}
+        </div>
       )}
     </div>
   );
