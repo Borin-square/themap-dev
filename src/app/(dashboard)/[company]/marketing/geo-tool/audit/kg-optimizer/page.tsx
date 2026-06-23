@@ -66,6 +66,7 @@ export default function KGOptimizerPage() {
   const [extracting, setExtracting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [busyKind, setBusyKind] = useState<"analyze" | "generate" | "delete" | null>(null);
+  const [busyElapsed, setBusyElapsed] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [viewMarkup, setViewMarkup] = useState<KGAudit | null>(null);
@@ -94,6 +95,15 @@ export default function KGOptimizerPage() {
   }, [slug]);
 
   useEffect(() => { loadAudits(); }, [loadAudits]);
+
+  // Timer per mostrare quanto dura l'operazione in corso
+  useEffect(() => {
+    if (!busyId) { setBusyElapsed(0); return; }
+    const start = Date.now();
+    setBusyElapsed(0);
+    const i = setInterval(() => setBusyElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(i);
+  }, [busyId]);
 
   /* ── Save single audit to Supabase ── */
   async function saveAudit(audit: KGAudit, fields: Partial<{ extracted: boolean; analysis: boolean; accepted: boolean; markup: boolean }>) {
@@ -220,9 +230,14 @@ export default function KGOptimizerPage() {
           competitors: config.competitors,
         }),
       });
-      const data = await res.json();
+      // Vercel/edge timeout puo' restituire HTML 504/502 — gestiamo il caso
+      const text = await res.text();
+      let data: unknown;
+      try { data = JSON.parse(text); }
+      catch { data = { error: `Risposta non-JSON dal server (HTTP ${res.status}). Probabile timeout della funzione.` }; }
       if (!res.ok) {
-        showToast(data.error || "Errore analyze");
+        const err = (data as { error?: string }).error || `HTTP ${res.status}`;
+        showToast(`Analyze: ${err}`);
         return;
       }
       const analysis = data as KGAnalysis;
@@ -231,8 +246,9 @@ export default function KGOptimizerPage() {
       await saveAudit(updated, { analysis: true, accepted: true });
       setExpandedId(audit.id);
       showToast("Analisi completata");
-    } catch {
-      showToast("Errore di rete");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Errore di rete";
+      showToast(`Errore di rete: ${msg}`);
     } finally {
       setBusyId(null);
       setBusyKind(null);
@@ -378,6 +394,7 @@ export default function KGOptimizerPage() {
                   audit={a}
                   expanded={expandedId === a.id}
                   busy={busyId === a.id ? busyKind : null}
+                  busyElapsed={busyId === a.id ? busyElapsed : 0}
                   onToggleExpand={() => setExpandedId(expandedId === a.id ? null : a.id)}
                   onAnalyze={() => handleAnalyze(a)}
                   onToggleSuggestion={(sid) => toggleSuggestion(a, sid)}
@@ -424,11 +441,12 @@ function statusBadge(status?: string): { label: string; cls: string } {
 /* ── Audit Row ── */
 
 function AuditRow({
-  audit, expanded, busy, onToggleExpand, onAnalyze, onToggleSuggestion, onGenerate, onViewMarkup, onDelete,
+  audit, expanded, busy, busyElapsed, onToggleExpand, onAnalyze, onToggleSuggestion, onGenerate, onViewMarkup, onDelete,
 }: {
   audit: KGAudit;
   expanded: boolean;
   busy: "analyze" | "generate" | "delete" | null;
+  busyElapsed: number;
   onToggleExpand: () => void;
   onAnalyze: () => void;
   onToggleSuggestion: (id: string) => void;
@@ -472,9 +490,9 @@ function AuditRow({
               className="geo-btn-small"
               onClick={onAnalyze}
               disabled={busy !== null}
-              title="Analizza con LLM"
+              title="Analizza con LLM (Claude Haiku)"
             >
-              {busy === "analyze" ? "..." : audit.analysis ? "Re-analizza" : "Analizza"}
+              {busy === "analyze" ? `Analisi... ${busyElapsed}s` : audit.analysis ? "Re-analizza" : "Analizza"}
             </button>
           )}
           {audit.analysis && acceptedCount > 0 && (
@@ -484,7 +502,7 @@ function AuditRow({
               disabled={busy !== null}
               title="Genera JSON-LD finale"
             >
-              {busy === "generate" ? "..." : "Genera"}
+              {busy === "generate" ? `Generazione... ${busyElapsed}s` : "Genera"}
             </button>
           )}
           {audit.finalMarkup && (
