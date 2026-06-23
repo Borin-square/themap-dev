@@ -475,7 +475,7 @@ function AuditRow({
           )}
         </td>
         <td className="geo-td-num">{ex?.blocks.length ?? 0}</td>
-        <td style={{ fontSize: 11, color: "var(--fg2)" }}>{schemaTypes}</td>
+        <td className="geo-td-schemas" title={schemaTypes}>{schemaTypes}</td>
         <td>
           {audit.analysis ? (
             <span className="geo-tag geo-tag-yes">{allSug.length} suggest.</span>
@@ -775,7 +775,7 @@ function SuggestionRow({ suggestion, accepted, onToggle }: { suggestion: KGSugge
   const catLabel = suggestion.category === "knowledge-graph" ? "Knowledge Graph" : suggestion.category === "rich-results" ? "Rich Results" : "Schema.org";
 
   return (
-    <div className={`geo-audit-issue geo-audit-issue-${sevClass}`} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+    <div className={`geo-audit-issue geo-audit-issue-${sevClass}`} style={{ display: "flex", gap: 12, alignItems: "flex-start", minWidth: 0 }}>
       <div style={{ flexShrink: 0 }}>
         <button
           className="geo-btn-small"
@@ -796,25 +796,44 @@ function SuggestionRow({ suggestion, accepted, onToggle }: { suggestion: KGSugge
         </div>
         <div className="geo-audit-issue-msg">{suggestion.why}</div>
         {suggestion.op !== "add-schema" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 6 }}>
+          <div className="geo-kg-diff">
             <ValueBlock label="Attuale" value={suggestion.currentValue} />
-            <ValueBlock label="Proposto" value={suggestion.proposedValue} />
+            <ValueBlock label="Proposto" value={suggestion.proposedValue} highlight />
           </div>
         )}
         {suggestion.op === "add-schema" && (
-          <ValueBlock label="JSON-LD proposto" value={suggestion.proposedValue} />
+          <ValueBlock label="JSON-LD proposto" value={suggestion.proposedValue} highlight />
         )}
       </div>
     </div>
   );
 }
 
-function ValueBlock({ label, value }: { label: string; value: unknown }) {
+function ValueBlock({ label, value, highlight }: { label: string; value: unknown; highlight?: boolean }) {
+  const text = value === undefined || value === null
+    ? "—"
+    : typeof value === "string"
+      ? value
+      : JSON.stringify(value, null, 2);
   return (
-    <div>
-      <div style={{ fontSize: 10, color: "var(--fg2)", marginBottom: 2 }}>{label}</div>
-      <pre className="geo-audit-code" style={{ margin: 0, maxHeight: 160, overflow: "auto", fontSize: 11 }}>
-        {value === undefined || value === null ? "—" : typeof value === "string" ? value : JSON.stringify(value, null, 2)}
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 10, color: "var(--fg2)", marginBottom: 2, display: "flex", alignItems: "center", gap: 6 }}>
+        <span>{label}</span>
+        {highlight && <span style={{ color: "var(--grn)", fontSize: 9 }}>● PROPOSTO</span>}
+      </div>
+      <pre
+        className="geo-audit-code"
+        style={{
+          margin: 0,
+          maxHeight: 200,
+          overflow: "auto",
+          fontSize: 11,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          borderLeft: highlight ? "2px solid var(--grn)" : undefined,
+        }}
+      >
+        {text}
       </pre>
     </div>
   );

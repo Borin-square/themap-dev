@@ -1794,6 +1794,11 @@ th.ee-inactive { opacity: .4; }
 .geo-summary-chip-warn{border-color:var(--org);color:var(--org)}
 .geo-summary-chip-info{border-color:var(--accent);color:var(--accent)}
 .geo-summary-notes{font-size:12px;color:var(--fg2);line-height:1.5;padding-top:8px;border-top:1px dashed var(--bd)}
+/* KG Optimizer: diff Attuale/Proposto a 2 colonne, auto-stack quando lo spazio scende sotto 480px */
+.geo-kg-diff{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:6px;min-width:0}
+.geo-kg-diff > div{min-width:0}
+/* Cap della colonna "Schema trovati" in tabella per non far esplodere la larghezza */
+.geo-table td.geo-td-schemas{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--fg2)}
 
 /* KPI Grid */
 .geo-kpi-grid{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
