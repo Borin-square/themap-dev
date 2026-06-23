@@ -13,7 +13,7 @@ import {
 } from "@/lib/geo/llm-helpers";
 import { buildDiscoveryPrompt, buildSynthesisPrompt } from "@/lib/geo/prompts/source-acquisition";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 async function askLLM(llm: string, query: string): Promise<string> {
   try {

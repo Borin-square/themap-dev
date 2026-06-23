@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const GEO_NAV = [
   { href: "", label: "Dashboard", icon: "\u25A0" },
@@ -32,11 +33,31 @@ const GEO_NAV = [
   { href: "/monitoring/ai-referral", label: "AI Referral", icon: "\u2197" },
 ] as const;
 
+const COLLAPSED_KEY = "themap:geo-nav-collapsed";
+
 export default function GEOToolLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const pathname = usePathname();
   const slug = params.company as string;
   const base = `/${slug}/marketing/geo-tool`;
+
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Hydrate dal localStorage solo dopo il mount per evitare hydration mismatch
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(COLLAPSED_KEY);
+      if (stored === "1") setCollapsed(true);
+    } catch { /* localStorage non disponibile */ }
+  }, []);
+
+  function toggle() {
+    setCollapsed((v) => {
+      const next = !v;
+      try { localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   return (
     <div>
@@ -49,8 +70,8 @@ export default function GEOToolLayout({ children }: { children: React.ReactNode 
         <Link href={`/${slug}/marketing/flywheel`} className="ee-tab">Flywheel</Link>
       </div>
 
-      <div className="geo-suite">
-        <nav className="geo-nav">
+      <div className={`geo-suite${collapsed ? " geo-suite-collapsed" : ""}`}>
+        <nav className="geo-nav" aria-hidden={collapsed}>
           {GEO_NAV.map((item, i) => {
             if ("section" in item) {
               return <div key={i} className="geo-nav-section">{item.section}</div>;
@@ -67,6 +88,14 @@ export default function GEOToolLayout({ children }: { children: React.ReactNode 
             );
           })}
         </nav>
+        <button
+          className="geo-nav-toggle"
+          onClick={toggle}
+          aria-label={collapsed ? "Apri menu" : "Chiudi menu"}
+          title={collapsed ? "Apri menu (M)" : "Chiudi menu (M)"}
+        >
+          {collapsed ? "\u203A" : "\u2039"}
+        </button>
         <main className="geo-main">
           {children}
         </main>

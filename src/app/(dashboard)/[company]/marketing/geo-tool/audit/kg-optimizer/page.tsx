@@ -28,6 +28,8 @@ interface DbRow {
   extracted_at: string | null;
   analysis: KGAnalysis | null;
   accepted_suggestions: string[] | null;
+  skipped_suggestions: string[] | null;
+  suggestion_overrides: Record<string, unknown> | null;
   final_markup: string | null;
   updated_at: string;
 }
@@ -47,6 +49,8 @@ function rowToAudit(row: DbRow): KGAudit {
     extracted,
     analysis: row.analysis ?? undefined,
     acceptedSuggestionIds: row.accepted_suggestions ?? [],
+    skippedSuggestionIds: row.skipped_suggestions ?? [],
+    suggestionOverrides: row.suggestion_overrides ?? {},
     finalMarkup: row.final_markup ?? undefined,
     updatedAt: row.updated_at,
   };
@@ -106,13 +110,15 @@ export default function KGOptimizerPage() {
   }, [busyId]);
 
   /* ── Save single audit to Supabase ── */
-  async function saveAudit(audit: KGAudit, fields: Partial<{ extracted: boolean; analysis: boolean; accepted: boolean; markup: boolean }>) {
+  async function saveAudit(audit: KGAudit, fields: Partial<{ extracted: boolean; analysis: boolean; accepted: boolean; skipped: boolean; overrides: boolean; markup: boolean }>) {
     try {
       const token = await getToken();
       const body: Record<string, unknown> = { company_slug: slug, url: audit.url };
       if (fields.extracted && audit.extracted) body.extracted = audit.extracted;
       if (fields.analysis && audit.analysis) body.analysis = audit.analysis;
       if (fields.accepted) body.accepted_suggestions = audit.acceptedSuggestionIds;
+      if (fields.skipped) body.skipped_suggestions = audit.skippedSuggestionIds;
+      if (fields.overrides) body.suggestion_overrides = audit.suggestionOverrides;
       if (fields.markup) body.final_markup = audit.finalMarkup ?? "";
       const res = await fetch("/api/geo/kg", {
         method: "POST",
@@ -180,6 +186,8 @@ export default function KGOptimizerPage() {
             url: r.url,
             extracted: r,
             acceptedSuggestionIds: [],
+            skippedSuggestionIds: [],
+            suggestionOverrides: {},
             updatedAt: new Date().toISOString(),
           };
           next.push(created);
@@ -241,9 +249,16 @@ export default function KGOptimizerPage() {
         return;
       }
       const analysis = data as KGAnalysis;
-      const updated: KGAudit = { ...audit, analysis, acceptedSuggestionIds: [], updatedAt: new Date().toISOString() };
+      const updated: KGAudit = {
+        ...audit,
+        analysis,
+        acceptedSuggestionIds: [],
+        skippedSuggestionIds: [],
+        suggestionOverrides: {},
+        updatedAt: new Date().toISOString(),
+      };
       setAudits((prev) => prev.map((a) => (a.id === audit.id ? updated : a)));
-      await saveAudit(updated, { analysis: true, accepted: true });
+      await saveAudit(updated, { analysis: true, accepted: true, skipped: true, overrides: true });
       setExpandedId(audit.id);
       showToast("Analisi completata");
     } catch (e) {
@@ -255,22 +270,50 @@ export default function KGOptimizerPage() {
     }
   }
 
-  /* ── Toggle suggestion accept ── */
-  function toggleSuggestion(audit: KGAudit, suggestionId: string) {
-    const has = audit.acceptedSuggestionIds.includes(suggestionId);
-    const nextIds = has
-      ? audit.acceptedSuggestionIds.filter((id) => id !== suggestionId)
-      : [...audit.acceptedSuggestionIds, suggestionId];
-    const updated: KGAudit = { ...audit, acceptedSuggestionIds: nextIds, updatedAt: new Date().toISOString() };
+  /* ── Imposta stato di un suggerimento (accepted | skipped | pending) ── */
+  function setSuggestionStatus(audit: KGAudit, suggestionId: string, status: "accepted" | "skipped" | "pending") {
+    const accepted = audit.acceptedSuggestionIds.filter((id) => id !== suggestionId);
+    const skipped = audit.skippedSuggestionIds.filter((id) => id !== suggestionId);
+    if (status === "accepted") accepted.push(suggestionId);
+    if (status === "skipped") skipped.push(suggestionId);
+    const updated: KGAudit = {
+      ...audit,
+      acceptedSuggestionIds: accepted,
+      skippedSuggestionIds: skipped,
+      updatedAt: new Date().toISOString(),
+    };
     setAudits((prev) => prev.map((a) => (a.id === audit.id ? updated : a)));
-    void saveAudit(updated, { accepted: true });
+    void saveAudit(updated, { accepted: true, skipped: true });
+  }
+
+  /* ── Salva un override del proposedValue ── */
+  function updateOverride(audit: KGAudit, suggestionId: string, newValue: unknown) {
+    const next = { ...audit.suggestionOverrides, [suggestionId]: newValue };
+    const updated: KGAudit = { ...audit, suggestionOverrides: next, updatedAt: new Date().toISOString() };
+    setAudits((prev) => prev.map((a) => (a.id === audit.id ? updated : a)));
+    void saveAudit(updated, { overrides: true });
+  }
+
+  /* ── Rimuovi un override (torna al proposto LLM) ── */
+  function clearOverride(audit: KGAudit, suggestionId: string) {
+    const next = { ...audit.suggestionOverrides };
+    delete next[suggestionId];
+    const updated: KGAudit = { ...audit, suggestionOverrides: next, updatedAt: new Date().toISOString() };
+    setAudits((prev) => prev.map((a) => (a.id === audit.id ? updated : a)));
+    void saveAudit(updated, { overrides: true });
   }
 
   /* ── Generate final markup ── */
   async function handleGenerate(audit: KGAudit) {
     if (!audit.extracted || !audit.analysis) return;
     const allSuggestions = collectAllSuggestions(audit.analysis);
-    const accepted = allSuggestions.filter((s) => audit.acceptedSuggestionIds.includes(s.id));
+    const accepted = allSuggestions
+      .filter((s) => audit.acceptedSuggestionIds.includes(s.id))
+      .map((s) =>
+        Object.prototype.hasOwnProperty.call(audit.suggestionOverrides, s.id)
+          ? { ...s, proposedValue: audit.suggestionOverrides[s.id] }
+          : s,
+      );
     if (accepted.length === 0) {
       showToast("Accetta almeno un suggerimento prima di generare");
       return;
@@ -398,7 +441,9 @@ export default function KGOptimizerPage() {
                     busyElapsed={busyId === a.id ? busyElapsed : 0}
                     onToggleExpand={() => setExpandedId(expandedId === a.id ? null : a.id)}
                     onAnalyze={() => handleAnalyze(a)}
-                    onToggleSuggestion={(sid) => toggleSuggestion(a, sid)}
+                    onSetStatus={(sid, status) => setSuggestionStatus(a, sid, status)}
+                    onUpdateOverride={(sid, value) => updateOverride(a, sid, value)}
+                    onClearOverride={(sid) => clearOverride(a, sid)}
                     onGenerate={() => handleGenerate(a)}
                     onViewMarkup={() => setViewMarkup(a)}
                     onDelete={() => handleDelete(a)}
@@ -443,7 +488,7 @@ function statusBadge(status?: string): { label: string; cls: string } {
 /* ── Audit Row ── */
 
 function AuditRow({
-  audit, expanded, busy, busyElapsed, onToggleExpand, onAnalyze, onToggleSuggestion, onGenerate, onViewMarkup, onDelete,
+  audit, expanded, busy, busyElapsed, onToggleExpand, onAnalyze, onSetStatus, onUpdateOverride, onClearOverride, onGenerate, onViewMarkup, onDelete,
 }: {
   audit: KGAudit;
   expanded: boolean;
@@ -451,7 +496,9 @@ function AuditRow({
   busyElapsed: number;
   onToggleExpand: () => void;
   onAnalyze: () => void;
-  onToggleSuggestion: (id: string) => void;
+  onSetStatus: (id: string, status: "accepted" | "skipped" | "pending") => void;
+  onUpdateOverride: (id: string, value: unknown) => void;
+  onClearOverride: (id: string) => void;
   onGenerate: () => void;
   onViewMarkup: () => void;
   onDelete: () => void;
@@ -518,7 +565,12 @@ function AuditRow({
       {expanded && (
         <tr className="geo-row-detail">
           <td colSpan={7}>
-            <AuditDetail audit={audit} onToggleSuggestion={onToggleSuggestion} />
+            <AuditDetail
+              audit={audit}
+              onSetStatus={onSetStatus}
+              onUpdateOverride={onUpdateOverride}
+              onClearOverride={onClearOverride}
+            />
           </td>
         </tr>
       )}
@@ -528,7 +580,12 @@ function AuditRow({
 
 /* ── Audit Detail (expanded) ── */
 
-function AuditDetail({ audit, onToggleSuggestion }: { audit: KGAudit; onToggleSuggestion: (id: string) => void }) {
+function AuditDetail({ audit, onSetStatus, onUpdateOverride, onClearOverride }: {
+  audit: KGAudit;
+  onSetStatus: (id: string, status: "accepted" | "skipped" | "pending") => void;
+  onUpdateOverride: (id: string, value: unknown) => void;
+  onClearOverride: (id: string) => void;
+}) {
   const ex = audit.extracted;
 
   if (!ex) return <div className="geo-detail-empty">Nessuna estrazione.</div>;
@@ -595,8 +652,10 @@ function AuditDetail({ audit, onToggleSuggestion }: { audit: KGAudit; onToggleSu
             <SchemaSuggestions
               key={sa.schemaIndex}
               schemaAnalysis={sa}
-              acceptedIds={audit.acceptedSuggestionIds}
-              onToggle={onToggleSuggestion}
+              audit={audit}
+              onSetStatus={onSetStatus}
+              onUpdateOverride={onUpdateOverride}
+              onClearOverride={onClearOverride}
             />
           ))}
 
@@ -609,7 +668,12 @@ function AuditDetail({ audit, onToggleSuggestion }: { audit: KGAudit; onToggleSu
                     key={s.id}
                     suggestion={s}
                     accepted={audit.acceptedSuggestionIds.includes(s.id)}
-                    onToggle={() => onToggleSuggestion(s.id)}
+                    skipped={audit.skippedSuggestionIds.includes(s.id)}
+                    override={Object.prototype.hasOwnProperty.call(audit.suggestionOverrides, s.id) ? audit.suggestionOverrides[s.id] : undefined}
+                    hasOverride={Object.prototype.hasOwnProperty.call(audit.suggestionOverrides, s.id)}
+                    onSetStatus={(status) => onSetStatus(s.id, status)}
+                    onUpdateOverride={(v) => onUpdateOverride(s.id, v)}
+                    onClearOverride={() => onClearOverride(s.id)}
                   />
                 ))}
               </div>
@@ -649,6 +713,8 @@ function AnalysisSummary({ audit }: { audit: KGAudit }) {
   if (!analysis) return null;
   const all = collectAllSuggestions(analysis);
   const accepted = all.filter((s) => audit.acceptedSuggestionIds.includes(s.id));
+  const skipped = all.filter((s) => audit.skippedSuggestionIds.includes(s.id));
+  const pending = all.length - accepted.length - skipped.length;
 
   const byCat = {
     "knowledge-graph": all.filter((s) => s.category === "knowledge-graph"),
@@ -661,7 +727,8 @@ function AnalysisSummary({ audit }: { audit: KGAudit }) {
     info: all.filter((s) => s.severity === "info").length,
   };
   const newSchemas = analysis.newSchemas.length;
-  const pct = all.length > 0 ? Math.round((accepted.length / all.length) * 100) : 0;
+  const decided = accepted.length + skipped.length;
+  const pct = all.length > 0 ? Math.round((decided / all.length) * 100) : 0;
 
   return (
     <div className="geo-summary-card">
@@ -672,9 +739,21 @@ function AnalysisSummary({ audit }: { audit: KGAudit }) {
         </div>
         <div className="geo-summary-stat">
           <span className="geo-summary-n" style={{ color: accepted.length > 0 ? "var(--grn)" : "var(--fg)" }}>
-            {accepted.length}<span style={{ fontSize: 14, color: "var(--fg3)", fontWeight: 500 }}> ({pct}%)</span>
+            {accepted.length}
           </span>
           <span className="geo-summary-l">Accettati</span>
+        </div>
+        <div className="geo-summary-stat">
+          <span className="geo-summary-n" style={{ color: skipped.length > 0 ? "var(--fg3)" : "var(--fg)" }}>
+            {skipped.length}
+          </span>
+          <span className="geo-summary-l">Saltati</span>
+        </div>
+        <div className="geo-summary-stat">
+          <span className="geo-summary-n" style={{ color: pending > 0 ? "var(--org)" : "var(--fg)" }}>
+            {pending}<span style={{ fontSize: 14, color: "var(--fg3)", fontWeight: 500 }}> ({pct}% decisi)</span>
+          </span>
+          <span className="geo-summary-l">Da decidere</span>
         </div>
         <div className="geo-summary-divider" />
         <div className="geo-summary-stat">
@@ -727,11 +806,13 @@ function AnalysisSummary({ audit }: { audit: KGAudit }) {
 /* ── Schema Suggestions Group ── */
 
 function SchemaSuggestions({
-  schemaAnalysis, acceptedIds, onToggle,
+  schemaAnalysis, audit, onSetStatus, onUpdateOverride, onClearOverride,
 }: {
   schemaAnalysis: KGSchemaAnalysis;
-  acceptedIds: string[];
-  onToggle: (id: string) => void;
+  audit: KGAudit;
+  onSetStatus: (id: string, status: "accepted" | "skipped" | "pending") => void;
+  onUpdateOverride: (id: string, value: unknown) => void;
+  onClearOverride: (id: string) => void;
 }) {
   const sorted = useMemo(() => sortBySeverity(schemaAnalysis.suggestions), [schemaAnalysis.suggestions]);
   if (sorted.length === 0) return null;
@@ -749,8 +830,13 @@ function SchemaSuggestions({
           <SuggestionRow
             key={s.id}
             suggestion={s}
-            accepted={acceptedIds.includes(s.id)}
-            onToggle={() => onToggle(s.id)}
+            accepted={audit.acceptedSuggestionIds.includes(s.id)}
+            skipped={audit.skippedSuggestionIds.includes(s.id)}
+            override={Object.prototype.hasOwnProperty.call(audit.suggestionOverrides, s.id) ? audit.suggestionOverrides[s.id] : undefined}
+            hasOverride={Object.prototype.hasOwnProperty.call(audit.suggestionOverrides, s.id)}
+            onSetStatus={(status) => onSetStatus(s.id, status)}
+            onUpdateOverride={(v) => onUpdateOverride(s.id, v)}
+            onClearOverride={() => onClearOverride(s.id)}
           />
         ))}
       </div>
@@ -770,19 +856,59 @@ function sortBySeverity(list: KGSuggestion[]): KGSuggestion[] {
 
 /* ── Single suggestion row ── */
 
-function SuggestionRow({ suggestion, accepted, onToggle }: { suggestion: KGSuggestion; accepted: boolean; onToggle: () => void }) {
+function SuggestionRow({
+  suggestion, accepted, skipped, override, hasOverride, onSetStatus, onUpdateOverride, onClearOverride,
+}: {
+  suggestion: KGSuggestion;
+  accepted: boolean;
+  skipped: boolean;
+  override: unknown;
+  hasOverride: boolean;
+  onSetStatus: (status: "accepted" | "skipped" | "pending") => void;
+  onUpdateOverride: (value: unknown) => void;
+  onClearOverride: () => void;
+}) {
   const sevClass = suggestion.severity === "critical" ? "critical" : suggestion.severity === "warning" ? "warning" : "info";
   const catLabel = suggestion.category === "knowledge-graph" ? "Knowledge Graph" : suggestion.category === "rich-results" ? "Rich Results" : "Schema.org";
 
+  const effectiveProposed = hasOverride ? override : suggestion.proposedValue;
+
   return (
-    <div className={`geo-audit-issue geo-audit-issue-${sevClass}`} style={{ display: "flex", gap: 12, alignItems: "flex-start", minWidth: 0 }}>
-      <div style={{ flexShrink: 0 }}>
+    <div
+      className={`geo-audit-issue geo-audit-issue-${sevClass}`}
+      style={{
+        display: "flex",
+        gap: 12,
+        alignItems: "flex-start",
+        minWidth: 0,
+        opacity: skipped ? 0.5 : 1,
+        filter: skipped ? "grayscale(0.6)" : undefined,
+      }}
+    >
+      <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 4, minWidth: 80 }}>
         <button
           className="geo-btn-small"
-          onClick={onToggle}
-          style={{ background: accepted ? "var(--grn)" : undefined, color: accepted ? "#fff" : undefined, minWidth: 70 }}
+          onClick={() => onSetStatus(accepted ? "pending" : "accepted")}
+          style={{
+            background: accepted ? "var(--grn)" : undefined,
+            color: accepted ? "#fff" : undefined,
+            width: "100%",
+          }}
+          title={accepted ? "Rimuovi accettazione" : "Accetta questo suggerimento"}
         >
           {accepted ? "\u2713 Accettato" : "Accetta"}
+        </button>
+        <button
+          className="geo-btn-small"
+          onClick={() => onSetStatus(skipped ? "pending" : "skipped")}
+          style={{
+            background: skipped ? "var(--fg3)" : undefined,
+            color: skipped ? "#fff" : undefined,
+            width: "100%",
+          }}
+          title={skipped ? "Annulla skip" : "Salta questo suggerimento"}
+        >
+          {skipped ? "\u2717 Saltato" : "Salta"}
         </button>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -793,23 +919,36 @@ function SuggestionRow({ suggestion, accepted, onToggle }: { suggestion: KGSugge
             <span className="geo-tag">Nuovo: {suggestion.targetSchemaType}</span>
           )}
           {suggestion.fieldPath && <span className="geo-tag">{suggestion.fieldPath}</span>}
+          {hasOverride && <span className="geo-tag" style={{ background: "var(--accent)", color: "#fff", border: "none" }}>Modificato</span>}
         </div>
         <div className="geo-audit-issue-msg">{suggestion.why}</div>
         {suggestion.op !== "add-schema" && (
           <div className="geo-kg-diff">
             <ValueBlock label="Attuale" value={suggestion.currentValue} />
-            <ValueBlock label="Proposto" value={suggestion.proposedValue} highlight />
+            <EditableValueBlock
+              label="Proposto"
+              value={effectiveProposed}
+              hasOverride={hasOverride}
+              onSave={onUpdateOverride}
+              onReset={onClearOverride}
+            />
           </div>
         )}
         {suggestion.op === "add-schema" && (
-          <ValueBlock label="JSON-LD proposto" value={suggestion.proposedValue} highlight />
+          <EditableValueBlock
+            label="JSON-LD proposto"
+            value={effectiveProposed}
+            hasOverride={hasOverride}
+            onSave={onUpdateOverride}
+            onReset={onClearOverride}
+          />
         )}
       </div>
     </div>
   );
 }
 
-function ValueBlock({ label, value, highlight }: { label: string; value: unknown; highlight?: boolean }) {
+function ValueBlock({ label, value }: { label: string; value: unknown }) {
   const text = value === undefined || value === null
     ? "—"
     : typeof value === "string"
@@ -817,10 +956,7 @@ function ValueBlock({ label, value, highlight }: { label: string; value: unknown
       : JSON.stringify(value, null, 2);
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 10, color: "var(--fg2)", marginBottom: 2, display: "flex", alignItems: "center", gap: 6 }}>
-        <span>{label}</span>
-        {highlight && <span style={{ color: "var(--grn)", fontSize: 9 }}>● PROPOSTO</span>}
-      </div>
+      <div style={{ fontSize: 10, color: "var(--fg2)", marginBottom: 2 }}>{label}</div>
       <pre
         className="geo-audit-code"
         style={{
@@ -830,13 +966,141 @@ function ValueBlock({ label, value, highlight }: { label: string; value: unknown
           fontSize: 11,
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
-          borderLeft: highlight ? "2px solid var(--grn)" : undefined,
         }}
       >
         {text}
       </pre>
     </div>
   );
+}
+
+function EditableValueBlock({
+  label, value, hasOverride, onSave, onReset,
+}: {
+  label: string;
+  value: unknown;
+  hasOverride: boolean;
+  onSave: (value: unknown) => void;
+  onReset: () => void;
+}) {
+  const initialText = useMemo(() => valueToText(value), [value]);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(initialText);
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  function startEdit() {
+    setDraft(initialText);
+    setParseError(null);
+    setEditing(true);
+  }
+
+  function cancel() {
+    setEditing(false);
+    setDraft(initialText);
+    setParseError(null);
+  }
+
+  function save() {
+    const parsed = parseDraft(draft);
+    if (parsed.error) {
+      setParseError(parsed.error);
+      return;
+    }
+    onSave(parsed.value);
+    setEditing(false);
+    setParseError(null);
+  }
+
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 10, color: "var(--fg2)", marginBottom: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <span>{label}</span>
+        <span style={{ color: "var(--grn)", fontSize: 9 }}>● PROPOSTO</span>
+        {hasOverride && <span style={{ color: "var(--accent)", fontSize: 9 }}>(modificato)</span>}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+          {!editing && (
+            <>
+              <button className="geo-btn-small" onClick={startEdit} style={{ fontSize: 10, padding: "2px 6px" }}>Modifica</button>
+              {hasOverride && (
+                <button className="geo-btn-small" onClick={onReset} style={{ fontSize: 10, padding: "2px 6px" }} title="Ripristina proposto LLM">Reset</button>
+              )}
+            </>
+          )}
+          {editing && (
+            <>
+              <button className="geo-btn-small" onClick={save} style={{ fontSize: 10, padding: "2px 6px", background: "var(--grn)", color: "#fff" }}>Salva</button>
+              <button className="geo-btn-small" onClick={cancel} style={{ fontSize: 10, padding: "2px 6px" }}>Annulla</button>
+            </>
+          )}
+        </div>
+      </div>
+      {!editing && (
+        <pre
+          className="geo-audit-code"
+          style={{
+            margin: 0,
+            maxHeight: 200,
+            overflow: "auto",
+            fontSize: 11,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            borderLeft: "2px solid var(--grn)",
+          }}
+        >
+          {initialText}
+        </pre>
+      )}
+      {editing && (
+        <div>
+          <textarea
+            value={draft}
+            onChange={(e) => { setDraft(e.target.value); if (parseError) setParseError(null); }}
+            spellCheck={false}
+            style={{
+              width: "100%",
+              minHeight: 100,
+              maxHeight: 320,
+              fontFamily: "monospace",
+              fontSize: 11,
+              padding: 8,
+              background: "var(--bg)",
+              border: "1px solid var(--accent)",
+              borderRadius: 4,
+              color: "var(--fg)",
+              boxSizing: "border-box",
+              resize: "vertical",
+            }}
+          />
+          {parseError && (
+            <div style={{ fontSize: 10, color: "var(--red)", marginTop: 4 }}>
+              {parseError}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function valueToText(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value, null, 2);
+}
+
+function parseDraft(text: string): { value: unknown; error?: string } {
+  const trimmed = text.trim();
+  if (trimmed === "") return { value: null };
+  // Se inizia con { [ " o digit -> prova JSON
+  if (/^[{[\d"]|^(true|false|null)$/.test(trimmed)) {
+    try {
+      return { value: JSON.parse(trimmed) };
+    } catch (e) {
+      return { value: text, error: `JSON non valido: ${e instanceof Error ? e.message : "errore parsing"}. Salva comunque come stringa? Modifica il testo e riprova.` };
+    }
+  }
+  // Altrimenti string
+  return { value: text };
 }
 
 /* ── Markup modal ── */

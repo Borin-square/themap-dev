@@ -43,6 +43,8 @@ interface SaveBody {
   extracted?: KGExtractedUrl;
   analysis?: KGAnalysis;
   accepted_suggestions?: string[];
+  skipped_suggestions?: string[];
+  suggestion_overrides?: Record<string, unknown>;
   final_markup?: string;
 }
 
@@ -74,6 +76,12 @@ export async function POST(req: NextRequest) {
   }
   if (body.accepted_suggestions !== undefined) {
     row.accepted_suggestions = body.accepted_suggestions;
+  }
+  if (body.skipped_suggestions !== undefined) {
+    row.skipped_suggestions = body.skipped_suggestions;
+  }
+  if (body.suggestion_overrides !== undefined) {
+    row.suggestion_overrides = body.suggestion_overrides;
   }
   if (body.final_markup !== undefined) {
     row.final_markup = body.final_markup;

@@ -293,6 +293,9 @@ export interface KGAudit {
   extracted?: KGExtractedUrl;
   analysis?: KGAnalysis;
   acceptedSuggestionIds: string[];
+  skippedSuggestionIds: string[];
+  /** Map suggestionId → proposedValue editato dall'utente (sovrascrive il proposedValue dell'LLM). */
+  suggestionOverrides: Record<string, unknown>;
   finalMarkup?: string;
   updatedAt: string;
 }

@@ -66,8 +66,11 @@ export default function SourceAcquisitionPage() {
           existingCitations,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Errore");
+      const text = await res.text();
+      let data: unknown;
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`Risposta non-JSON dal server (HTTP ${res.status}). Probabile timeout: riprova fra qualche secondo.`); }
+      if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
       const result = data as SourceAcquisitionResult;
       setProject((p) => ({
         ...p,
