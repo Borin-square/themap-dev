@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import type { SourceAcquisitionResult } from "@/lib/geo/types";
 import {
   CLAUDE_MODEL,
@@ -14,6 +15,16 @@ import {
 import { buildDiscoveryPrompt, buildSynthesisPrompt } from "@/lib/geo/prompts/source-acquisition";
 
 export const maxDuration = 300;
+
+// Sintesi: Haiku 4.5 — piu' disponibile e veloce di Sonnet su task di JSON shaping
+const SYNTH_MODEL = "claude-haiku-4-5";
+const SYNTH_TIMEOUT_MS = 90_000;
+const synthClient = () =>
+  new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    timeout: SYNTH_TIMEOUT_MS,
+    maxRetries: 2,
+  });
 
 async function askLLM(llm: string, query: string): Promise<{ text: string; error?: string }> {
   try {
@@ -130,13 +141,20 @@ export async function POST(req: Request) {
       existingCitations: body.existingCitations,
     });
 
-    const synthesis = await getAnthropicClient().messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: DEFAULT_MAX_TOKENS,
-      temperature: 0,
-      system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
-      messages: [{ role: "user", content: synthesisPrompt }],
-    });
+    let synthesis;
+    try {
+      synthesis = await synthClient().messages.create({
+        model: SYNTH_MODEL,
+        max_tokens: DEFAULT_MAX_TOKENS,
+        temperature: 0,
+        system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
+        messages: [{ role: "user", content: synthesisPrompt }],
+      });
+    } catch (synthErr) {
+      const msg = synthErr instanceof Error ? synthErr.message : String(synthErr);
+      console.error("[source-acquisition/synth] failed:", msg);
+      return Response.json({ error: `Synthesis fallita: ${msg}` }, { status: 502 });
+    }
 
     const text = joinAnthropicText(synthesis.content);
     const parsed = extractJson<ParsedSynthesis>(text);
