@@ -15,24 +15,48 @@ import { buildScanAnalysisPrompt } from "@/lib/geo/prompts/scan";
 
 export const maxDuration = 120;
 
+function isRetryableErr(msg: string): boolean {
+  return /\b(500|502|503|504|529)\b|overload|UNAVAILABLE|high demand|temporar|api_error|internal server/i.test(msg);
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3, initialDelayMs = 1500): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (i === attempts - 1 || !isRetryableErr(msg)) throw err;
+      const delay = initialDelayMs * Math.pow(2, i);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 async function askLLM(llm: string, query: string): Promise<{ text: string; error?: string }> {
   try {
     if (llm === "Claude") {
-      const r = await getAnthropicClient().messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: DEFAULT_MAX_TOKENS,
-        temperature: 0.7,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
-        messages: [{ role: "user", content: query }],
-      });
+      const r = await withRetry(() =>
+        getAnthropicClient().messages.create({
+          model: CLAUDE_MODEL,
+          max_tokens: DEFAULT_MAX_TOKENS,
+          temperature: 0.7,
+          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
+          messages: [{ role: "user", content: query }],
+        }),
+      );
       return { text: joinAnthropicText(r.content) };
     }
     if (llm === "ChatGPT") {
-      const r = await getOpenAIClient().responses.create({
-        model: OPENAI_MODEL,
-        tools: [{ type: "web_search_preview" }],
-        input: query,
-      });
+      const r = await withRetry(() =>
+        getOpenAIClient().responses.create({
+          model: OPENAI_MODEL,
+          tools: [{ type: "web_search_preview" }],
+          input: query,
+        }),
+      );
       const msg = r.output.find((b) => b.type === "message");
       if (msg && "content" in msg) {
         const text = msg.content.find((c: { type: string }) => c.type === "output_text");
@@ -42,14 +66,16 @@ async function askLLM(llm: string, query: string): Promise<{ text: string; error
     }
     if (llm === "Gemini") {
       const ai = getGeminiClient();
-      const r = await ai.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: query,
-        config: {
-          tools: [{ googleSearch: {} }],
-          abortSignal: timeoutSignal(),
-        },
-      });
+      const r = await withRetry(() =>
+        ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: query,
+          config: {
+            tools: [{ googleSearch: {} }],
+            abortSignal: timeoutSignal(),
+          },
+        }),
+      );
       return { text: r.text ?? "" };
     }
     return { text: "", error: `LLM "${llm}" non implementato.` };
@@ -66,6 +92,15 @@ function humanizeLLMError(llm: string, raw: string): string {
     const retryHint = retryMatch ? ` Riprova tra ${Math.ceil(Number(retryMatch[1]))}s` : "";
     const upgradeHint = llm === "Gemini" ? " (free tier 20 req/giorno — passa al piano paid su https://ai.google.dev/pricing)" : "";
     return `Quota ${llm} esaurita.${retryHint} Usa un altro LLM nel frattempo.${upgradeHint}`;
+  }
+  if (/529|overload/i.test(raw)) {
+    return `${llm} sovraccarico (529). Riprova fra qualche minuto o usa un altro LLM.`;
+  }
+  if (/503|UNAVAILABLE|high demand/i.test(raw)) {
+    return `${llm} in overload (503). Riprova fra qualche minuto o usa un altro LLM.`;
+  }
+  if (/500|api_error|internal server/i.test(raw)) {
+    return `${llm} errore interno (500). Riprova fra qualche minuto.`;
   }
   if (/401|invalid.?api.?key|unauthorized/i.test(raw)) {
     return `${llm}: API key non valida o scaduta.`;
