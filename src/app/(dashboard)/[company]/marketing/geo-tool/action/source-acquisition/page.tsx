@@ -30,6 +30,7 @@ export default function SourceAcquisitionPage() {
 
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedLLM, setSelectedLLM] = useState<string>("Gemini");
 
   const cfg = project.config;
   const actions = project.actions ?? emptyActions();
@@ -64,6 +65,7 @@ export default function SourceAcquisitionPage() {
           country: cfg.country,
           market: cfg.market,
           existingCitations,
+          llms: [selectedLLM],
         }),
       });
       const text = await res.text();
@@ -94,8 +96,19 @@ export default function SourceAcquisitionPage() {
       <div className="geo-head">
         <h1 className="geo-title">Source Acquisition</h1>
         <div className="geo-head-actions">
+          <select
+            className="geo-select"
+            value={selectedLLM}
+            onChange={(e) => setSelectedLLM(e.target.value)}
+            disabled={scanning}
+            title="LLM da interrogare per la discovery"
+          >
+            <option value="Gemini">Gemini (veloce)</option>
+            <option value="Claude">Claude</option>
+            <option value="ChatGPT">ChatGPT</option>
+          </select>
           <button className="geo-btn geo-btn-accent" disabled={scanning || !canScan} onClick={runScan}>
-            {scanning ? "Scansione LLM..." : "Analizza Fonti"}
+            {scanning ? "Scansione LLM..." : latest ? "Nuova scansione" : "Analizza Fonti"}
           </button>
         </div>
       </div>
@@ -110,32 +123,72 @@ export default function SourceAcquisitionPage() {
 
       {scanning && (
         <div className="geo-empty">
-          <div className="geo-empty-title">Interrogo gli LLM...</div>
-          Sto chiedendo a ChatGPT, Claude e Gemini informazioni sulle fonti del tuo settore. Questo può richiedere fino a 2 minuti.
+          <div className="geo-empty-title">Interrogo {selectedLLM}...</div>
+          {selectedLLM === "Gemini" && "Gemini fa una ricerca live su Google e ritorna le fonti rilevanti per il tuo settore. Solitamente 20-40s."}
+          {selectedLLM === "Claude" && "Claude fa una web search e ritorna le fonti. Solitamente 30-60s."}
+          {selectedLLM === "ChatGPT" && "ChatGPT fa una web search e ritorna le fonti. Solitamente 20-40s."}
         </div>
       )}
 
       {latest && !scanning && (
         <>
-          {/* LLM badges + meta */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, color: "var(--fg3)", marginRight: 4 }}>LLM consultati:</span>
-            {llmsScanned.map((llm) => (
-              <span key={llm} style={{
-                display: "inline-flex", alignItems: "center", gap: 4,
-                padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
-                background: `${LLM_COLORS[llm] || "#666"}18`, color: LLM_COLORS[llm] || "#666",
-                border: `1px solid ${LLM_COLORS[llm] || "#666"}30`,
+          {/* Meta: data scan + LLM + retry warning */}
+          {(() => {
+            const scannedAtTs = latest.scannedAt ? new Date(latest.scannedAt).getTime() : 0;
+            const ageMs = scannedAtTs ? Date.now() - scannedAtTs : 0;
+            const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+            const ageHours = Math.floor(ageMs / (1000 * 60 * 60));
+            const ageLabel = ageDays >= 1 ? `${ageDays} ${ageDays === 1 ? "giorno" : "giorni"} fa` : ageHours >= 1 ? `${ageHours} ${ageHours === 1 ? "ora" : "ore"} fa` : "pochi minuti fa";
+            const isStale = ageDays >= 7;
+            const noLLMs = llmsScanned.length === 0;
+            return (
+              <div style={{
+                display: "flex", gap: 12, alignItems: "center", marginBottom: 16, flexWrap: "wrap",
+                padding: "10px 14px", background: noLLMs ? "rgba(220,38,38,.08)" : isStale ? "rgba(245,158,11,.08)" : "var(--bg2)",
+                border: `1px solid ${noLLMs ? "var(--red)" : isStale ? "var(--org)" : "var(--bd)"}`,
+                borderRadius: 8, fontSize: 11,
               }}>
-                {llm}
-              </span>
-            ))}
-            {fromExisting > 0 && (
-              <span style={{ fontSize: 11, color: "var(--fg3)" }}>
-                + {fromExisting} citazioni dagli scan
-              </span>
-            )}
-          </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flex: 1, flexWrap: "wrap" }}>
+                  <span style={{ color: "var(--fg3)" }}>Scansionato:</span>
+                  <span style={{ fontWeight: 600, color: "var(--fg)" }}>
+                    {latest.scannedAt ? new Date(latest.scannedAt).toLocaleString("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                  </span>
+                  <span style={{ color: isStale ? "var(--org)" : "var(--fg3)" }}>({ageLabel})</span>
+                  <span style={{ color: "var(--fg3)", marginLeft: 8 }}>·</span>
+                  <span style={{ color: "var(--fg3)" }}>LLM consultati:</span>
+                  {llmsScanned.length > 0 ? (
+                    llmsScanned.map((llm) => (
+                      <span key={llm} style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+                        background: `${LLM_COLORS[llm] || "#666"}18`, color: LLM_COLORS[llm] || "#666",
+                        border: `1px solid ${LLM_COLORS[llm] || "#666"}30`,
+                      }}>
+                        {llm}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: "var(--red)", fontWeight: 600 }}>Nessuno — risultato basato su citazioni esistenti / fallback</span>
+                  )}
+                  {fromExisting > 0 && (
+                    <span style={{ color: "var(--fg3)" }}>
+                      + {fromExisting} citazioni dagli scan
+                    </span>
+                  )}
+                </div>
+                {(noLLMs || isStale) && (
+                  <button
+                    className="geo-btn geo-btn-accent"
+                    disabled={scanning || !canScan}
+                    onClick={runScan}
+                    style={{ fontSize: 11, padding: "5px 10px" }}
+                  >
+                    Riprova con {selectedLLM}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="geo-kpi-grid">
             <div className="geo-kpi geo-kpi-big">

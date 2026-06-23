@@ -15,7 +15,7 @@ import { buildDiscoveryPrompt, buildSynthesisPrompt } from "@/lib/geo/prompts/so
 
 export const maxDuration = 300;
 
-async function askLLM(llm: string, query: string): Promise<string> {
+async function askLLM(llm: string, query: string): Promise<{ text: string; error?: string }> {
   try {
     if (llm === "Claude") {
       const r = await getAnthropicClient().messages.create({
@@ -25,7 +25,7 @@ async function askLLM(llm: string, query: string): Promise<string> {
         tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
         messages: [{ role: "user", content: query }],
       });
-      return joinAnthropicText(r.content);
+      return { text: joinAnthropicText(r.content) };
     }
     if (llm === "ChatGPT") {
       const r = await getOpenAIClient().responses.create({
@@ -36,9 +36,9 @@ async function askLLM(llm: string, query: string): Promise<string> {
       const msg = r.output.find((b) => b.type === "message");
       if (msg && "content" in msg) {
         const text = msg.content.find((c: { type: string }) => c.type === "output_text");
-        return text && "text" in text ? (text as { text: string }).text : "";
+        return { text: text && "text" in text ? (text as { text: string }).text : "" };
       }
-      return "";
+      return { text: "" };
     }
     if (llm === "Gemini") {
       const ai = getGeminiClient();
@@ -50,11 +50,13 @@ async function askLLM(llm: string, query: string): Promise<string> {
           abortSignal: timeoutSignal(),
         },
       });
-      return r.text ?? "";
+      return { text: r.text ?? "" };
     }
-    return "";
-  } catch {
-    return "";
+    return { text: "", error: `LLM "${llm}" non implementato.` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[source-acquisition/askLLM] ${llm} failed:`, msg);
+    return { text: "", error: msg };
   }
 }
 
@@ -67,6 +69,8 @@ interface SourceRequest {
   country: string;
   market: string;
   existingCitations: { domain: string; type: string; brandMentioned: boolean }[];
+  /** Filtra quali LLM usare per la discovery. Se omesso usa tutti quelli con API key. */
+  llms?: string[];
 }
 
 interface ParsedSynthesis {
@@ -91,18 +95,28 @@ export async function POST(req: Request) {
       return Response.json({ error: "Nessuna API key LLM configurata." }, { status: 400 });
     }
 
+    // Filtro user-side: se l'utente sceglie un sottoinsieme, rispettiamo
+    const requested = body.llms?.filter((l) => availableLLMs.includes(l));
+    const llmsToUse = requested && requested.length > 0 ? requested : availableLLMs;
+
     const discoveryPrompt = buildDiscoveryPrompt(body);
 
     const discoveryResults = await Promise.all(
-      availableLLMs.map(async (llm) => {
-        const response = await askLLM(llm, discoveryPrompt);
-        return { llm, response };
+      llmsToUse.map(async (llm) => {
+        const { text, error } = await askLLM(llm, discoveryPrompt);
+        return { llm, response: text, error };
       }),
     );
 
     const validResults = discoveryResults.filter((r) => r.response.length > 0);
+    const failures = discoveryResults.filter((r) => r.response.length === 0);
+
     if (validResults.length === 0) {
-      return Response.json({ error: "Nessun LLM ha restituito risultati." }, { status: 500 });
+      const detail = failures.map((f) => `${f.llm}: ${f.error || "vuoto"}`).join(" | ");
+      return Response.json(
+        { error: `Nessun LLM ha restituito risultati. ${detail}` },
+        { status: 500 },
+      );
     }
 
     const llmResponsesBlock = validResults
