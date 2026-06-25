@@ -1,4 +1,5 @@
 import type { StructuredDataResult, AuditIssue } from "@/lib/geo/types";
+import { fetchHtml } from "@/lib/geo/fetch-html";
 
 export const maxDuration = 30;
 
@@ -27,20 +28,11 @@ export async function POST(req: Request) {
       return Response.json({ error: "URL richiesto." }, { status: 400 });
     }
 
-    let html = "";
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; GEOTool/1.0)" },
-        signal: AbortSignal.timeout(15000),
-        redirect: "follow",
-      });
-      if (!res.ok) {
-        return Response.json({ error: `Pagina non raggiungibile (HTTP ${res.status})` }, { status: 400 });
-      }
-      html = await res.text();
-    } catch {
-      return Response.json({ error: "Impossibile raggiungere la pagina" }, { status: 400 });
+    const fetched = await fetchHtml(url);
+    if (!fetched.ok) {
+      return Response.json({ error: fetched.error }, { status: 400 });
     }
+    const html = fetched.html;
 
     // Extract JSON-LD blocks
     const jsonLdBlocks: Record<string, unknown>[] = [];

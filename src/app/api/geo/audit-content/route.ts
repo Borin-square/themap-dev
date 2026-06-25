@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentReadinessResult, AuditIssue } from "@/lib/geo/types";
+import { fetchHtml } from "@/lib/geo/fetch-html";
 
 export const maxDuration = 60;
 
@@ -17,24 +18,13 @@ export async function POST(req: Request) {
       return Response.json({ error: "URL richiesto." }, { status: 400 });
     }
 
-    // Fetch the page
-    let html = "";
-    let title = "";
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; GEOTool/1.0)" },
-        signal: AbortSignal.timeout(15000),
-        redirect: "follow",
-      });
-      if (!res.ok) {
-        return Response.json({ error: `Pagina non raggiungibile (HTTP ${res.status})` }, { status: 400 });
-      }
-      html = await res.text();
-      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-      title = titleMatch ? titleMatch[1].trim() : url;
-    } catch {
-      return Response.json({ error: "Impossibile raggiungere la pagina" }, { status: 400 });
+    const fetched = await fetchHtml(url);
+    if (!fetched.ok) {
+      return Response.json({ error: fetched.error }, { status: 400 });
     }
+    const html = fetched.html;
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : url;
 
     // Extract text content (strip HTML tags, scripts, styles)
     const textContent = html
