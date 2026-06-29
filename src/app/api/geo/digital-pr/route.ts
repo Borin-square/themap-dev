@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { DigitalPRResult } from "@/lib/geo/types";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface PRRequest {
   brandName: string;

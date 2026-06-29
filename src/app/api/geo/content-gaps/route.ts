@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentGapsResult } from "@/lib/geo/types";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface GapsRequest {
   brandName: string;

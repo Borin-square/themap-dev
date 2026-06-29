@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ContentReadinessResult, AuditIssue } from "@/lib/geo/types";
 import { fetchHtml } from "@/lib/geo/fetch-html";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface ContentRequest {
   url: string;
