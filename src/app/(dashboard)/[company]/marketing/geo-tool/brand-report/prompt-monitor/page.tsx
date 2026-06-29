@@ -121,6 +121,60 @@ export default function PromptMonitorPage() {
     }
   }
 
+  // Export filtered prompts + scans to CSV
+  function handleExportCsv() {
+    if (filtered.length === 0) { showToast("Nessun prompt da esportare"); return; }
+    const headers = [
+      "Prompt", "Intent", "Funnel", "Buyer Persona", "Cluster", "Valore Commerciale",
+      "LLM", "Scansionato il", "Brand Menzionato", "Posizione", "Contesto Brand",
+      "Sentiment", "Score", "Confidence",
+      "Competitor Menzionati", "Citazioni (domini)",
+      "Risposta LLM",
+    ];
+    const clusterName = (id?: string) => {
+      if (!id) return "";
+      return project.clusters.find((c) => c.id === id)?.name || "";
+    };
+    const rows: string[][] = [];
+    for (const p of filtered) {
+      if (p.scans.length === 0) {
+        rows.push([
+          p.text, p.intent, p.funnelStage, p.buyerPersona, clusterName(p.clusterId),
+          String(p.commercialValue), "", "", "", "", "", "", "", "", "", "", "",
+        ]);
+        continue;
+      }
+      for (const s of p.scans) {
+        rows.push([
+          p.text, p.intent, p.funnelStage, p.buyerPersona, clusterName(p.clusterId),
+          String(p.commercialValue),
+          s.llm,
+          new Date(s.scannedAt).toLocaleString("it-IT"),
+          s.brandMentioned ? "si" : "no",
+          s.brandPosition != null ? `#${s.brandPosition}` : "",
+          s.brandContext || "",
+          s.sentiment.label,
+          String(s.sentiment.score),
+          s.confidence,
+          s.competitorMentions.map((c) => c.name).join(" | "),
+          s.citations.map((c) => c.domain).join(" | "),
+          s.rawResponse || "",
+        ]);
+      }
+    }
+    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `prompt-monitor-${slug}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`Esportati ${rows.length} record (${filtered.length} prompt)`);
+  }
+
   // Batch scan selected prompts
   async function handleBatchScan() {
     if (selectedIds.size === 0) { showToast("Seleziona almeno un prompt"); return; }
@@ -160,6 +214,9 @@ export default function PromptMonitorPage() {
               Scan {selectedIds.size} prompt con {scanLlm}
             </button>
           )}
+          <button className="geo-btn" onClick={handleExportCsv} title="Esporta i prompt filtrati e le risposte LLM in CSV">
+            Esporta CSV
+          </button>
           <button className="geo-btn geo-btn-accent" onClick={() => setShowAddPrompt(true)}>+ Prompt</button>
         </div>
       </div>
@@ -434,5 +491,11 @@ function PromptDetail({ prompt: p, onViewResponse }: {
       </div>
     </div>
   );
+}
+
+function csvCell(v: string): string {
+  const s = String(v ?? "");
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
 }
 
