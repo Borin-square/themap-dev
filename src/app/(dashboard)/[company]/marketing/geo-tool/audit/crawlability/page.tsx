@@ -51,8 +51,16 @@ export default function CrawlabilityPage() {
   return (
     <div className="geo-page">
       <div className="geo-head">
-        <h1 className="geo-title">AI Crawlability</h1>
+        <h1 className="geo-title">AI Crawlability — Permessi robots.txt (Livello 1)</h1>
       </div>
+
+      <p style={{ fontSize: 12, color: "var(--fg2)", marginBottom: 12, maxWidth: 800 }}>
+        Verifica se il <code>robots.txt</code> permette ai crawler AI di indicizzare il sito.
+        Questo è il <strong>Livello 1</strong> (permesso formale). Per controllare il <strong>Livello 2</strong>{" "}
+        (accesso reale via CDN/WAF) vai su <a href={`/${slug}/marketing/geo-tool/monitoring/bot-traffic`} style={{ color: "var(--accent)" }}>Bot Traffic</a>.
+        Il <strong>Livello 3</strong> (indicizzazione & ranking) è misurato indirettamente dal{" "}
+        <a href={`/${slug}/marketing/geo-tool/brand-report/prompt-monitor`} style={{ color: "var(--accent)" }}>Prompt Monitor</a>.
+      </p>
 
       <div className="geo-audit-input-row">
         <input

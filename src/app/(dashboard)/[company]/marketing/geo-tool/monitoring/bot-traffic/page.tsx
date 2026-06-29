@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useLocalState } from "@/lib/useLocalState";
 import type { GEOProject, BotTrafficCheck } from "@/lib/geo/types";
-import { emptyMonitoring } from "@/lib/geo/types";
+import { emptyMonitoring, AI_CRAWLER_INFO, AI_CRAWLERS_CRITICAL } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
 import { scoreColor } from "@/lib/geo/scoring";
 
@@ -54,8 +54,14 @@ export default function BotTrafficPage() {
   return (
     <div className="geo-page">
       <div className="geo-head">
-        <h1 className="geo-title">Bot Traffic</h1>
+        <h1 className="geo-title">Bot Traffic — Accesso Reale (Livello 2)</h1>
       </div>
+
+      <p style={{ fontSize: 12, color: "var(--fg2)", marginBottom: 12, maxWidth: 800 }}>
+        Verifica se i bot AI ricevono davvero il contenuto. Anche con <code>robots.txt</code> aperto,
+        un CDN/WAF (Cloudflare, Akamai, ecc.) può bloccare o servire un challenge.
+        Questo test simula ogni bot con il suo User-Agent ufficiale e analizza la risposta HTTP.
+      </p>
 
       <div className="geo-audit-input-row">
         <input
@@ -95,24 +101,43 @@ export default function BotTrafficPage() {
               <thead>
                 <tr>
                   <th>Crawler</th>
+                  <th>Provider</th>
                   <th>Accesso</th>
-                  <th>HTTP Status</th>
-                  <th>Tempo Risposta</th>
+                  <th>HTTP</th>
+                  <th>WAF/CDN</th>
+                  <th>Tempo</th>
                 </tr>
               </thead>
               <tbody>
-                {latest.crawlers.map((c) => (
-                  <tr key={c.name} className="geo-row">
-                    <td style={{ fontWeight: 600 }}>{c.name}</td>
-                    <td>
-                      <span className={`geo-tag ${c.accessible ? "geo-tag-yes" : "geo-tag-no"}`}>
-                        {c.accessible ? "OK" : "Bloccato"}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 12 }}>{c.statusCode ?? "-"}</td>
-                    <td style={{ fontSize: 12 }}>{c.responseTime ? `${c.responseTime}ms` : "-"}</td>
-                  </tr>
-                ))}
+                {latest.crawlers.map((c) => {
+                  const info = AI_CRAWLER_INFO[c.name];
+                  const isCritical = AI_CRAWLERS_CRITICAL.has(c.name);
+                  return (
+                    <tr key={c.name} className="geo-row">
+                      <td style={{ fontWeight: 600 }}>
+                        {c.name}
+                        {isCritical && (
+                          <span style={{ marginLeft: 6, fontSize: 9, padding: "1px 5px", borderRadius: 3, background: "rgba(239,68,68,.14)", color: "#ef4444", fontWeight: 700 }}>
+                            CRITICO
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 11, color: "var(--fg2)" }}>
+                        {info?.provider || "-"}
+                      </td>
+                      <td>
+                        <span className={`geo-tag ${c.accessible ? "geo-tag-yes" : "geo-tag-no"}`}>
+                          {c.accessible ? "OK" : "Bloccato"}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: 12 }}>{c.statusCode ?? "-"}</td>
+                      <td style={{ fontSize: 11, color: c.wafDetected ? "#ef4444" : "var(--fg3)" }}>
+                        {c.wafDetected || (c.server ? c.server : "-")}
+                      </td>
+                      <td style={{ fontSize: 12 }}>{c.responseTime ? `${c.responseTime}ms` : "-"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

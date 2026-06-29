@@ -203,6 +203,33 @@ export const AI_CRAWLERS_CRITICAL: ReadonlySet<string> = new Set([
   "ClaudeBot",      // Claude training
 ]);
 
+/** User-Agent ufficiali (o canonici) usati per simulare la richiesta del bot al sito. */
+export const AI_CRAWLER_UAS: Record<string, string> = {
+  "GPTBot": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+  "ChatGPT-User": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ChatGPT-User/1.0; +https://openai.com/bot)",
+  "OAI-SearchBot": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)",
+  "ClaudeBot": "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+  "Claude-User": "Mozilla/5.0 (compatible; Claude-User/1.0; +Claude-User@anthropic.com)",
+  "Claude-SearchBot": "Mozilla/5.0 (compatible; Claude-SearchBot/1.0; +ClaudeBot@anthropic.com)",
+  "Googlebot": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+  "Google-Extended": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+  "Bingbot": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/116.0.1938.76 Safari/537.36",
+  "PerplexityBot": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
+  "Perplexity-User": "Mozilla/5.0 (compatible; Perplexity-User/1.0; +https://docs.perplexity.ai/guides/bots)",
+  "Applebot": "Mozilla/5.0 (compatible; Applebot/0.1; +http://www.apple.com/go/applebot)",
+  "Applebot-Extended": "Mozilla/5.0 (compatible; Applebot/0.1; +http://www.apple.com/go/applebot)",
+  "Meta-ExternalAgent": "meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)",
+  "Meta-ExternalFetcher": "meta-externalfetcher/1.1",
+  "FacebookBot": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+  "DuckAssistBot": "Mozilla/5.0 (compatible; DuckAssistBot/1.0; +https://duckduckgo.com/duckassistbot.html)",
+  "Amazonbot": "Mozilla/5.0 (compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot)",
+  "Bytespider": "Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)",
+  "YouBot": "Mozilla/5.0 (compatible; YouBot/1.0; +http://www.you.com/specifications-for-youbot.txt)",
+  "cohere-ai": "cohere-ai",
+  "MistralAI-User": "MistralAI-User/1.0",
+  "CCBot": "CCBot/2.0 (https://commoncrawl.org/faq/)",
+};
+
 export type CrawlerStatus = "allowed" | "blocked" | "unknown";
 
 export interface CrawlabilityResult {
@@ -374,7 +401,14 @@ export interface BotTrafficCheck {
   id: string;
   url: string;
   scannedAt: string;
-  crawlers: { name: string; accessible: boolean; responseTime?: number; statusCode?: number }[];
+  crawlers: {
+    name: string;
+    accessible: boolean;
+    responseTime?: number;
+    statusCode?: number;
+    wafDetected?: string | null;
+    server?: string | null;
+  }[];
   overallScore: number;
   issues: AuditIssue[];
 }
