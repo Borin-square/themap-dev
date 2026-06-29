@@ -5,7 +5,7 @@ export type LLMName = typeof LLM_LIST[number];
 
 /** Modello effettivamente usato per ogni LLM nelle route /api/geo/* */
 export const LLM_MODELS: Record<LLMName, string> = {
-  ChatGPT: "gpt-4o",
+  ChatGPT: "gpt-5",
   Claude: "claude-sonnet-4-6",
   Gemini: "gemini-2.5-flash",
   Perplexity: "",

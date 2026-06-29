@@ -30,7 +30,7 @@ async function askLLM(llm: string, query: string): Promise<string> {
     }
     if (llm === "ChatGPT") {
       const r = await getOpenAIClient().responses.create({
-        model: "gpt-4o",
+        model: "gpt-5",
         tools: [{ type: "web_search_preview" }],
         input: query,
       });
