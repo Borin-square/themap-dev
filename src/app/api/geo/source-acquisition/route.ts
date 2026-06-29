@@ -64,7 +64,8 @@ async function askLLM(llm: string, query: string): Promise<{ text: string; error
       const r = await withRetry(() =>
         getOpenAIClient().responses.create({
           model: OPENAI_MODEL,
-          tools: [{ type: "web_search_preview" }],
+          tools: [{ type: "web_search" }],
+          reasoning: { effort: "medium" },
           input: query,
         }),
       );
@@ -218,7 +219,7 @@ export async function POST(req: Request) {
       try {
         const r = await withRetry(() =>
           getOpenAIClient().chat.completions.create({
-            model: "gpt-4o-mini",
+            model: "gpt-5.4-mini",
             temperature: 0,
             response_format: { type: "json_object" },
             messages: [

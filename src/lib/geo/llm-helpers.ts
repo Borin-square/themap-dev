@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 
 export const CLAUDE_MODEL = "claude-sonnet-4-6";
-export const OPENAI_MODEL = "gpt-4o";
+export const OPENAI_MODEL = "gpt-5.5";
 export const GEMINI_MODEL = "gemini-2.5-flash-lite";
 
 export const LLM_TIMEOUT_MS = 110_000;
