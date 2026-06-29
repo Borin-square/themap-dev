@@ -3,6 +3,19 @@
 export const LLM_LIST = ["ChatGPT", "Claude", "Gemini", "Perplexity", "AI Overviews"] as const;
 export type LLMName = typeof LLM_LIST[number];
 
+export const LLM_MODELS: Record<LLMName, string> = {
+  ChatGPT: "gpt-5.5",
+  Claude: "claude-sonnet-4-6",
+  Gemini: "gemini-2.5-flash-lite",
+  Perplexity: "",
+  "AI Overviews": "",
+};
+
+export function llmLabel(llm: string): string {
+  const model = LLM_MODELS[llm as LLMName];
+  return model ? `${llm} (${model})` : llm;
+}
+
 export const GEO_INTENTS = ["informativo", "comparativo", "transazionale", "locale", "verticale"] as const;
 export type GEOIntent = typeof GEO_INTENTS[number];
 
@@ -329,6 +342,7 @@ export interface SourceTarget {
   citedBy: string[];
   brandFoundBy: string[];
   evidence: string;
+  authorityScore?: number;
 }
 
 export interface SourceAcquisitionResult {

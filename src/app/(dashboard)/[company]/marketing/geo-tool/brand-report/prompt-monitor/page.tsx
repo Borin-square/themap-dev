@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import type { GEOProject, GEOPrompt, GEOScan } from "@/lib/geo/types";
-import { LLM_LIST, GEO_INTENTS, GEO_FUNNELS, emptyPrompt } from "@/lib/geo/types";
+import { LLM_LIST, GEO_INTENTS, GEO_FUNNELS, emptyPrompt, llmLabel } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
 import { promptMentionRate, promptAvgPosition, promptSentimentAvg, enrichPromptScores, scoreColor } from "@/lib/geo/scoring";
 
@@ -150,11 +150,11 @@ export default function PromptMonitorPage() {
         </div>
         <div className="geo-head-actions">
           <select className="geo-select" value={scanLlm} onChange={(e) => setScanLlm(e.target.value)}>
-            {LLM_LIST.map((l) => <option key={l} value={l}>{l}</option>)}
+            {LLM_LIST.map((l) => <option key={l} value={l}>{llmLabel(l)}</option>)}
           </select>
           {selectedIds.size > 0 && (
             <button className="geo-btn geo-btn-accent" onClick={handleBatchScan} disabled={scanningId !== null}>
-              Scan {selectedIds.size} prompt con {scanLlm}
+              Scan {selectedIds.size} prompt con {llmLabel(scanLlm)}
             </button>
           )}
           <button className="geo-btn geo-btn-accent" onClick={() => setShowAddPrompt(true)}>+ Prompt</button>
