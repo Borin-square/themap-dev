@@ -3,6 +3,20 @@
 export const LLM_LIST = ["ChatGPT", "Claude", "Gemini", "Perplexity", "AI Overviews"] as const;
 export type LLMName = typeof LLM_LIST[number];
 
+/** Modello effettivamente usato per ogni LLM nelle route /api/geo/* */
+export const LLM_MODELS: Record<LLMName, string> = {
+  ChatGPT: "gpt-4o",
+  Claude: "claude-sonnet-4-6",
+  Gemini: "gemini-2.5-flash",
+  Perplexity: "",
+  "AI Overviews": "",
+};
+
+export function llmLabel(llm: string): string {
+  const model = LLM_MODELS[llm as LLMName];
+  return model ? `${llm} (${model})` : llm;
+}
+
 export const GEO_INTENTS = ["informativo", "comparativo", "transazionale", "locale", "verticale"] as const;
 export type GEOIntent = typeof GEO_INTENTS[number];
 
