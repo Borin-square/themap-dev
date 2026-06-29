@@ -41,6 +41,23 @@ interface PlanRequest {
   contentGaps: { topic: string; priority: string }[];
   sourceTargets: { domain: string; priority: string; actionRequired: string }[];
   auditScores: { crawlability?: number; contentReadiness?: number; structuredData?: number; entityStrength?: number };
+  brandKPIs?: {
+    totalPrompts: number;
+    scannedPrompts: number;
+    mentionRate: number;
+    avgPosition: number | null;
+    avgSentiment: number;
+    topAttributes: string[];
+    topStrengths: string[];
+    topWeaknesses: string[];
+  };
+  topCompetitors?: { name: string; mentions: number; sentiment: string }[];
+  citationsSummary?: {
+    ownedShare: number;
+    topDomains: { domain: string; count: number; type: string }[];
+  };
+  completedActions?: { title: string; category: string }[];
+  inProgressActions?: { title: string; category: string }[];
 }
 
 export async function POST(req: Request) {
@@ -80,7 +97,29 @@ ${body.contentGaps.slice(0, 10).map((g) => `- [${g.priority}] ${g.topic}`).join(
 SOURCE TARGETS (${body.sourceTargets.length}):
 ${body.sourceTargets.slice(0, 10).map((s) => `- [${s.priority}] ${s.domain}: ${s.actionRequired}`).join("\n") || "Nessuno"}
 
-Crea un piano d'azione con max 20 item, ordinati per priorita' e impatto. Ogni item deve avere:
+${body.brandKPIs ? `STATO VISIBILITA' BRAND NELLE RISPOSTE LLM:
+- Prompt monitorati: ${body.brandKPIs.scannedPrompts}/${body.brandKPIs.totalPrompts} scansionati
+- Brand Mention Rate: ${body.brandKPIs.mentionRate}% (quanto spesso il brand viene citato dagli LLM)
+- Posizione media nelle risposte: ${body.brandKPIs.avgPosition != null ? `#${body.brandKPIs.avgPosition}` : "n/d"}
+- Sentiment medio: ${body.brandKPIs.avgSentiment.toFixed(2)} (-1 negativo, +1 positivo)
+- Attributi associati al brand: ${body.brandKPIs.topAttributes.slice(0, 8).join(", ") || "nessuno"}
+- Punti di forza percepiti: ${body.brandKPIs.topStrengths.slice(0, 5).join(", ") || "nessuno"}
+- Debolezze percepite: ${body.brandKPIs.topWeaknesses.slice(0, 5).join(", ") || "nessuna"}` : ""}
+
+${body.topCompetitors && body.topCompetitors.length > 0 ? `TOP COMPETITOR MENZIONATI DAGLI LLM (${body.topCompetitors.length}):
+${body.topCompetitors.slice(0, 10).map((c) => `- ${c.name}: ${c.mentions} menzioni, sentiment ${c.sentiment}`).join("\n")}` : ""}
+
+${body.citationsSummary ? `CITAZIONI / FONTI:
+- Quota citazioni owned (sito brand): ${body.citationsSummary.ownedShare}%
+- Top domini citati: ${body.citationsSummary.topDomains.slice(0, 8).map((d) => `${d.domain} (${d.count}, ${d.type})`).join(", ") || "nessuno"}` : ""}
+
+${body.completedActions && body.completedActions.length > 0 ? `AZIONI GIA' COMPLETATE (NON RI-SUGGERIRE QUESTE):
+${body.completedActions.slice(0, 30).map((a) => `- [${a.category}] ${a.title}`).join("\n")}` : ""}
+
+${body.inProgressActions && body.inProgressActions.length > 0 ? `AZIONI IN CORSO (NON RI-SUGGERIRE, EVENTUALMENTE PROPONI NEXT STEP CORRELATI):
+${body.inProgressActions.slice(0, 30).map((a) => `- [${a.category}] ${a.title}`).join("\n")}` : ""}
+
+Crea un piano d'azione con max 20 item, ordinati per priorita' e impatto. Considera lo stato attuale di visibilita' brand, i competitor che vincono, le debolezze percepite e le fonti che già funzionano (o mancano). NON ri-suggerire azioni già completate o in corso elencate sopra. Ogni item deve avere:
 - category: content|technical|source|entity|structured-data
 - title: titolo breve
 - description: cosa fare concretamente

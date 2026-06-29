@@ -6,6 +6,10 @@ import { useLocalState } from "@/lib/useLocalState";
 import type { GEOProject, ActionPlanResult, ActionItem, AuditIssue } from "@/lib/geo/types";
 import { emptyActions, emptyAudits } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
+import {
+  brandMentionRate, avgSentimentScore, competitorRanking,
+  citationShareOwned, citationRanking, allCompetitorMentions,
+} from "@/lib/geo/scoring";
 
 const CAT_LABELS: Record<string, string> = {
   content: "Contenuto", technical: "Tecnico", source: "Fonti",
@@ -78,6 +82,55 @@ export default function ActionPlanPage() {
     domain: t.domain, priority: t.priority, actionRequired: t.actionRequired,
   }));
 
+  // Brand visibility KPIs from prompt scans
+  const scannedPrompts = project.prompts.filter((p) => p.scans.length > 0);
+  const positions = scannedPrompts
+    .flatMap((p) => p.scans)
+    .filter((s) => s.brandMentioned && s.brandPosition)
+    .map((s) => s.brandPosition as number);
+  const avgPos = positions.length > 0
+    ? Math.round((positions.reduce((a, b) => a + b, 0) / positions.length) * 10) / 10
+    : null;
+  const mentionedScans = scannedPrompts.flatMap((p) => p.scans).filter((s) => s.brandMentioned);
+  const brandAttrs = countTop(mentionedScans.flatMap((s) => s.brandAttributes), 8);
+  const brandStrengths = countTop(mentionedScans.flatMap((s) => s.sentiment.strengths), 5);
+  const brandWeaknesses = countTop(mentionedScans.flatMap((s) => s.sentiment.weaknesses), 5);
+
+  const brandKPIs = project.prompts.length > 0 ? {
+    totalPrompts: project.prompts.length,
+    scannedPrompts: scannedPrompts.length,
+    mentionRate: brandMentionRate(project),
+    avgPosition: avgPos,
+    avgSentiment: mentionedScans.length > 0
+      ? Math.round(mentionedScans.reduce((a, s) => a + s.sentiment.score, 0) / mentionedScans.length * 100) / 100
+      : 0,
+    topAttributes: brandAttrs,
+    topStrengths: brandStrengths,
+    topWeaknesses: brandWeaknesses,
+  } : undefined;
+
+  const topCompetitors = allCompetitorMentions(project).length > 0
+    ? competitorRanking(project).slice(0, 10).map((c) => ({
+        name: c.name, mentions: c.mentions, sentiment: c.avgSentiment,
+      }))
+    : undefined;
+
+  const citationsSummary = project.prompts.some((p) => p.scans.some((s) => s.citations.length > 0))
+    ? {
+        ownedShare: citationShareOwned(project),
+        topDomains: citationRanking(project).slice(0, 8).map((c) => ({
+          domain: c.domain, count: c.count, type: c.type,
+        })),
+      }
+    : undefined;
+
+  const completedActions = plan?.items
+    .filter((i) => i.status === "completato")
+    .map((i) => ({ title: i.title, category: i.category })) || [];
+  const inProgressActions = plan?.items
+    .filter((i) => i.status === "in-corso")
+    .map((i) => ({ title: i.title, category: i.category })) || [];
+
   async function generatePlan() {
     if (!canScan) return;
     setScanning(true);
@@ -100,6 +153,11 @@ export default function ActionPlanPage() {
           contentGaps,
           sourceTargets,
           auditScores,
+          brandKPIs,
+          topCompetitors,
+          citationsSummary,
+          completedActions,
+          inProgressActions,
         }),
       });
       const data = await res.json();
@@ -259,4 +317,10 @@ export default function ActionPlanPage() {
       )}
     </div>
   );
+}
+
+function countTop(arr: string[], n: number): string[] {
+  const map = new Map<string, number>();
+  for (const v of arr) if (v) map.set(v, (map.get(v) || 0) + 1);
+  return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k);
 }
