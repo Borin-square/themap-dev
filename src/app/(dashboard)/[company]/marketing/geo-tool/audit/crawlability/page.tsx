@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useLocalState } from "@/lib/useLocalState";
 import type { GEOProject, CrawlabilityResult } from "@/lib/geo/types";
-import { emptyAudits } from "@/lib/geo/types";
+import { emptyAudits, AI_CRAWLER_INFO, AI_CRAWLERS_CRITICAL } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
 import { scoreColor } from "@/lib/geo/scoring";
 
@@ -102,22 +102,42 @@ export default function CrawlabilityPage() {
               <thead>
                 <tr>
                   <th>Crawler</th>
+                  <th>Provider / Uso</th>
                   <th>Stato</th>
                   <th>Regola</th>
                 </tr>
               </thead>
               <tbody>
-                {latest.crawlers.map((c) => (
-                  <tr key={c.name} className="geo-row">
-                    <td style={{ fontWeight: 600 }}>{c.name}</td>
-                    <td>
-                      <span className={`geo-tag ${c.status === "allowed" ? "geo-tag-yes" : c.status === "blocked" ? "geo-tag-no" : ""}`}>
-                        {c.status === "allowed" ? "Ammesso" : c.status === "blocked" ? "Bloccato" : "Sconosciuto"}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 11, color: "var(--fg3)" }}>{c.rule || "-"}</td>
-                  </tr>
-                ))}
+                {latest.crawlers.map((c) => {
+                  const info = AI_CRAWLER_INFO[c.name];
+                  const isCritical = AI_CRAWLERS_CRITICAL.has(c.name);
+                  return (
+                    <tr key={c.name} className="geo-row">
+                      <td style={{ fontWeight: 600 }}>
+                        {c.name}
+                        {isCritical && (
+                          <span title="Crawler critico per visibilità AI" style={{ marginLeft: 6, fontSize: 9, padding: "1px 5px", borderRadius: 3, background: "rgba(239,68,68,.14)", color: "#ef4444", fontWeight: 700 }}>
+                            CRITICO
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 11, color: "var(--fg2)" }}>
+                        {info ? (
+                          <>
+                            <strong style={{ color: "var(--fg)" }}>{info.provider}</strong>
+                            <span style={{ color: "var(--fg3)" }}> — {info.purpose}</span>
+                          </>
+                        ) : "-"}
+                      </td>
+                      <td>
+                        <span className={`geo-tag ${c.status === "allowed" ? "geo-tag-yes" : c.status === "blocked" ? "geo-tag-no" : ""}`}>
+                          {c.status === "allowed" ? "Ammesso" : c.status === "blocked" ? "Bloccato" : "Sconosciuto"}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: 11, color: "var(--fg3)" }}>{c.rule || "-"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

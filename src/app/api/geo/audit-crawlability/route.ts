@@ -1,5 +1,5 @@
 import type { CrawlabilityResult, CrawlerStatus, AuditIssue } from "@/lib/geo/types";
-import { AI_CRAWLERS } from "@/lib/geo/types";
+import { AI_CRAWLERS, AI_CRAWLERS_CRITICAL } from "@/lib/geo/types";
 
 export const maxDuration = 30;
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       const result = checkCrawlerAccess(robotsTxt, name);
       if (result.status === "blocked") {
         issues.push({
-          type: name === "Googlebot" ? "critical" : "warning",
+          type: AI_CRAWLERS_CRITICAL.has(name) ? "critical" : "warning",
           category: "crawler",
           message: `${name} e' bloccato`,
           detail: result.rule ? `Regola: ${result.rule}` : undefined,

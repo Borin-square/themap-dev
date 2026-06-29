@@ -137,10 +137,71 @@ export interface GEOIntentCluster {
 /* ── Audit Types ── */
 
 export const AI_CRAWLERS = [
-  "GPTBot", "ChatGPT-User", "ClaudeBot", "PerplexityBot",
-  "Googlebot", "Google-Extended", "OAI-SearchBot",
-  "Applebot-Extended", "Meta-ExternalAgent", "CCBot",
+  // OpenAI / ChatGPT
+  "GPTBot", "ChatGPT-User", "OAI-SearchBot",
+  // Anthropic / Claude
+  "ClaudeBot", "Claude-User", "Claude-SearchBot",
+  // Google / Gemini / AI Overviews
+  "Googlebot", "Google-Extended",
+  // Microsoft / Copilot (Bing index)
+  "Bingbot",
+  // Perplexity
+  "PerplexityBot", "Perplexity-User",
+  // Apple
+  "Applebot", "Applebot-Extended",
+  // Meta AI
+  "Meta-ExternalAgent", "Meta-ExternalFetcher", "FacebookBot",
+  // DuckDuckGo
+  "DuckAssistBot",
+  // Amazon (Rufus / Alexa)
+  "Amazonbot",
+  // ByteDance (Doubao, TikTok AI)
+  "Bytespider",
+  // You.com
+  "YouBot",
+  // Cohere
+  "cohere-ai",
+  // Mistral Le Chat
+  "MistralAI-User",
+  // Common Crawl
+  "CCBot",
 ] as const;
+
+export const AI_CRAWLER_INFO: Record<string, { provider: string; purpose: string }> = {
+  "GPTBot": { provider: "OpenAI", purpose: "Training ChatGPT" },
+  "ChatGPT-User": { provider: "OpenAI", purpose: "ChatGPT browsing on-demand" },
+  "OAI-SearchBot": { provider: "OpenAI", purpose: "ChatGPT Search index" },
+  "ClaudeBot": { provider: "Anthropic", purpose: "Training Claude" },
+  "Claude-User": { provider: "Anthropic", purpose: "Claude.ai web access on-demand" },
+  "Claude-SearchBot": { provider: "Anthropic", purpose: "Claude Search index" },
+  "Googlebot": { provider: "Google", purpose: "Google Search + AI Overviews" },
+  "Google-Extended": { provider: "Google", purpose: "Training Gemini" },
+  "Bingbot": { provider: "Microsoft", purpose: "Bing + Copilot (web grounding)" },
+  "PerplexityBot": { provider: "Perplexity", purpose: "Index Perplexity" },
+  "Perplexity-User": { provider: "Perplexity", purpose: "Fetch on-demand su ricerca utente" },
+  "Applebot": { provider: "Apple", purpose: "Spotlight, Siri" },
+  "Applebot-Extended": { provider: "Apple", purpose: "Apple Intelligence training" },
+  "Meta-ExternalAgent": { provider: "Meta", purpose: "Meta AI training" },
+  "Meta-ExternalFetcher": { provider: "Meta", purpose: "Meta AI fetch on-demand" },
+  "FacebookBot": { provider: "Meta", purpose: "Facebook AI tooling" },
+  "DuckAssistBot": { provider: "DuckDuckGo", purpose: "DuckDuckGo AI Assist" },
+  "Amazonbot": { provider: "Amazon", purpose: "Rufus, Alexa+" },
+  "Bytespider": { provider: "ByteDance", purpose: "Doubao, TikTok AI" },
+  "YouBot": { provider: "You.com", purpose: "You.com AI search" },
+  "cohere-ai": { provider: "Cohere", purpose: "Training Cohere" },
+  "MistralAI-User": { provider: "Mistral", purpose: "Le Chat web search" },
+  "CCBot": { provider: "Common Crawl", purpose: "Dataset usato da molti LLM" },
+};
+
+/** Crawler la cui assenza compromette gravemente la visibilità AI. */
+export const AI_CRAWLERS_CRITICAL: ReadonlySet<string> = new Set([
+  "Googlebot",      // AI Overviews + Gemini grounding
+  "Bingbot",        // Copilot
+  "GPTBot",         // ChatGPT training
+  "OAI-SearchBot",  // ChatGPT Search
+  "PerplexityBot",  // Perplexity
+  "ClaudeBot",      // Claude training
+]);
 
 export type CrawlerStatus = "allowed" | "blocked" | "unknown";
 
