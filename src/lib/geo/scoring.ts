@@ -150,25 +150,69 @@ export function allCompetitorMentions(project: GEOProject): (GEOScan["competitor
   );
 }
 
-/** Unique competitors ranked by mention count */
+/** Normalize a competitor name: lowercase, trim, collapse whitespace, strip common suffixes. */
+export function normalizeCompetitorName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[.,;:!?"'`]/g, "");
+}
+
+/**
+ * Resolve a mention name to its canonical form.
+ * - If normalized matches a configured competitor (exact or substring with min length 4) → use configured name.
+ * - Otherwise use the normalized form (variants will collapse together).
+ */
+export function canonicalCompetitorName(name: string, configured: string[]): string {
+  const norm = normalizeCompetitorName(name);
+  if (!norm) return norm;
+  for (const c of configured) {
+    const cn = normalizeCompetitorName(c);
+    if (!cn) continue;
+    if (cn === norm) return c;
+    if (cn.length >= 4 && (norm.includes(cn) || cn.includes(norm))) return c;
+  }
+  return norm;
+}
+
+/** Unique competitors ranked by mention count. Variants (case / spaces) are merged. */
 export function competitorRanking(project: GEOProject): { name: string; mentions: number; promptCount: number; avgSentiment: string }[] {
   const mentions = allCompetitorMentions(project);
-  const map = new Map<string, { count: number; prompts: Set<string>; sentiments: string[] }>();
+  const configured = project.config.competitors || [];
+  const map = new Map<string, { displayCounts: Map<string, number>; count: number; prompts: Set<string>; sentiments: string[] }>();
   for (const m of mentions) {
-    if (!map.has(m.name)) map.set(m.name, { count: 0, prompts: new Set(), sentiments: [] });
-    const entry = map.get(m.name)!;
+    const key = canonicalCompetitorName(m.name, configured);
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, { displayCounts: new Map(), count: 0, prompts: new Set(), sentiments: [] });
+    const entry = map.get(key)!;
     entry.count++;
     entry.prompts.add(m.promptId);
     entry.sentiments.push(m.sentiment);
+    entry.displayCounts.set(m.name, (entry.displayCounts.get(m.name) || 0) + 1);
   }
   return Array.from(map.entries())
-    .map(([name, data]) => ({
-      name,
-      mentions: data.count,
-      promptCount: data.prompts.size,
-      avgSentiment: mostFrequent(data.sentiments),
-    }))
+    .map(([key, data]) => {
+      // Prefer configured name if key matches one; else most frequent original casing.
+      const configMatch = configured.find((c) => c === key);
+      const displayName = configMatch ?? mostFrequentName(data.displayCounts) ?? key;
+      return {
+        name: displayName,
+        mentions: data.count,
+        promptCount: data.prompts.size,
+        avgSentiment: mostFrequent(data.sentiments),
+      };
+    })
     .sort((a, b) => b.mentions - a.mentions);
+}
+
+function mostFrequentName(counts: Map<string, number>): string | null {
+  let max = 0;
+  let result: string | null = null;
+  for (const [name, n] of counts) {
+    if (n > max) { max = n; result = name; }
+  }
+  return result;
 }
 
 /** Unique citations ranked by frequency */

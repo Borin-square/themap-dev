@@ -6,7 +6,7 @@ import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import type { GEOProject, GEOCompetitorMention } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
-import { competitorRanking, competitorMentionRate, allCompetitorMentions } from "@/lib/geo/scoring";
+import { competitorRanking, competitorMentionRate, allCompetitorMentions, canonicalCompetitorName } from "@/lib/geo/scoring";
 
 export default function CompetitorTrackerPage() {
   const params = useParams();
@@ -28,7 +28,9 @@ export default function CompetitorTrackerPage() {
   // Detail for selected competitor
   const detail = useMemo(() => {
     if (!selectedCompetitor) return null;
-    const mentions = allMentions.filter((m) => m.name === selectedCompetitor);
+    const configured = project.config.competitors || [];
+    const selectedKey = canonicalCompetitorName(selectedCompetitor, configured);
+    const mentions = allMentions.filter((m) => canonicalCompetitorName(m.name, configured) === selectedKey);
     const allAttributes = mentions.flatMap((m) => m.attributes);
     const allStrengths = mentions.flatMap((m) => m.strengths);
     const allWeaknesses = mentions.flatMap((m) => m.weaknesses);
@@ -43,7 +45,7 @@ export default function CompetitorTrackerPage() {
       weaknesses: countUnique(allWeaknesses),
       sentiments: mentions.map((m) => m.sentiment),
     };
-  }, [selectedCompetitor, allMentions, project.prompts]);
+  }, [selectedCompetitor, allMentions, project.prompts, project.config.competitors]);
 
   return (
     <div className="geo-page">
