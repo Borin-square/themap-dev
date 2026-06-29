@@ -29,6 +29,7 @@ export default function PromptMonitorPage() {
   const [filterIntent, setFilterIntent] = useState("");
   const [filterFunnel, setFilterFunnel] = useState("");
   const [filterScanned, setFilterScanned] = useState("");
+  const [filterCluster, setFilterCluster] = useState("");
   const [viewResponse, setViewResponse] = useState<{ promptId: string; scanId: string } | null>(null);
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3000); }
@@ -40,9 +41,11 @@ export default function PromptMonitorPage() {
       if (filterFunnel && p.funnelStage !== filterFunnel) return false;
       if (filterScanned === "scanned" && p.scans.length === 0) return false;
       if (filterScanned === "unscanned" && p.scans.length > 0) return false;
+      if (filterCluster === "__none__" && p.clusterId) return false;
+      if (filterCluster && filterCluster !== "__none__" && p.clusterId !== filterCluster) return false;
       return true;
     });
-  }, [project.prompts, filterIntent, filterFunnel, filterScanned]);
+  }, [project.prompts, filterIntent, filterFunnel, filterScanned, filterCluster]);
 
   // Toggle selection
   function toggleSelect(id: string) {
@@ -191,6 +194,13 @@ export default function PromptMonitorPage() {
           <option value="">Tutti</option>
           <option value="scanned">Scansionati</option>
           <option value="unscanned">Non scansionati</option>
+        </select>
+        <select value={filterCluster} onChange={(e) => setFilterCluster(e.target.value)}>
+          <option value="">Tutti i cluster</option>
+          <option value="__none__">Senza cluster</option>
+          {project.clusters.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
         </select>
         <span className="geo-filter-count">{filtered.length} prompt</span>
       </div>
