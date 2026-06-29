@@ -22,7 +22,7 @@ async function askLLM(llm: string, query: string): Promise<string> {
   try {
     if (llm === "Claude") {
       const r = await getAnthropicClient().messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 4096,
         messages: [{ role: "user", content: query }],
       });
@@ -134,7 +134,7 @@ Rispondi ESCLUSIVAMENTE con un JSON valido (nessun testo prima o dopo) con quest
 }`;
 
     const analysis = await getAnthropicClient().messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 2048,
       messages: [{ role: "user", content: analysisPrompt }],
     });
@@ -201,7 +201,7 @@ Rispondi ESCLUSIVAMENTE con un JSON valido:
 Sii specifico e basa ogni gap su evidenze reali dalle risposte. Se il brand non e' menzionato affatto, evidenzia chi viene menzionato al suo posto e perche'.`;
 
     const gapAnalysis = await getAnthropicClient().messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 4096,
       messages: [{ role: "user", content: gapPrompt }],
     });

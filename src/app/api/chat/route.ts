@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     const MAX_ITERATIONS = 5;
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const response = await getClient().messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 4096,
         system: SYSTEM_PROMPT,
         messages: anthropicMessages,

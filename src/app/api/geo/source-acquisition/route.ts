@@ -21,7 +21,7 @@ async function askLLM(llm: string, query: string): Promise<string> {
   try {
     if (llm === "Claude") {
       const r = await getAnthropicClient().messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 4096,
         messages: [{ role: "user", content: query }],
       });
@@ -177,7 +177,7 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
 }`;
 
     const synthesis = await getAnthropicClient().messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 4096,
       messages: [{ role: "user", content: synthesisPrompt }],
     });
