@@ -2140,3 +2140,6 @@ th.ee-inactive { opacity: .4; }
   .geo-report-section{break-inside:auto;page-break-inside:auto}
   .geo-report-h2,.geo-report-h3{break-after:avoid}
 }
+
+.geo-spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--bd);border-top-color:var(--accent);border-radius:50%;animation:geo-spin .8s linear infinite;flex-shrink:0}
+@keyframes geo-spin{to{transform:rotate(360deg)}}

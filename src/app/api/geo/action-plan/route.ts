@@ -3,6 +3,32 @@ import type { ActionPlanResult, AuditIssue } from "@/lib/geo/types";
 
 export const maxDuration = 120;
 
+function extractJson<T>(text: string): T | null {
+  if (!text) return null;
+  let cleaned = text.trim();
+  const fence = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) cleaned = fence[1].trim();
+  try { return JSON.parse(cleaned) as T; } catch { /* fall through */ }
+  const start = cleaned.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0, inString = false, escape = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        try { return JSON.parse(cleaned.slice(start, i + 1)) as T; } catch { return null; }
+      }
+    }
+  }
+  return null;
+}
+
 interface PlanRequest {
   brandName: string;
   siteUrl: string;
@@ -27,7 +53,9 @@ export async function POST(req: Request) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const analysis = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 8192,
+      temperature: 0,
+      system: "Rispondi ESCLUSIVAMENTE con un JSON valido, senza testo prima o dopo, senza code fences.",
       messages: [{
         role: "user",
         content: `Genera un piano d'azione prioritizzato per migliorare la visibilita' AI del brand "${body.brandName}".
@@ -71,12 +99,13 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
     });
 
     const text = analysis.content.find((b) => b.type === "text")?.text || "{}";
-    let parsed: { items: ActionPlanResult["items"]; summary: string };
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
-    } catch {
-      return Response.json({ error: "Errore nel parsing dell'analisi" }, { status: 500 });
+    const parsed = extractJson<{ items: ActionPlanResult["items"]; summary: string }>(text);
+    if (!parsed) {
+      console.error("[action-plan] JSON parse failed", { stopReason: analysis.stop_reason, raw: text.slice(0, 1000) });
+      return Response.json({
+        error: "Errore nel parsing dell'analisi",
+        stopReason: analysis.stop_reason,
+      }, { status: 500 });
     }
 
     // Ensure IDs

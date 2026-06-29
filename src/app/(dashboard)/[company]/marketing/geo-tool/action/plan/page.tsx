@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useLocalState } from "@/lib/useLocalState";
 import type { GEOProject, ActionPlanResult, ActionItem, AuditIssue } from "@/lib/geo/types";
@@ -29,9 +29,24 @@ export default function ActionPlanPage() {
   );
 
   const [scanning, setScanning] = useState(false);
+  const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [filterCat, setFilterCat] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+
+  useEffect(() => {
+    if (!scanning || !scanStartedAt) return;
+    const id = setInterval(() => setElapsed(Math.round((Date.now() - scanStartedAt) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [scanning, scanStartedAt]);
+
+  const progressStep =
+    elapsed < 10 ? "Raccolgo dati audit e gaps…" :
+    elapsed < 30 ? "Analizzo priorità e impatto…" :
+    elapsed < 60 ? "Genero il piano d'azione…" :
+    elapsed < 90 ? "Strutturo le azioni per categoria…" :
+    "Ultimi ritocchi…";
 
   const cfg = project.config;
   const actions = project.actions ?? emptyActions();
@@ -66,6 +81,8 @@ export default function ActionPlanPage() {
   async function generatePlan() {
     if (!canScan) return;
     setScanning(true);
+    setScanStartedAt(Date.now());
+    setElapsed(0);
     setError(null);
     try {
       const res = await fetch("/api/geo/action-plan", {
@@ -96,6 +113,7 @@ export default function ActionPlanPage() {
       setError(e instanceof Error ? e.message : "Errore");
     } finally {
       setScanning(false);
+      setScanStartedAt(null);
     }
   }
 
@@ -138,7 +156,19 @@ export default function ActionPlanPage() {
         </div>
       )}
 
-      {error && <div className="geo-audit-error">{error}</div>}
+      {scanning && (
+        <div className="geo-audit-config-summary" style={{ display: "flex", alignItems: "center", gap: 12, padding: 14 }}>
+          <span className="geo-spinner" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>{progressStep}</div>
+            <div style={{ fontSize: 11, color: "var(--fg3)" }}>
+              {elapsed}s trascorsi — l'analisi può richiedere fino a ~2 minuti
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && !scanning && <div className="geo-audit-error">{error}</div>}
 
       {plan && (
         <>
