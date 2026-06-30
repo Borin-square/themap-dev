@@ -3,21 +3,45 @@ import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 import type { GEOScan, GEOSentimentData, GEOCompetitorMention, GEOCitation, GEOSentimentLabel, GEOSourceType } from "@/lib/geo/types";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
+
+const LLM_TIMEOUT_MS = 240_000;
 
 function getAnthropicClient() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: LLM_TIMEOUT_MS });
 }
 
 function getOpenAIClient() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: LLM_TIMEOUT_MS });
 }
 
 function getGeminiClient() {
   return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 }
 
-async function askLLM(llm: string, query: string): Promise<string> {
+function humanizeLLMError(llm: string, raw: string): string {
+  if (/429|RESOURCE_EXHAUSTED|rate.?limit|quota/i.test(raw)) {
+    return `Quota ${llm} esaurita. Riprova o usa un altro LLM.`;
+  }
+  if (/529|overload/i.test(raw)) {
+    return `${llm} sovraccarico (529). Riprova fra qualche minuto.`;
+  }
+  if (/503|UNAVAILABLE|high demand/i.test(raw)) {
+    return `${llm} in overload (503). Riprova fra qualche minuto.`;
+  }
+  if (/401|invalid.?api.?key|unauthorized/i.test(raw)) {
+    return `${llm}: API key non valida o scaduta.`;
+  }
+  if (/404|not.?found/i.test(raw) && /model/i.test(raw)) {
+    return `${llm}: modello non disponibile con questa API key.`;
+  }
+  if (/timeout|timed out|ETIMEDOUT|aborted/i.test(raw)) {
+    return `${llm}: richiesta troppo lunga (timeout). Riprova o riduci reasoning.`;
+  }
+  return raw.slice(0, 300);
+}
+
+async function askLLM(llm: string, query: string): Promise<{ text: string; error?: string }> {
   try {
     if (llm === "Claude") {
       const r = await getAnthropicClient().messages.create({
@@ -26,7 +50,7 @@ async function askLLM(llm: string, query: string): Promise<string> {
         messages: [{ role: "user", content: query }],
       });
       const text = r.content.find((b) => b.type === "text");
-      return text ? text.text : "";
+      return { text: text ? text.text : "" };
     }
     if (llm === "ChatGPT") {
       const r = await getOpenAIClient().responses.create({
@@ -38,9 +62,9 @@ async function askLLM(llm: string, query: string): Promise<string> {
       const msg = r.output.find((b) => b.type === "message");
       if (msg && "content" in msg) {
         const text = msg.content.find((c: { type: string }) => c.type === "output_text");
-        return text && "text" in text ? (text as { text: string }).text : "";
+        return { text: text && "text" in text ? (text as { text: string }).text : "" };
       }
-      return "";
+      return { text: "" };
     }
     if (llm === "Gemini") {
       const ai = getGeminiClient();
@@ -49,12 +73,13 @@ async function askLLM(llm: string, query: string): Promise<string> {
         contents: query,
         config: { tools: [{ googleSearch: {} }] },
       });
-      return r.text ?? "";
+      return { text: r.text ?? "" };
     }
-    // Perplexity, AI Overviews: placeholder
-    return "";
-  } catch {
-    return "";
+    return { text: "", error: `LLM "${llm}" non implementato.` };
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err);
+    console.error(`[scan/askLLM] ${llm} failed:`, raw);
+    return { text: "", error: humanizeLLMError(llm, raw) };
   }
 }
 
@@ -87,13 +112,13 @@ export async function POST(req: Request) {
     }
 
     // Phase 1: Send the prompt to the selected LLM
-    const rawResponse = await askLLM(llm, prompt);
-
-    if (!rawResponse) {
+    const askResult = await askLLM(llm, prompt);
+    if (!askResult.text) {
       return Response.json({
-        error: `LLM "${llm}" non supportato o risposta vuota.`,
+        error: askResult.error ? `${llm}: ${askResult.error}` : `LLM "${llm}" risposta vuota.`,
       }, { status: 400 });
     }
+    const rawResponse = askResult.text;
 
     // Phase 2: Analyze the response with Claude
     const analysisPrompt = `Analizza questa risposta data da ${llm} al prompt "${prompt}".
