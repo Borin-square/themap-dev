@@ -392,10 +392,12 @@ function PromptRow({ prompt: p, selected, onToggleSelect, expanded, onToggleExpa
           <div className="sc-llm-dots">
             {LLM_LIST.map((llm) => {
               const scan = p.scans.find((s) => s.llm === llm);
+              const status: "none" | "yes" | "no" = !scan ? "none" : scan.brandMentioned ? "yes" : "no";
               return (
-                <span
+                <LlmBadge
                   key={llm}
-                  className={`sc-llm-dot${scan ? (scan.brandMentioned ? " sc-llm-yes" : " geo-llm-no") : ""}`}
+                  llm={llm}
+                  status={status}
                   title={scan ? `${llm}: ${scan.brandMentioned ? `#${scan.brandPosition || "?"}` : "non menzionato"}` : `${llm}: non scansionato`}
                 />
               );
@@ -497,5 +499,27 @@ function csvCell(v: string): string {
   const s = String(v ?? "");
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
+}
+
+/* ── LLM Badge (mini logo) ── */
+const LLM_BADGE_CONFIG: Record<string, { bg: string; glyph: string; fontSize: number }> = {
+  "ChatGPT":      { bg: "#10A37F", glyph: "GPT", fontSize: 7 },
+  "Claude":       { bg: "#D97757", glyph: "C",   fontSize: 11 },
+  "Gemini":       { bg: "#1F6FEB", glyph: "\u2726", fontSize: 11 },
+  "Perplexity":   { bg: "#20808D", glyph: "P",   fontSize: 11 },
+  "AI Overviews": { bg: "#1A73E8", glyph: "AI",  fontSize: 8 },
+};
+
+function LlmBadge({ llm, status, title }: { llm: string; status: "none" | "yes" | "no"; title: string }) {
+  const cfg = LLM_BADGE_CONFIG[llm] || { bg: "#666", glyph: llm.slice(0, 2), fontSize: 8 };
+  return (
+    <span
+      className={`sc-llm-badge sc-llm-badge-${status}`}
+      style={{ background: status === "none" ? "var(--bg3)" : cfg.bg, fontSize: cfg.fontSize }}
+      title={title}
+    >
+      {cfg.glyph}
+    </span>
+  );
 }
 

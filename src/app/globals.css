@@ -1632,9 +1632,14 @@ th.ee-inactive { opacity: .4; }
 .sc-opp-massive{background:rgba(139,92,246,.18);color:#a78bfa}
 
 /* LLM dots */
-.sc-llm-dots{display:flex;gap:3px;align-items:center}
+.sc-llm-dots{display:flex;gap:4px;align-items:center}
 .sc-llm-dot{width:8px;height:8px;border-radius:50%;background:var(--bg3);border:1px solid var(--bd)}
 .sc-llm-yes{background:var(--grn);border-color:var(--grn)}
+
+.sc-llm-badge{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;color:#fff;font-weight:700;line-height:1;border:2px solid var(--bd);box-sizing:border-box;letter-spacing:.2px;flex-shrink:0;user-select:none}
+.sc-llm-badge-none{color:var(--fg3);opacity:.45;filter:grayscale(1)}
+.sc-llm-badge-yes{border-color:var(--grn);box-shadow:0 0 0 1px rgba(34,197,94,.25)}
+.sc-llm-badge-no{border-color:var(--red);opacity:.65}
 .sc-llm-count{font-size:10px;color:var(--fg3);margin-left:4px}
 
 /* Gap count */
