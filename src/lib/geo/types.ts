@@ -327,6 +327,74 @@ export interface GEOAudits {
   entityStrength: EntityStrengthResult[];
 }
 
+/* ── KG Optimizer (structured-data avanzato con LLM + accept/generate) ── */
+
+export const KG_SUGGESTION_CATEGORIES = ["schema-org", "rich-results", "knowledge-graph"] as const;
+export type KGSuggestionCategory = typeof KG_SUGGESTION_CATEGORIES[number];
+
+export const KG_SUGGESTION_SEVERITIES = ["critical", "warning", "info"] as const;
+export type KGSuggestionSeverity = typeof KG_SUGGESTION_SEVERITIES[number];
+
+export const KG_SUGGESTION_OPS = ["add", "modify", "remove", "add-schema"] as const;
+export type KGSuggestionOp = typeof KG_SUGGESTION_OPS[number];
+
+export interface KGExtractedBlock {
+  index: number;
+  schemaType: string;
+  raw: string;
+  parsed: Record<string, unknown>;
+}
+
+export interface KGExtractedUrl {
+  url: string;
+  status: "ok" | "fetch-error" | "no-jsonld";
+  httpStatus?: number;
+  error?: string;
+  jsRenderedHint?: boolean;
+  hasMicrodata?: boolean;
+  blocks: KGExtractedBlock[];
+  extractedAt: string;
+}
+
+export interface KGSuggestion {
+  id: string;
+  category: KGSuggestionCategory;
+  severity: KGSuggestionSeverity;
+  op: KGSuggestionOp;
+  schemaIndex: number | null;
+  targetSchemaType?: string;
+  fieldPath?: string;
+  currentValue?: unknown;
+  proposedValue?: unknown;
+  why: string;
+}
+
+export interface KGSchemaAnalysis {
+  schemaIndex: number;
+  schemaType: string;
+  summary: string;
+  suggestions: KGSuggestion[];
+}
+
+export interface KGAnalysis {
+  schemas: KGSchemaAnalysis[];
+  newSchemas: KGSuggestion[];
+  overallNotes: string;
+  analyzedAt: string;
+}
+
+export interface KGAudit {
+  id: string;
+  url: string;
+  extracted?: KGExtractedUrl;
+  analysis?: KGAnalysis;
+  acceptedSuggestionIds: string[];
+  skippedSuggestionIds: string[];
+  suggestionOverrides: Record<string, unknown>;
+  finalMarkup?: string;
+  updatedAt: string;
+}
+
 /* ── Phase 4: Action Planner ── */
 
 export interface ContentGap {

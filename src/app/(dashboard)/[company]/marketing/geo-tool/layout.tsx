@@ -21,6 +21,7 @@ const GEO_NAV = [
   { href: "/audit/content-readiness", label: "Content Readiness", icon: "\u2637" },
   { href: "/audit/structured-data", label: "Structured Data", icon: "\u2630" },
   { href: "/audit/entity-strength", label: "Entity Strength", icon: "\u2726" },
+  { href: "/audit/kg-optimizer", label: "KG Optimizer", icon: "\u25C7" },
   { section: "ACTION PLANNER" },
   { href: "/action/content-gaps", label: "Content Gaps", icon: "\u25CB" },
   { href: "/action/source-acquisition", label: "Source Acquisition", icon: "\u2192" },
