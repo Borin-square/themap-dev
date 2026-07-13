@@ -33,7 +33,8 @@ export function OutputPanel({
   const [previewMode, setPreviewMode] = useState<"code" | "iframe">("code");
   const [wpSiteUrl, setWpSiteUrl] = useState("");
   const [wpBaseHref, setWpBaseHref] = useState<string | null>(null);
-  const [wpStylesheets, setWpStylesheets] = useState<string[]>([]);
+  const [wpCss, setWpCss] = useState<string>("");
+  const [wpStylesInfo, setWpStylesInfo] = useState<string>("");
   const [loadingStyles, setLoadingStyles] = useState(false);
 
   async function handleLoadWpStyles() {
@@ -49,8 +50,11 @@ export function OutputPanel({
       const json = await res.json();
       if (!res.ok) { showToast(json.error || "Errore caricamento stili"); return; }
       setWpBaseHref(json.baseHref);
-      setWpStylesheets(json.stylesheets);
-      showToast(`${json.stylesheets.length} stylesheet caricati`);
+      setWpCss(json.css || "");
+      const kb = Math.round((json.cssBytes || 0) / 1024);
+      const info = `${json.stylesheetsLoaded}/${json.stylesheetsFound} CSS · ${json.inlineStylesFound} inline · ${kb} KB`;
+      setWpStylesInfo(info);
+      showToast(info);
     } finally {
       setLoadingStyles(false);
     }
@@ -177,22 +181,25 @@ export function OutputPanel({
                   onChange={(e) => setWpSiteUrl(e.target.value)}
                 />
                 <button className="pg-btn-small" onClick={handleLoadWpStyles} disabled={loadingStyles}>
-                  {loadingStyles ? "Caricamento..." : wpStylesheets.length > 0 ? "Ricarica stili" : "Carica stili WP"}
+                  {loadingStyles ? "Caricamento..." : wpCss ? "Ricarica stili" : "Carica stili WP"}
                 </button>
-                {wpStylesheets.length > 0 && (
-                  <button
-                    className="pg-btn-small"
-                    onClick={() => { setWpBaseHref(null); setWpStylesheets([]); }}
-                    title="Torna alla preview senza stili WP"
-                  >
-                    Reset
-                  </button>
+                {wpCss && (
+                  <>
+                    <span style={{ fontSize: 11, color: "var(--fg3)" }}>{wpStylesInfo}</span>
+                    <button
+                      className="pg-btn-small"
+                      onClick={() => { setWpBaseHref(null); setWpCss(""); setWpStylesInfo(""); }}
+                      title="Torna alla preview senza stili WP"
+                    >
+                      Reset
+                    </button>
+                  </>
                 )}
               </div>
               <iframe
                 className="pg-preview-iframe"
                 sandbox="allow-same-origin"
-                srcDoc={`<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preview</title>${wpBaseHref ? `<base href="${wpBaseHref}">` : ""}${wpStylesheets.map((s) => `<link rel="stylesheet" href="${s}">`).join("")}${wpStylesheets.length === 0 ? `<style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:820px;margin:0 auto;padding:32px;line-height:1.7;color:#222}h1{font-size:2rem}h2{margin-top:2em}img{max-width:100%;height:auto}</style>` : ""}</head><body>${htmlOutput}</body></html>`}
+                srcDoc={`<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preview</title>${wpBaseHref ? `<base href="${wpBaseHref}">` : ""}${wpCss ? `<style>${wpCss}</style>` : `<style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:820px;margin:0 auto;padding:32px;line-height:1.7;color:#222}h1{font-size:2rem}h2{margin-top:2em}img{max-width:100%;height:auto}</style>`}</head><body>${htmlOutput}</body></html>`}
               />
             </>
           )}
