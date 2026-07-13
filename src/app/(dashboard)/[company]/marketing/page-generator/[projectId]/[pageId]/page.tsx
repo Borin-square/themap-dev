@@ -301,6 +301,7 @@ export default function PageEditor() {
             {rightTab === "output" && (
               <OutputPanel
                 pageId={page.id}
+                projectId={page.project_id}
                 companySlug={slug}
                 latestVersion={latestVersion}
                 onReload={load}
@@ -332,6 +333,7 @@ function PageInputForm({
   const [infoGain, setInfoGain] = useState(page.info_gain_text);
   const [sourceDocExtracted, setSourceDocExtracted] = useState(page.source_doc_extracted ?? "");
   const [metaDescription, setMetaDescription] = useState(page.meta_description ?? "");
+  const [referenceUrls, setReferenceUrls] = useState((page.reference_urls ?? []).join("\n"));
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -343,6 +345,7 @@ function PageInputForm({
     setInfoGain(page.info_gain_text);
     setSourceDocExtracted(page.source_doc_extracted ?? "");
     setMetaDescription(page.meta_description ?? "");
+    setReferenceUrls((page.reference_urls ?? []).join("\n"));
   }, [page]);
 
   function debouncedSave(patch: Partial<PgPageDraft>) {
@@ -427,6 +430,25 @@ function PageInputForm({
           maxLength={200}
         />
         <div className="pg-hint" style={{ textAlign: "right" }}>{metaDescription.length}/155</div>
+      </div>
+
+      <div className="pg-section">
+        <label>Esempi di design (una URL per riga)</label>
+        <p className="pg-hint">
+          URL di altre pagine dello stesso sito che vuoi che Claude prenda come esempio
+          di markup e classi da riprodurre. Passate al prompt come riferimento visivo.
+        </p>
+        <textarea
+          rows={4}
+          value={referenceUrls}
+          onChange={(e) => {
+            setReferenceUrls(e.target.value);
+            const urls = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean);
+            debouncedSave({ reference_urls: urls });
+          }}
+          placeholder={"https://tuosito.it/pagina-simile-gia-esistente\nhttps://tuosito.it/altra-pagina-del-tema"}
+          style={{ fontFamily: "monospace", fontSize: 12 }}
+        />
       </div>
 
       <ChipSelector

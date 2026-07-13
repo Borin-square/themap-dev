@@ -91,6 +91,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     `MEDIA DISPONIBILI (inserisci nei punti pertinenti, con l'alt text esatto):`,
     mediaBlock,
     ``,
+    page.reference_urls && page.reference_urls.length > 0
+      ? `ESEMPI DI DESIGN (altre pagine dello stesso sito — usale come riferimento per markup e classi da riprodurre):\n${page.reference_urls.map((u, i) => `${i + 1}. ${u}`).join("\n")}\n`
+      : "",
     `BOZZA (contenuto da convertire — non alterare significato e ordine):`,
     draftText || "(nessuna bozza ancora — genera prima le sezioni)",
     ``,

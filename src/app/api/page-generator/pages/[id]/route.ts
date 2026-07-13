@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     "kw_main", "kw_secondary", "search_intent",
     "info_gain_text", "source_doc_url", "source_doc_extracted",
     "author_ids", "case_study_ids",
-    "meta_description", "status", "notes",
+    "meta_description", "reference_urls", "status", "notes",
   ];
   const row: Record<string, unknown> = {};
   for (const k of allowed) {

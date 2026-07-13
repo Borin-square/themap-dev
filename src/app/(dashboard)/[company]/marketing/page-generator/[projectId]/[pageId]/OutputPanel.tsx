@@ -12,9 +12,10 @@ async function getToken(): Promise<string> {
 type OutputTab = "html" | "kg";
 
 export function OutputPanel({
-  pageId, companySlug, latestVersion, onReload, showToast,
+  pageId, projectId, companySlug, latestVersion, onReload, showToast,
 }: {
   pageId: string;
+  projectId: string;
   companySlug: string;
   latestVersion: PgPageVersion | null;
   onReload: () => Promise<void>;
@@ -43,23 +44,57 @@ export function OutputPanel({
   const [promptUser, setPromptUser] = useState("");
   const [promptHasCustom, setPromptHasCustom] = useState(false);
   const [promptHasDraft, setPromptHasDraft] = useState(false);
+  const [customPromptDraft, setCustomPromptDraft] = useState("");
+  const [savingCustomPrompt, setSavingCustomPrompt] = useState(false);
+
+  async function loadPromptPreview() {
+    const token = await getToken();
+    const res = await fetch(`/api/page-generator/pages/${pageId}/preview-prompt`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+    if (!res.ok) { showToast(json.error || "Errore caricamento prompt"); return; }
+    setPromptSystem(json.system || "");
+    setPromptUser(json.user || "");
+    setPromptHasCustom(!!json.hasCustomPrompt);
+    setPromptHasDraft(!!json.hasDraft);
+  }
 
   async function handleShowPrompt() {
     setPromptModalOpen(true);
     setPromptLoading(true);
     try {
+      // Carica anche il valore attuale di wp_html_prompt dal progetto
       const token = await getToken();
-      const res = await fetch(`/api/page-generator/pages/${pageId}/preview-prompt`, {
+      const projRes = await fetch(`/api/page-generator/projects/${projectId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const json = await res.json();
-      if (!res.ok) { showToast(json.error || "Errore caricamento prompt"); return; }
-      setPromptSystem(json.system || "");
-      setPromptUser(json.user || "");
-      setPromptHasCustom(!!json.hasCustomPrompt);
-      setPromptHasDraft(!!json.hasDraft);
+      const projJson = await projRes.json();
+      if (projRes.ok) setCustomPromptDraft(projJson.project?.wp_html_prompt ?? "");
+      await loadPromptPreview();
     } finally {
       setPromptLoading(false);
+    }
+  }
+
+  async function handleSaveCustomPrompt() {
+    setSavingCustomPrompt(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/page-generator/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ wp_html_prompt: customPromptDraft }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        showToast(j.error || "Errore salvataggio prompt");
+        return;
+      }
+      showToast("Istruzioni salvate");
+      await loadPromptPreview();
+    } finally {
+      setSavingCustomPrompt(false);
     }
   }
 
@@ -311,6 +346,38 @@ export function OutputPanel({
               <div className="comp-empty">Caricamento prompt...</div>
             ) : (
               <>
+                <div className="pg-prompt-modal-section" style={{ background: "var(--bg2)" }}>
+                  <div className="pg-prompt-modal-label">
+                    ISTRUZIONI AGGIUNTIVE DEL PROGETTO (editabili — a livello progetto)
+                  </div>
+                  <p className="pg-hint" style={{ margin: "0 0 8px" }}>
+                    Verranno iniettate nel system prompt come blocco &quot;ISTRUZIONI AGGIUNTIVE
+                    DEL PROGETTO&quot;. Modifica e salva per iterare rapidamente sull&apos;aderenza al design.
+                  </p>
+                  <textarea
+                    rows={6}
+                    value={customPromptDraft}
+                    onChange={(e) => setCustomPromptDraft(e.target.value)}
+                    placeholder="Es. Per gli elenchi di card informative usa sempre <div class='grid-card-item p-4 mb-3 hover-card-trigger'>...</div>. Per liste di step numerati usa <div class='ale-make'>. Non usare wp-block-heading: applica direttamente le classi del tema."
+                    style={{
+                      width: "100%",
+                      background: "var(--bg)",
+                      color: "var(--fg)",
+                      border: "1px solid var(--bd)",
+                      borderRadius: 4,
+                      padding: "8px 10px",
+                      fontFamily: "monospace",
+                      fontSize: 12,
+                      boxSizing: "border-box",
+                      resize: "vertical",
+                    }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                    <button className="btn-save" onClick={handleSaveCustomPrompt} disabled={savingCustomPrompt}>
+                      {savingCustomPrompt ? "Salvataggio..." : "Salva e ricarica prompt"}
+                    </button>
+                  </div>
+                </div>
                 <div className="pg-prompt-modal-section">
                   <div className="pg-prompt-modal-label">
                     SYSTEM

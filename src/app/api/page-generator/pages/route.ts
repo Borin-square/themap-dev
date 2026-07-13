@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
       author_ids: body.page.author_ids ?? [],
       case_study_ids: body.page.case_study_ids ?? [],
       meta_description: body.page.meta_description ?? null,
+      reference_urls: body.page.reference_urls ?? [],
       status: body.page.status ?? "draft",
       notes: body.page.notes ?? "",
     })

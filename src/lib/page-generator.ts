@@ -84,6 +84,7 @@ export interface PgPage {
   author_ids: string[];
   case_study_ids: string[];
   meta_description: string | null;
+  reference_urls: string[];
   status: PgStatus;
   notes: string;
   created_at: string;
@@ -146,6 +147,7 @@ export interface PgPageDraft {
   author_ids?: string[];
   case_study_ids?: string[];
   meta_description?: string | null;
+  reference_urls?: string[];
   status?: PgStatus;
   notes?: string;
 }
@@ -182,6 +184,7 @@ export function emptyPage(project_id: string, page_type: PgPageType = "cluster")
     author_ids: [],
     case_study_ids: [],
     meta_description: null,
+    reference_urls: [],
     status: "draft",
     notes: "",
   };
