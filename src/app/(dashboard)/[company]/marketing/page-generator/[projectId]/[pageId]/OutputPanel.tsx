@@ -37,6 +37,32 @@ export function OutputPanel({
   const [wpStylesInfo, setWpStylesInfo] = useState<string>("");
   const [loadingStyles, setLoadingStyles] = useState(false);
 
+  const [promptModalOpen, setPromptModalOpen] = useState(false);
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptSystem, setPromptSystem] = useState("");
+  const [promptUser, setPromptUser] = useState("");
+  const [promptHasCustom, setPromptHasCustom] = useState(false);
+  const [promptHasDraft, setPromptHasDraft] = useState(false);
+
+  async function handleShowPrompt() {
+    setPromptModalOpen(true);
+    setPromptLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/page-generator/pages/${pageId}/preview-prompt`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) { showToast(json.error || "Errore caricamento prompt"); return; }
+      setPromptSystem(json.system || "");
+      setPromptUser(json.user || "");
+      setPromptHasCustom(!!json.hasCustomPrompt);
+      setPromptHasDraft(!!json.hasDraft);
+    } finally {
+      setPromptLoading(false);
+    }
+  }
+
   async function handleLoadWpStyles() {
     const url = wpSiteUrl.trim();
     if (!url) { showToast("Inserisci l'URL del sito WordPress"); return; }
@@ -144,6 +170,14 @@ export function OutputPanel({
           <div className="pg-output-actions">
             <button className="btn-save" onClick={handleBuildHtml} disabled={buildingHtml || !latestVersion}>
               {buildingHtml ? "Generazione..." : htmlOutput ? "Rigenera HTML" : "Genera HTML"}
+            </button>
+            <button
+              className="pg-btn-small"
+              onClick={handleShowPrompt}
+              disabled={!latestVersion}
+              title="Mostra il prompt esatto che verrà mandato a Claude"
+            >
+              Mostra prompt
             </button>
             {htmlOutput && !buildingHtml && (
               <>
@@ -257,6 +291,55 @@ export function OutputPanel({
           {kgString && !buildingKg && (
             <pre className="pg-code-block">{kgString}</pre>
           )}
+        </div>
+      )}
+
+      {promptModalOpen && (
+        <div className="pg-prompt-modal" role="dialog" aria-modal="true" onClick={() => setPromptModalOpen(false)}>
+          <div className="pg-prompt-modal-body" onClick={(e) => e.stopPropagation()}>
+            <div className="pg-prompt-modal-head">
+              <div>
+                <strong>Prompt inviato a Claude</strong>
+                <span style={{ fontSize: 11, color: "var(--fg3)", marginLeft: 8 }}>
+                  {promptHasCustom ? "· istruzioni progetto attive" : "· nessuna istruzione custom"}
+                  {promptHasDraft ? "" : " · BOZZA VUOTA"}
+                </span>
+              </div>
+              <button className="pg-btn-small" onClick={() => setPromptModalOpen(false)}>Chiudi</button>
+            </div>
+            {promptLoading ? (
+              <div className="comp-empty">Caricamento prompt...</div>
+            ) : (
+              <>
+                <div className="pg-prompt-modal-section">
+                  <div className="pg-prompt-modal-label">
+                    SYSTEM
+                    <button
+                      className="pg-btn-small"
+                      style={{ marginLeft: 8 }}
+                      onClick={() => copyToClipboard(promptSystem, "System prompt")}
+                    >
+                      Copia
+                    </button>
+                  </div>
+                  <pre className="pg-code-block">{promptSystem}</pre>
+                </div>
+                <div className="pg-prompt-modal-section">
+                  <div className="pg-prompt-modal-label">
+                    USER
+                    <button
+                      className="pg-btn-small"
+                      style={{ marginLeft: 8 }}
+                      onClick={() => copyToClipboard(promptUser, "User message")}
+                    >
+                      Copia
+                    </button>
+                  </div>
+                  <pre className="pg-code-block">{promptUser}</pre>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -2241,5 +2241,11 @@ th.ee-inactive { opacity: .4; }
 .pg-preview-iframe{width:100%;height:70vh;border:1px solid var(--bd);border-radius:6px;background:#fff}
 .pg-wp-preview-config{display:flex;gap:8px;align-items:center;margin-bottom:8px;padding:8px;background:var(--bg2);border:1px solid var(--bd);border-radius:6px}
 .pg-wp-preview-config input{flex:1;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:4px;padding:6px 10px;font-size:12px}
+.pg-prompt-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:1000;padding:24px}
+.pg-prompt-modal-body{background:var(--bg);border:1px solid var(--bd);border-radius:8px;width:100%;max-width:1000px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.pg-prompt-modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--bd)}
+.pg-prompt-modal-section{padding:12px 16px;overflow:auto}
+.pg-prompt-modal-section + .pg-prompt-modal-section{border-top:1px solid var(--bd)}
+.pg-prompt-modal-label{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--acc);margin-bottom:6px;display:flex;align-items:center}
 .pg-kg-config{background:var(--bg2);border:1px solid var(--bd);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:10px}
 

@@ -136,6 +136,7 @@ function SettingsTab({
     name: project.name,
     wp_design_snippet: project.wp_design_snippet,
     wp_design_notes: project.wp_design_notes,
+    wp_html_prompt: project.wp_html_prompt,
     tone_of_voice: project.tone_of_voice,
     authors_page_url: project.authors_page_url,
     case_studies_page_url: project.case_studies_page_url,
@@ -182,6 +183,23 @@ function SettingsTab({
           value={draft.wp_design_notes ?? ""}
           onChange={(e) => upd("wp_design_notes", e.target.value)}
           placeholder="Es. usare sempre .btn-primary per le CTA, blocchi callout con .highlight-box..."
+        />
+      </div>
+
+      <div className="pg-section">
+        <label>Istruzioni aggiuntive per il prompt di generazione HTML (opzionale)</label>
+        <p className="pg-hint">
+          Testo che verrà iniettato nel system prompt di Claude come blocco &quot;ISTRUZIONI
+          AGGIUNTIVE DEL PROGETTO&quot;, dopo le regole di aderenza allo stile e prima della
+          struttura contenuto. NON sostituisce le regole di default: le integra. Il resto
+          del progetto (design snippet, bozza, media, keyword) è già iniettato automaticamente.
+        </p>
+        <textarea
+          rows={8}
+          value={draft.wp_html_prompt ?? ""}
+          onChange={(e) => upd("wp_html_prompt", e.target.value)}
+          placeholder="Es. usa sempre grid-card-item per i box informativi, wrap il primo paragrafo in .big, preferisci ale-make per le liste numerate a step..."
+          style={{ fontFamily: "monospace", fontSize: 12 }}
         />
       </div>
 

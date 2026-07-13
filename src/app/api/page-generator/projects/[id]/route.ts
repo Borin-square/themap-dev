@@ -26,7 +26,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const patch = await req.json() as Partial<PgProjectDraft>;
 
   const allowed: (keyof PgProjectDraft)[] = [
-    "name", "wp_design_snippet", "wp_design_notes", "tone_of_voice",
+    "name", "wp_design_snippet", "wp_design_notes", "wp_html_prompt", "tone_of_voice",
     "authors_page_url", "case_studies_page_url", "drive_folder_url",
   ];
   const row: Record<string, unknown> = {};

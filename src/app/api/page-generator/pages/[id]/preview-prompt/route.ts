@@ -1,47 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase-server";
 import { requireAuth } from "../../../_auth";
 import { sectionsToDraft } from "@/lib/page-generator";
 import type { PgPage, PgProject, PgSection, PgMedia } from "@/lib/page-generator";
 
-export const maxDuration = 300;
+export const maxDuration = 15;
 
-/* POST /api/page-generator/pages/[id]/build-html — genera l'HTML WordPress in streaming
-   Body: { version_no?: number }  (default: ultima versione) */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+/* GET /api/page-generator/pages/[id]/preview-prompt
+   Ricostruisce e restituisce (system, user) che verrebbero inviati a Claude
+   durante build-html, senza fare la chiamata. Utile per iterare sul prompt. */
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await requireAuth(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const { id } = await ctx.params;
-  const body = await req.json().catch(() => ({})) as { version_no?: number };
   const svc = createServiceClient();
 
-  const { data: page, error: pageErr } = await svc
-    .from("pg_pages").select("*").eq("id", id).single<PgPage>();
-  if (pageErr || !page) return NextResponse.json({ error: "Pagina non trovata" }, { status: 404 });
+  const { data: page } = await svc.from("pg_pages").select("*").eq("id", id).single<PgPage>();
+  if (!page) return NextResponse.json({ error: "Pagina non trovata" }, { status: 404 });
 
-  const { data: project, error: projErr } = await svc
+  const { data: project } = await svc
     .from("pg_projects").select("*").eq("id", page.project_id).single<PgProject>();
-  if (projErr || !project) return NextResponse.json({ error: "Progetto non trovato" }, { status: 404 });
+  if (!project) return NextResponse.json({ error: "Progetto non trovato" }, { status: 404 });
 
-  // Prendi la versione target (default: ultima)
-  const versionQuery = svc.from("pg_page_versions").select("*").eq("page_id", id);
-  const { data: version } = body.version_no
-    ? await versionQuery.eq("version_no", body.version_no).single<{ id: string; version_no: number; sections: PgSection[]; draft_text: string | null }>()
-    : await versionQuery.order("version_no", { ascending: false }).limit(1).single<{ id: string; version_no: number; sections: PgSection[]; draft_text: string | null }>();
+  const { data: version } = await svc
+    .from("pg_page_versions")
+    .select("*")
+    .eq("page_id", id)
+    .order("version_no", { ascending: false })
+    .limit(1)
+    .single<{ id: string; version_no: number; sections: PgSection[]; draft_text: string | null }>();
 
-  if (!version) return NextResponse.json({ error: "Nessuna versione trovata. Genera prima una bozza." }, { status: 400 });
-
-  // Media della pagina
   const { data: mediaList } = await svc
     .from("pg_media").select("*").eq("page_id", id).order("position");
   const media: PgMedia[] = mediaList ?? [];
 
-  const draftText = version.draft_text || sectionsToDraft(version.sections);
-  if (!draftText.trim()) {
-    return NextResponse.json({ error: "Bozza vuota" }, { status: 400 });
-  }
+  const draftText = version?.draft_text || (version ? sectionsToDraft(version.sections) : "");
 
   const hasDesign = !!(project.wp_design_snippet && project.wp_design_snippet.trim());
 
@@ -98,62 +92,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     mediaBlock,
     ``,
     `BOZZA (contenuto da convertire — non alterare significato e ordine):`,
-    draftText,
+    draftText || "(nessuna bozza ancora — genera prima le sezioni)",
     ``,
     `Prima di scrivere l'HTML, ripassa mentalmente le classi e i pattern presenti nel DESIGN SNIPPET del system prompt e usa SOLO quelli. Se una struttura non è coperta, adotta la variante più semplice compatibile senza inventare classi.`,
   ].filter(Boolean).join("\n");
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      let fullText = "";
-      try {
-        const anthropicStream = anthropic.messages.stream({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8000,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userMsg }],
-        });
-
-        for await (const event of anthropicStream) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            const text = event.delta.text;
-            fullText += text;
-            controller.enqueue(encoder.encode(text));
-          }
-        }
-
-        // Pulizia: rimuovi eventuali code fence residui
-        const cleaned = fullText
-          .replace(/^```html\s*\n?/i, "")
-          .replace(/^```\s*\n?/i, "")
-          .replace(/\n?```\s*$/i, "")
-          .trim();
-
-        await svc.from("pg_page_versions")
-          .update({ html_output: cleaned })
-          .eq("id", version.id);
-
-        await svc.from("pg_pages")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", id);
-
-        controller.close();
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Errore build HTML";
-        controller.enqueue(encoder.encode(`\n\n<!-- ERROR: ${message} -->`));
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      "X-Accel-Buffering": "no",
-    },
+  return NextResponse.json({
+    system: systemPrompt,
+    user: userMsg,
+    hasDraft: !!draftText,
+    hasCustomPrompt: !!(project.wp_html_prompt && project.wp_html_prompt.trim()),
   });
 }
