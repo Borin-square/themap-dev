@@ -52,6 +52,7 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           { id: `${c.slug}-mktg-brand`, label: "Brand Asset", featureKey: "marketing.brand-asset", href: `/${c.slug}/marketing/brand-asset` },
           { id: `${c.slug}-mktg-seo`, label: "SEO Cluster", featureKey: "marketing.seo-cluster", href: `/${c.slug}/marketing/seo-cluster` },
           { id: `${c.slug}-mktg-geo`, label: "GEO Tool", featureKey: "marketing.geo-tool", href: `/${c.slug}/marketing/geo-tool` },
+          { id: `${c.slug}-mktg-pg`, label: "Page Generator", featureKey: "marketing.page-generator", href: `/${c.slug}/marketing/page-generator` },
           {
             id: `${c.slug}-mktg-fw`,
             label: "Flywheel",

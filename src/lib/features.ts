@@ -16,6 +16,7 @@ export const FEATURE_DEFS: FeatureDef[] = [
   { key: "marketing.brand-asset", label: "Brand Asset", group: "Marketing" },
   { key: "marketing.seo-cluster", label: "SEO Cluster", group: "Marketing" },
   { key: "marketing.geo-tool", label: "GEO Tool", group: "Marketing" },
+  { key: "marketing.page-generator", label: "Page Generator", group: "Marketing" },
   { key: "marketing.flywheel", label: "Flywheel", group: "Marketing" },
   // Organization
   { key: "organization.people", label: "People", group: "Organization" },
