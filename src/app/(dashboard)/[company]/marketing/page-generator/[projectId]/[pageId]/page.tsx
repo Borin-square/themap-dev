@@ -353,6 +353,44 @@ function PageInputForm({
     debounceRef.current = setTimeout(() => onSave(patch), 700);
   }
 
+  const sourceFileRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingSource, setUploadingSource] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  async function handleSourceUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingSource(true);
+    setUploadError(null);
+    try {
+      const token = await getToken();
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/page-generator/pages/${page.id}/upload-source`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "Errore upload" }));
+        throw new Error(error || "Errore upload");
+      }
+      const { extracted, url } = await res.json();
+      setSourceDocExtracted(extracted || "");
+      await onSave({ source_doc_url: url, source_doc_extracted: extracted || "" });
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Errore upload");
+    } finally {
+      setUploadingSource(false);
+    }
+  }
+
+  async function handleSourceRemove() {
+    setUploadError(null);
+    await onSave({ source_doc_url: null });
+  }
+
   return (
     <div className="pg-input-form">
       <div className="pg-section">
@@ -408,15 +446,51 @@ function PageInputForm({
       </div>
 
       <div className="pg-section">
-        <label>Documento sorgente (testo estratto)</label>
+        <label>Documento sorgente</label>
         <p className="pg-hint">
-          Se hai materiale grezzo (report, appunti, trascrizioni), incollalo qui. Claude lo userà come fonte.
+          Materiale grezzo (report, appunti, trascrizioni). Incolla il testo o carica un file (PDF, TXT, MD — max 15MB). Claude lo userà come fonte.
         </p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+          <input
+            ref={sourceFileRef}
+            type="file"
+            accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown"
+            style={{ display: "none" }}
+            onChange={handleSourceUpload}
+          />
+          <button
+            type="button"
+            className="pg-btn-small"
+            onClick={() => sourceFileRef.current?.click()}
+            disabled={uploadingSource}
+          >
+            {uploadingSource ? "Estrazione..." : (page.source_doc_url ? "Sostituisci file" : "Carica file")}
+          </button>
+          {page.source_doc_url && !uploadingSource && (
+            <>
+              <a
+                href={page.source_doc_url}
+                target="_blank"
+                rel="noreferrer"
+                className="pg-hint"
+                style={{ margin: 0, textDecoration: "underline" }}
+              >
+                File caricato ↗
+              </a>
+              <button type="button" className="pg-btn-small" onClick={handleSourceRemove}>
+                Rimuovi
+              </button>
+            </>
+          )}
+          {uploadError && (
+            <span className="pg-hint" style={{ margin: 0, color: "#ef4444" }}>{uploadError}</span>
+          )}
+        </div>
         <textarea
-          rows={4}
+          rows={6}
           value={sourceDocExtracted}
           onChange={(e) => { setSourceDocExtracted(e.target.value); debouncedSave({ source_doc_extracted: e.target.value || null }); }}
-          placeholder="Incolla qui il testo del documento sorgente..."
+          placeholder="Incolla qui il testo del documento sorgente, oppure carica un file sopra."
         />
       </div>
 
