@@ -20,8 +20,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     h2_index?: number;
     user_instruction?: string;
   };
-  if (typeof body.h2_index !== "number" || body.h2_index < 0) {
-    return NextResponse.json({ error: "h2_index mancante" }, { status: 400 });
+  if (typeof body.h2_index !== "number" || body.h2_index < -1) {
+    return NextResponse.json({ error: "h2_index mancante o invalido (usa -1 per la hero)" }, { status: 400 });
   }
   const instruction = (body.user_instruction ?? "").trim();
 
@@ -45,22 +45,30 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   const parts = splitByH2(version.html_output);
-  if (parts.sections.length === 0) {
+  const isHero = body.h2_index === -1;
+
+  if (isHero && !parts.intro.trim()) {
+    return NextResponse.json({ error: "Nessuna hero (intro prima del primo H2) da rigenerare" }, { status: 400 });
+  }
+  if (!isHero && parts.sections.length === 0) {
     return NextResponse.json({ error: "Nessun H2 rilevato nell'HTML" }, { status: 400 });
   }
-  if (body.h2_index >= parts.sections.length) {
+  if (!isHero && body.h2_index >= parts.sections.length) {
     return NextResponse.json({ error: `h2_index fuori range (0..${parts.sections.length - 1})` }, { status: 400 });
   }
 
-  const targetSection = parts.sections[body.h2_index];
-  const siblingBefore = parts.sections[body.h2_index - 1];
-  const siblingAfter = parts.sections[body.h2_index + 1];
+  const targetHtml = isHero ? parts.intro : parts.sections[body.h2_index].html;
+  const siblingBefore = isHero ? null : parts.sections[body.h2_index - 1] ?? null;
+  // Per la hero, il "sibling dopo" è la prima H2 come esempio di stile.
+  const siblingAfter = isHero ? (parts.sections[0] ?? null) : (parts.sections[body.h2_index + 1] ?? null);
 
   const hasDesign = !!(project.wp_design_snippet && project.wp_design_snippet.trim());
 
   const systemPrompt = [
     "Sei un frontend engineer specializzato nella conversione di bozze editoriali in HTML per temi WordPress.",
-    "Il tuo compito ORA è rigenerare UNA SINGOLA SEZIONE di una pagina esistente, mantenendo la piena coerenza di markup e classi con il resto della pagina.",
+    isHero
+      ? "Il tuo compito ORA è rigenerare la HERO/INTRO della pagina (H1 + paragrafi introduttivi), mantenendo piena coerenza di markup e classi con il resto della pagina già esistente."
+      : "Il tuo compito ORA è rigenerare UNA SINGOLA SEZIONE di una pagina esistente, mantenendo la piena coerenza di markup e classi con il resto della pagina.",
     "",
     "## FONTE UNICA DELLO STILE",
     hasDesign
@@ -80,30 +88,47 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     project.wp_html_prompt && project.wp_html_prompt.trim()
       ? `## ISTRUZIONI AGGIUNTIVE DEL PROGETTO\n${project.wp_html_prompt.trim()}\n`
       : "",
-    "## SEZIONI SORELLE DELLA PAGINA (usa come esempio di stile GIÀ ADOTTATO su questa pagina — replica quel markup)",
-    siblingBefore ? `\n### SEZIONE PRECEDENTE (già presente nella pagina):\n${siblingBefore.html}` : "",
-    siblingAfter ? `\n### SEZIONE SUCCESSIVA (già presente nella pagina):\n${siblingAfter.html}` : "",
+    isHero
+      ? "## PRIMA SEZIONE H2 DELLA PAGINA (usa come esempio di stile GIÀ ADOTTATO — l'intro deve fluire coerentemente in questo blocco)"
+      : "## SEZIONI SORELLE DELLA PAGINA (usa come esempio di stile GIÀ ADOTTATO su questa pagina — replica quel markup)",
+    !isHero && siblingBefore ? `\n### SEZIONE PRECEDENTE (già presente nella pagina):\n${siblingBefore.html}` : "",
+    siblingAfter
+      ? (isHero
+          ? `\n### PRIMO H2 (il tuo output deve stare PRIMA di questo):\n${siblingAfter.html}`
+          : `\n### SEZIONE SUCCESSIVA (già presente nella pagina):\n${siblingAfter.html}`)
+      : "",
     "",
     "## OUTPUT",
-    "- Restituisci SOLO il markup HTML della nuova sezione, dall'<h2 di apertura in poi (INCLUSO l'h2), fino a prima del prossimo <h2>.",
+    isHero
+      ? "- Restituisci SOLO il markup HTML della hero: l'H1 con il titolo pagina come primo elemento, seguito dai paragrafi introduttivi (con classi del design snippet se pertinenti, es. .big, .lead, .pre-title)."
+      : "- Restituisci SOLO il markup HTML della nuova sezione, dall'<h2 di apertura in poi (INCLUSO l'h2), fino a prima del prossimo <h2>.",
+    isHero
+      ? "- NON generare l'<h2 successivo: il tuo output finisce dove inizia la prima H2 della pagina."
+      : "- L'H2 deve mantenere lo stesso `id` originale se presente (SEO anchor).",
     "- NON generare tag <html>, <head>, <body>, wrapper globali, code fence (```), commenti esplicativi.",
-    "- L'H2 deve mantenere lo stesso `id` originale se presente (SEO anchor).",
     "- Nessun testo introduttivo o conclusivo: la prima riga della risposta è la prima riga di markup.",
   ].filter(Boolean).join("\n");
 
   const userMsg = [
     `TITOLO PAGINA: ${page.title || page.kw_main}`,
     `KEYWORD PRINCIPALE: ${page.kw_main}`,
+    page.meta_description ? `META DESCRIPTION: ${page.meta_description}` : "",
     ``,
-    `SEZIONE ATTUALE DA RIGENERARE (il markup che verrà sostituito):`,
-    targetSection.html,
+    isHero
+      ? `HERO ATTUALE DA RIGENERARE (verrà sostituita — H1 + intro):`
+      : `SEZIONE ATTUALE DA RIGENERARE (il markup che verrà sostituito):`,
+    targetHtml,
     ``,
     instruction
       ? `ISTRUZIONE DELL'UTENTE PER QUESTA RIGENERAZIONE:\n${instruction}`
-      : `ISTRUZIONE: rigenera questa sezione migliorando aderenza al design snippet e alle sezioni sorelle. Mantieni il contenuto e il significato, ma allinea markup, classi e struttura ai pattern usati nelle sezioni sorelle.`,
+      : (isHero
+          ? `ISTRUZIONE: rigenera la hero migliorando gancio, chiarezza e coerenza col design snippet. Mantieni il messaggio ma allinea markup e classi allo stile della pagina.`
+          : `ISTRUZIONE: rigenera questa sezione migliorando aderenza al design snippet e alle sezioni sorelle. Mantieni il contenuto e il significato, ma allinea markup, classi e struttura ai pattern usati nelle sezioni sorelle.`),
     ``,
-    `Restituisci SOLO il nuovo markup della sezione (dall'<h2 in poi, fino al prossimo <h2 escluso).`,
-  ].join("\n");
+    isHero
+      ? `Restituisci SOLO il nuovo markup della hero (H1 + intro), che deve fluire nel primo H2 già presente sotto.`
+      : `Restituisci SOLO il nuovo markup della sezione (dall'<h2 in poi, fino al prossimo <h2 escluso).`,
+  ].filter(Boolean).join("\n");
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const model = project.html_model || "claude-opus-4-7";
@@ -147,9 +172,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           .replace(/\n?```\s*$/i, "")
           .trim();
 
-        // Ricostruisce l'HTML output sostituendo la sezione target
-        const newSections = parts.sections.map((s, i) => i === body.h2_index ? cleaned : s.html);
-        const newHtml = parts.intro + newSections.join("");
+        // Ricostruisce l'HTML output sostituendo il blocco target
+        let newHtml: string;
+        if (isHero) {
+          // Sostituisce l'intro, mantiene tutte le sezioni H2 esistenti
+          const suffix = cleaned.endsWith("\n") ? "" : "\n";
+          newHtml = cleaned + suffix + parts.sections.map((s) => s.html).join("");
+        } else {
+          const newSections = parts.sections.map((s, i) => i === body.h2_index ? cleaned : s.html);
+          newHtml = parts.intro + newSections.join("");
+        }
 
         await svc.from("pg_page_versions")
           .update({ html_output: newHtml })

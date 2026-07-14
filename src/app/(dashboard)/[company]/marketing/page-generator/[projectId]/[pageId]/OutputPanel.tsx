@@ -242,7 +242,8 @@ export function OutputPanel({
 
   async function handleOpenSectionModal() {
     setSectionModalOpen(true);
-    setSelectedH2(h2Sections.length > 0 ? 0 : null);
+    // Preseleziona la prima voce disponibile (hero se presente, altrimenti primo H2)
+    setSelectedH2(h2Sections.length > 0 ? h2Sections[0].index : null);
     setSectionInstruction("");
     setSectionStream("");
   }
@@ -285,7 +286,7 @@ export function OutputPanel({
     setSectionModalOpen(false);
     setSectionInstruction("");
     setSectionStream("");
-    showToast("Sezione rigenerata");
+    showToast("Blocco rigenerato");
   }
 
   return (
@@ -313,9 +314,9 @@ export function OutputPanel({
               className="pg-btn-small"
               onClick={handleOpenSectionModal}
               disabled={!htmlOutput || h2Sections.length === 0}
-              title={h2Sections.length === 0 ? "Genera prima l'HTML completo" : "Rigenera solo una sezione H2 con contesto"}
+              title={h2Sections.length === 0 ? "Genera prima l'HTML completo" : "Rigenera solo la hero o una sezione H2 con contesto"}
             >
-              Rigenera sezione
+              Rigenera blocco
             </button>
             {htmlOutput && !buildingHtml && (
               <>
@@ -531,9 +532,11 @@ export function OutputPanel({
           <div className="pg-prompt-modal-body" onClick={(e) => e.stopPropagation()}>
             <div className="pg-prompt-modal-head">
               <div>
-                <strong>Rigenera una sezione</strong>
+                <strong>Rigenera un blocco</strong>
                 <span style={{ fontSize: 11, color: "var(--fg3)", marginLeft: 8 }}>
-                  {h2Sections.length > 0 ? `${h2Sections.length} sezioni rilevate` : "nessuna sezione H2"}
+                  {h2Sections.length > 0
+                    ? `${h2Sections.filter((s) => s.kind === "hero").length ? "hero + " : ""}${h2Sections.filter((s) => s.kind === "h2").length} sezioni H2 rilevate`
+                    : "nessun blocco rilevato"}
                 </span>
               </div>
               <button className="pg-btn-small" onClick={() => setSectionModalOpen(false)} disabled={rebuildingSection}>
@@ -543,31 +546,39 @@ export function OutputPanel({
             {h2Sections.length === 0 ? (
               <div className="pg-prompt-modal-section">
                 <div className="comp-empty">
-                  Nessun H2 rilevato nell&apos;HTML output. Genera prima l&apos;HTML completo.
+                  Nessun blocco rilevato nell&apos;HTML output. Genera prima l&apos;HTML completo.
                 </div>
               </div>
             ) : (
               <div className="pg-section-modal-layout">
                 <div className="pg-section-modal-list">
-                  <div className="pg-prompt-modal-label">SEZIONI</div>
-                  {h2Sections.map((s, i) => (
-                    <button
-                      key={i}
-                      className={"pg-section-modal-item" + (selectedH2 === i ? " act" : "")}
-                      onClick={() => setSelectedH2(i)}
-                      disabled={rebuildingSection}
-                    >
-                      <span className="pg-section-modal-num">H2 · {i + 1}</span>
-                      <span className="pg-section-modal-title">{s.title || "(senza titolo)"}</span>
-                    </button>
-                  ))}
+                  <div className="pg-prompt-modal-label">BLOCCHI</div>
+                  {h2Sections.map((s) => {
+                    const isSelected = selectedH2 === s.index;
+                    const h2Ord = h2Sections.filter((x) => x.kind === "h2" && x.index <= s.index).length;
+                    return (
+                      <button
+                        key={s.index}
+                        className={"pg-section-modal-item" + (isSelected ? " act" : "")}
+                        onClick={() => setSelectedH2(s.index)}
+                        disabled={rebuildingSection}
+                      >
+                        <span className="pg-section-modal-num">
+                          {s.kind === "hero" ? "HERO / INTRO" : `H2 · ${h2Ord}`}
+                        </span>
+                        <span className="pg-section-modal-title">{s.title || "(senza titolo)"}</span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="pg-section-modal-right">
-                  {selectedH2 !== null && h2Sections[selectedH2] && (
+                  {selectedH2 !== null && h2Sections.find((s) => s.index === selectedH2) && (
                     <>
-                      <div className="pg-prompt-modal-label">MARKUP ATTUALE (verrà sostituito)</div>
+                      <div className="pg-prompt-modal-label">
+                        MARKUP ATTUALE (verrà sostituito)
+                      </div>
                       <pre className="pg-prompt-modal-code" style={{ maxHeight: "28vh" }}>
-                        {h2Sections[selectedH2].html}
+                        {h2Sections.find((s) => s.index === selectedH2)!.html}
                       </pre>
                       <div className="pg-prompt-modal-label" style={{ marginTop: 12 }}>
                         ISTRUZIONE PER QUESTA RIGENERAZIONE (opzionale)
@@ -582,10 +593,12 @@ export function OutputPanel({
                       />
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
                         <span style={{ fontSize: 11, color: "var(--fg3)" }}>
-                          Contesto passato: sezione precedente e successiva come esempio di coerenza stilistica.
+                          {selectedH2 === -1
+                            ? "Contesto passato: primo H2 come esempio di stile della pagina."
+                            : "Contesto passato: sezione precedente e successiva come esempio di coerenza stilistica."}
                         </span>
                         <button className="btn-save" onClick={handleRebuildSection} disabled={rebuildingSection}>
-                          {rebuildingSection ? "Rigenerazione in corso..." : "Rigenera sezione"}
+                          {rebuildingSection ? "Rigenerazione in corso..." : selectedH2 === -1 ? "Rigenera hero" : "Rigenera blocco"}
                         </button>
                       </div>
                       {rebuildingSection && (
@@ -608,9 +621,12 @@ export function OutputPanel({
   );
 }
 
-/** Estrae le sezioni H2 da un HTML output.
- *  Ogni sezione va dal proprio <h2> di apertura fino a prima del prossimo <h2> (o fine documento). */
-function parseH2Sections(html: string): Array<{ title: string; html: string; id: string | null }> {
+type ParsedSection = { kind: "hero" | "h2"; index: number; title: string; html: string; id: string | null };
+
+/** Estrae hero (intro prima del primo H2) + sezioni H2 da un HTML output.
+ *  - hero: kind="hero", index=-1, tutto il markup PRIMA del primo <h2>
+ *  - h2:   kind="h2",   index=0..N-1, dal proprio <h2> di apertura fino al prossimo <h2> (o fine). */
+function parseH2Sections(html: string): ParsedSection[] {
   if (!html) return [];
   const h2Re = /<h2\b[^>]*>[\s\S]*?<\/h2>/gi;
   const matches: Array<{ index: number; tag: string }> = [];
@@ -618,8 +634,15 @@ function parseH2Sections(html: string): Array<{ title: string; html: string; id:
   while ((m = h2Re.exec(html)) !== null) {
     matches.push({ index: m.index, tag: m[0] });
   }
-  if (matches.length === 0) return [];
-  const sections: Array<{ title: string; html: string; id: string | null }> = [];
+  const out: ParsedSection[] = [];
+  const introEnd = matches.length > 0 ? matches[0].index : html.length;
+  const introHtml = html.slice(0, introEnd);
+  if (introHtml.trim()) {
+    // Prova a estrarre il titolo dall'H1 se presente
+    const h1Match = introHtml.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+    const h1Title = h1Match ? h1Match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "Hero / Intro";
+    out.push({ kind: "hero", index: -1, title: h1Title, html: introHtml, id: null });
+  }
   for (let i = 0; i < matches.length; i++) {
     const start = matches[i].index;
     const end = i + 1 < matches.length ? matches[i + 1].index : html.length;
@@ -627,7 +650,7 @@ function parseH2Sections(html: string): Array<{ title: string; html: string; id:
     const titleMatch = matches[i].tag.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
     const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "";
     const idMatch = matches[i].tag.match(/\bid\s*=\s*["']([^"']+)["']/i);
-    sections.push({ title, html: sectionHtml, id: idMatch ? idMatch[1] : null });
+    out.push({ kind: "h2", index: i, title, html: sectionHtml, id: idMatch ? idMatch[1] : null });
   }
-  return sections;
+  return out;
 }
