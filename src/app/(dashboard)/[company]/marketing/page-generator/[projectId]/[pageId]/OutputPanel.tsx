@@ -415,7 +415,7 @@ export function OutputPanel({
                     </div>
                     <textarea
                       className="pg-prompt-modal-textarea"
-                      rows={4}
+                      rows={10}
                       value={customPromptDraft}
                       onChange={(e) => setCustomPromptDraft(e.target.value)}
                       placeholder="Es. Per gli elenchi di card informative usa sempre <div class='grid-card-item'>. Non usare wp-block-heading."
