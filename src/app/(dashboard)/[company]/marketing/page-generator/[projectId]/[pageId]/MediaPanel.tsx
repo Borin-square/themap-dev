@@ -28,6 +28,12 @@ export function MediaPanel({
   const [autoAlt, setAutoAlt] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [exampleModalOpen, setExampleModalOpen] = useState(false);
+  const [exampleLoading, setExampleLoading] = useState(false);
+  const [exampleItems, setExampleItems] = useState<Array<{ src: string; alt: string; caption: string; width: string | null; height: string | null; sourceUrl: string }>>([]);
+  const [exampleSources, setExampleSources] = useState<Array<{ url: string; ok: boolean; error: string | null; count: number }>>([]);
+  const [importing, setImporting] = useState<Set<string>>(new Set());
+
   const load = useCallback(async () => {
     setLoading(true);
     const token = await getToken();
@@ -120,6 +126,56 @@ export function MediaPanel({
     }
   }
 
+  async function handleOpenExamples() {
+    setExampleModalOpen(true);
+    setExampleLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/page-generator/pages/${pageId}/example-media`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) { showToast(json.error || "Errore caricamento esempi"); return; }
+      setExampleItems(json.items || []);
+      setExampleSources(json.sources || []);
+    } finally {
+      setExampleLoading(false);
+    }
+  }
+
+  async function handleImportExample(src: string, alt: string, caption: string) {
+    if (importing.has(src)) return;
+    setImporting((s) => new Set(s).add(src));
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/page-generator/media", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page_id: pageId,
+          url: src,
+          media_type: "image",
+          caption,
+          alt_text: alt,
+          auto_alt: autoAlt && !alt,
+          kw_context: kwContext,
+        }),
+      });
+      if (res.ok) {
+        showToast("Immagine importata");
+        await load();
+      } else {
+        showToast("Errore import");
+      }
+    } finally {
+      setImporting((s) => {
+        const n = new Set(s);
+        n.delete(src);
+        return n;
+      });
+    }
+  }
+
   async function handleUpdateAlt(id: string, alt_text: string) {
     const token = await getToken();
     await fetch(`/api/page-generator/media/${id}`, {
@@ -151,6 +207,13 @@ export function MediaPanel({
           </label>
           <button className="pg-btn-small" onClick={() => setAddingLink((v) => !v)}>
             Link Drive
+          </button>
+          <button
+            className="pg-btn-small"
+            onClick={handleOpenExamples}
+            title="Estrae le immagini dalle URL indicate in 'Esempi di design' della pagina"
+          >
+            Importa da esempi
           </button>
         </div>
       </div>
@@ -211,6 +274,61 @@ export function MediaPanel({
               <button className="comp-del" onClick={() => handleDelete(m.id)}>&#10005;</button>
             </div>
           ))}
+        </div>
+      )}
+
+      {exampleModalOpen && (
+        <div className="pg-prompt-modal" role="dialog" aria-modal="true" onClick={() => setExampleModalOpen(false)}>
+          <div className="pg-prompt-modal-body" onClick={(e) => e.stopPropagation()}>
+            <div className="pg-prompt-modal-head">
+              <div>
+                <strong>Immagini dalle pagine esempio</strong>
+                <span style={{ fontSize: 11, color: "var(--fg3)", marginLeft: 8 }}>
+                  {exampleSources.length > 0 && `${exampleSources.filter((s) => s.ok).length}/${exampleSources.length} URL · ${exampleItems.length} immagini uniche`}
+                </span>
+              </div>
+              <button className="pg-btn-small" onClick={() => setExampleModalOpen(false)}>Chiudi</button>
+            </div>
+            <div className="pg-prompt-modal-section">
+              {exampleLoading ? (
+                <div className="pg-hint">Caricamento immagini...</div>
+              ) : exampleItems.length === 0 ? (
+                <div className="pg-hint" style={{ fontStyle: "italic" }}>
+                  {exampleSources.length === 0
+                    ? "Nessuna URL negli 'Esempi di design' della pagina. Aggiungine dal pannello di sinistra."
+                    : "Nessuna immagine trovata nelle URL indicate."}
+                  {exampleSources.some((s) => !s.ok) && (
+                    <div style={{ marginTop: 8, fontSize: 11 }}>
+                      Errori: {exampleSources.filter((s) => !s.ok).map((s) => `${s.url}: ${s.error}`).join(" · ")}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="pg-example-grid">
+                  {exampleItems.map((img) => (
+                    <div key={img.src} className="pg-example-item">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.src} alt={img.alt} className="pg-example-thumb" />
+                      <div className="pg-example-info">
+                        <div className="pg-example-alt" title={img.alt}>{img.alt || <em>(nessun alt)</em>}</div>
+                        {img.caption && <div className="pg-example-caption">{img.caption}</div>}
+                        <div className="pg-example-source" title={img.sourceUrl}>
+                          da {new URL(img.sourceUrl).pathname || "/"}
+                        </div>
+                        <button
+                          className="pg-btn-small"
+                          onClick={() => handleImportExample(img.src, img.alt, img.caption)}
+                          disabled={importing.has(img.src)}
+                        >
+                          {importing.has(img.src) ? "..." : "Importa"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
