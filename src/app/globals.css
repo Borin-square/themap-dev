@@ -2257,6 +2257,17 @@ th.ee-inactive { opacity: .4; }
 .pg-prompt-modal-pane{background:var(--bg);display:flex;flex-direction:column;padding:10px 14px;overflow:hidden;min-height:0}
 .pg-prompt-modal-code{flex:1;background:var(--bg2);border:1px solid var(--bd);border-radius:4px;padding:10px;font-family:'SF Mono',Monaco,monospace;font-size:11px;line-height:1.5;color:var(--fg2);overflow:auto;white-space:pre-wrap;word-break:break-word;margin:0}
 @media (max-width: 900px){.pg-prompt-modal-payload{grid-template-columns:1fr;grid-template-rows:1fr 1fr}}
+.pg-section-modal-layout{flex:1;display:grid;grid-template-columns:280px 1fr;gap:1px;background:var(--bd);overflow:hidden;min-height:0}
+.pg-section-modal-list{background:var(--bg);padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;min-height:0}
+.pg-section-modal-list .pg-prompt-modal-label{margin-bottom:8px;flex-shrink:0}
+.pg-section-modal-item{background:transparent;border:1px solid var(--bd);color:var(--fg2);padding:8px 10px;font-size:12px;text-align:left;border-radius:4px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;gap:2px;transition:.15s ease}
+.pg-section-modal-item:hover:not(:disabled){border-color:var(--acc);color:var(--fg)}
+.pg-section-modal-item.act{background:var(--acc);border-color:var(--acc);color:#fff}
+.pg-section-modal-item.act .pg-section-modal-num{color:rgba(255,255,255,.75)}
+.pg-section-modal-num{font-size:10px;font-weight:700;letter-spacing:.4px;color:var(--fg3);text-transform:uppercase}
+.pg-section-modal-title{line-height:1.35;word-break:break-word}
+.pg-section-modal-right{background:var(--bg);padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;min-height:0}
+@media (max-width: 900px){.pg-section-modal-layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
 .pg-example-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .pg-example-item{background:var(--bg2);border:1px solid var(--bd);border-radius:6px;overflow:hidden;display:flex;flex-direction:column}
 .pg-example-thumb{width:100%;height:140px;object-fit:cover;background:var(--bg);display:block}

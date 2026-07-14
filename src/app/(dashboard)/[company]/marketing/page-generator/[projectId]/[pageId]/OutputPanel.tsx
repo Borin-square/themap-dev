@@ -50,6 +50,12 @@ export function OutputPanel({
   const [thinkingChoice, setThinkingChoice] = useState(true);
   const [savingLlmCfg, setSavingLlmCfg] = useState(false);
 
+  const [sectionModalOpen, setSectionModalOpen] = useState(false);
+  const [selectedH2, setSelectedH2] = useState<number | null>(null);
+  const [sectionInstruction, setSectionInstruction] = useState("");
+  const [rebuildingSection, setRebuildingSection] = useState(false);
+  const [sectionStream, setSectionStream] = useState("");
+
   async function loadPromptPreview() {
     const token = await getToken();
     const res = await fetch(`/api/page-generator/pages/${pageId}/preview-prompt`, {
@@ -232,6 +238,56 @@ export function OutputPanel({
   const kgOutput = latestVersion?.kg_json ?? null;
   const kgString = kgOutput ? JSON.stringify(kgOutput, null, 2) : "";
 
+  const h2Sections = parseH2Sections(htmlOutput);
+
+  async function handleOpenSectionModal() {
+    setSectionModalOpen(true);
+    setSelectedH2(h2Sections.length > 0 ? 0 : null);
+    setSectionInstruction("");
+    setSectionStream("");
+  }
+
+  async function handleRebuildSection() {
+    if (selectedH2 === null) { showToast("Seleziona una sezione"); return; }
+    setRebuildingSection(true);
+    setSectionStream("");
+    const token = await getToken();
+    const res = await fetch(`/api/page-generator/pages/${pageId}/rebuild-section`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ h2_index: selectedH2, user_instruction: sectionInstruction }),
+    });
+    if (!res.ok || !res.body) {
+      setRebuildingSection(false);
+      showToast("Errore rigenerazione sezione");
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let acc = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      acc += decoder.decode(value, { stream: true });
+      setSectionStream(acc);
+    }
+    setRebuildingSection(false);
+
+    const errorMarker = "<!--__PG_STREAM_ERROR__:";
+    const errorIdx = acc.indexOf(errorMarker);
+    if (errorIdx !== -1) {
+      const msg = acc.slice(errorIdx + errorMarker.length).replace(/-->\s*$/, "").trim();
+      showToast(`Errore LLM: ${msg}`);
+      return;
+    }
+
+    await onReload();
+    setSectionModalOpen(false);
+    setSectionInstruction("");
+    setSectionStream("");
+    showToast("Sezione rigenerata");
+  }
+
   return (
     <div className="pg-output">
       <div className="pg-output-tabs">
@@ -252,6 +308,14 @@ export function OutputPanel({
               title="Mostra il prompt esatto che verrà mandato a Claude"
             >
               Mostra prompt
+            </button>
+            <button
+              className="pg-btn-small"
+              onClick={handleOpenSectionModal}
+              disabled={!htmlOutput || h2Sections.length === 0}
+              title={h2Sections.length === 0 ? "Genera prima l'HTML completo" : "Rigenera solo una sezione H2 con contesto"}
+            >
+              Rigenera sezione
             </button>
             {htmlOutput && !buildingHtml && (
               <>
@@ -461,6 +525,109 @@ export function OutputPanel({
           </div>
         </div>
       )}
+
+      {sectionModalOpen && (
+        <div className="pg-prompt-modal" role="dialog" aria-modal="true" onClick={() => !rebuildingSection && setSectionModalOpen(false)}>
+          <div className="pg-prompt-modal-body" onClick={(e) => e.stopPropagation()}>
+            <div className="pg-prompt-modal-head">
+              <div>
+                <strong>Rigenera una sezione</strong>
+                <span style={{ fontSize: 11, color: "var(--fg3)", marginLeft: 8 }}>
+                  {h2Sections.length > 0 ? `${h2Sections.length} sezioni rilevate` : "nessuna sezione H2"}
+                </span>
+              </div>
+              <button className="pg-btn-small" onClick={() => setSectionModalOpen(false)} disabled={rebuildingSection}>
+                Chiudi
+              </button>
+            </div>
+            {h2Sections.length === 0 ? (
+              <div className="pg-prompt-modal-section">
+                <div className="comp-empty">
+                  Nessun H2 rilevato nell&apos;HTML output. Genera prima l&apos;HTML completo.
+                </div>
+              </div>
+            ) : (
+              <div className="pg-section-modal-layout">
+                <div className="pg-section-modal-list">
+                  <div className="pg-prompt-modal-label">SEZIONI</div>
+                  {h2Sections.map((s, i) => (
+                    <button
+                      key={i}
+                      className={"pg-section-modal-item" + (selectedH2 === i ? " act" : "")}
+                      onClick={() => setSelectedH2(i)}
+                      disabled={rebuildingSection}
+                    >
+                      <span className="pg-section-modal-num">H2 · {i + 1}</span>
+                      <span className="pg-section-modal-title">{s.title || "(senza titolo)"}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="pg-section-modal-right">
+                  {selectedH2 !== null && h2Sections[selectedH2] && (
+                    <>
+                      <div className="pg-prompt-modal-label">MARKUP ATTUALE (verrà sostituito)</div>
+                      <pre className="pg-prompt-modal-code" style={{ maxHeight: "28vh" }}>
+                        {h2Sections[selectedH2].html}
+                      </pre>
+                      <div className="pg-prompt-modal-label" style={{ marginTop: 12 }}>
+                        ISTRUZIONE PER QUESTA RIGENERAZIONE (opzionale)
+                      </div>
+                      <textarea
+                        className="pg-prompt-modal-textarea"
+                        rows={5}
+                        value={sectionInstruction}
+                        onChange={(e) => setSectionInstruction(e.target.value)}
+                        placeholder="Es. Trasforma questa sezione in un accordion con almeno 5 FAQ. Ogni domanda in <details><summary> con le classi del tema. Includi anche JSON-LD FAQPage se non presente altrove."
+                        disabled={rebuildingSection}
+                      />
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                        <span style={{ fontSize: 11, color: "var(--fg3)" }}>
+                          Contesto passato: sezione precedente e successiva come esempio di coerenza stilistica.
+                        </span>
+                        <button className="btn-save" onClick={handleRebuildSection} disabled={rebuildingSection}>
+                          {rebuildingSection ? "Rigenerazione in corso..." : "Rigenera sezione"}
+                        </button>
+                      </div>
+                      {rebuildingSection && (
+                        <>
+                          <div className="pg-prompt-modal-label" style={{ marginTop: 12 }}>STREAMING</div>
+                          <pre className="pg-prompt-modal-code" style={{ maxHeight: "30vh" }}>
+                            {sectionStream || "Attesa risposta..."}
+                          </pre>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+/** Estrae le sezioni H2 da un HTML output.
+ *  Ogni sezione va dal proprio <h2> di apertura fino a prima del prossimo <h2> (o fine documento). */
+function parseH2Sections(html: string): Array<{ title: string; html: string; id: string | null }> {
+  if (!html) return [];
+  const h2Re = /<h2\b[^>]*>[\s\S]*?<\/h2>/gi;
+  const matches: Array<{ index: number; tag: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = h2Re.exec(html)) !== null) {
+    matches.push({ index: m.index, tag: m[0] });
+  }
+  if (matches.length === 0) return [];
+  const sections: Array<{ title: string; html: string; id: string | null }> = [];
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index;
+    const end = i + 1 < matches.length ? matches[i + 1].index : html.length;
+    const sectionHtml = html.slice(start, end);
+    const titleMatch = matches[i].tag.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
+    const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "";
+    const idMatch = matches[i].tag.match(/\bid\s*=\s*["']([^"']+)["']/i);
+    sections.push({ title, html: sectionHtml, id: idMatch ? idMatch[1] : null });
+  }
+  return sections;
 }
