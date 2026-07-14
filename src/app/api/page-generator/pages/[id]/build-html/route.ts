@@ -110,12 +110,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const model = project.html_model || "claude-opus-4-7";
   const thinkingOn = project.html_thinking !== false;
-  // Con thinking on l'API forza temperature=1 (non è ammessa < 1).
-  // Con thinking off, usiamo temperature 0 per aderenza deterministica alle regole.
-  const thinkingBudget = 4000;
   const maxTokens = thinkingOn ? 16000 : 8000;
 
   const encoder = new TextEncoder();
+  // Marker riconosciuto dal client per distinguere errore da successo.
+  const ERROR_MARKER = "<!--__PG_STREAM_ERROR__:";
+
   const stream = new ReadableStream({
     async start(controller) {
       let fullText = "";
@@ -125,8 +125,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           max_tokens: maxTokens,
           system: systemPrompt,
           messages: [{ role: "user", content: userMsg }],
+          // Con thinking on l'API forza temperature=1 (non è ammessa < 1).
+          // Con thinking off, temperature=0 per aderenza deterministica.
           ...(thinkingOn
-            ? { thinking: { type: "enabled" as const, budget_tokens: thinkingBudget } }
+            ? { thinking: { type: "adaptive" as const, display: "summarized" as const } }
             : { temperature: 0 }),
         };
         const anthropicStream = anthropic.messages.stream(streamParams);
@@ -137,6 +139,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
             fullText += text;
             controller.enqueue(encoder.encode(text));
           }
+        }
+
+        if (!fullText.trim()) {
+          throw new Error("Risposta LLM vuota (0 token output). Verifica config modello/thinking.");
         }
 
         // Pulizia: rimuovi eventuali code fence residui
@@ -157,7 +163,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         controller.close();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Errore build HTML";
-        controller.enqueue(encoder.encode(`\n\n<!-- ERROR: ${message} -->`));
+        console.error("[build-html] error:", { model, thinkingOn, message, err });
+        // Emette marker riconoscibile dal client + NON aggiorna il DB (l'HTML precedente resta valido).
+        controller.enqueue(encoder.encode(`\n\n${ERROR_MARKER} ${message}-->`));
         controller.close();
       }
     },

@@ -175,6 +175,16 @@ export function OutputPanel({
     }
     setBuildingHtml(false);
     setHtmlStream("");
+
+    // Rileva errore stream server-side (l'HTML sul DB NON è stato aggiornato)
+    const errorMarker = "<!--__PG_STREAM_ERROR__:";
+    const errorIdx = acc.indexOf(errorMarker);
+    if (errorIdx !== -1) {
+      const msg = acc.slice(errorIdx + errorMarker.length).replace(/-->\s*$/, "").trim();
+      showToast(`Errore LLM: ${msg}`);
+      return; // NON ricaricare: html_output nel DB è ancora la versione precedente
+    }
+
     await onReload();
     showToast("HTML generato");
   }
