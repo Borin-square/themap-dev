@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
       wp_design_snippet: body.project.wp_design_snippet ?? "",
       wp_design_notes: body.project.wp_design_notes ?? "",
       wp_html_prompt: body.project.wp_html_prompt ?? "",
+      html_model: body.project.html_model ?? "claude-opus-4-7",
+      html_thinking: body.project.html_thinking ?? true,
       tone_of_voice: body.project.tone_of_voice ?? "",
       authors_page_url: body.project.authors_page_url ?? null,
       case_studies_page_url: body.project.case_studies_page_url ?? null,

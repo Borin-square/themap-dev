@@ -137,6 +137,8 @@ function SettingsTab({
     wp_design_snippet: project.wp_design_snippet,
     wp_design_notes: project.wp_design_notes,
     wp_html_prompt: project.wp_html_prompt,
+    html_model: project.html_model,
+    html_thinking: project.html_thinking,
     tone_of_voice: project.tone_of_voice,
     authors_page_url: project.authors_page_url,
     case_studies_page_url: project.case_studies_page_url,
@@ -184,6 +186,29 @@ function SettingsTab({
           onChange={(e) => upd("wp_design_notes", e.target.value)}
           placeholder="Es. usare sempre .btn-primary per le CTA, blocchi callout con .highlight-box..."
         />
+      </div>
+
+      <div className="pg-section">
+        <label>Modello LLM per la generazione HTML</label>
+        <p className="pg-hint">
+          Opus 4.7 è più aderente ai prompt lunghi con regole complesse ma più costoso e lento.
+          Sonnet 4.6 è un buon compromesso qualità/prezzo per iterazioni rapide.
+        </p>
+        <select
+          value={draft.html_model ?? "claude-opus-4-7"}
+          onChange={(e) => upd("html_model", e.target.value)}
+        >
+          <option value="claude-opus-4-7">Claude Opus 4.7 (massima aderenza)</option>
+          <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (più veloce/economico)</option>
+        </select>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
+          <input
+            type="checkbox"
+            checked={draft.html_thinking ?? true}
+            onChange={(e) => upd("html_thinking", e.target.checked)}
+          />
+          <span>Extended thinking (il modello ragiona prima di scrivere — più aderenza, più costo/latency)</span>
+        </label>
       </div>
 
       <div className="pg-section">

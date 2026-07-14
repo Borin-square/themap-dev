@@ -46,6 +46,9 @@ export function OutputPanel({
   const [promptHasDraft, setPromptHasDraft] = useState(false);
   const [customPromptDraft, setCustomPromptDraft] = useState("");
   const [savingCustomPrompt, setSavingCustomPrompt] = useState(false);
+  const [modelChoice, setModelChoice] = useState("claude-opus-4-7");
+  const [thinkingChoice, setThinkingChoice] = useState(true);
+  const [savingLlmCfg, setSavingLlmCfg] = useState(false);
 
   async function loadPromptPreview() {
     const token = await getToken();
@@ -70,10 +73,36 @@ export function OutputPanel({
         headers: { Authorization: `Bearer ${token}` },
       });
       const projJson = await projRes.json();
-      if (projRes.ok) setCustomPromptDraft(projJson.project?.wp_html_prompt ?? "");
+      if (projRes.ok) {
+        setCustomPromptDraft(projJson.project?.wp_html_prompt ?? "");
+        setModelChoice(projJson.project?.html_model ?? "claude-opus-4-7");
+        setThinkingChoice(projJson.project?.html_thinking !== false);
+      }
       await loadPromptPreview();
     } finally {
       setPromptLoading(false);
+    }
+  }
+
+  async function handleSaveLlmCfg(newModel: string, newThinking: boolean) {
+    setSavingLlmCfg(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/page-generator/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ html_model: newModel, html_thinking: newThinking }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        showToast(j.error || "Errore salvataggio config LLM");
+        return;
+      }
+      setModelChoice(newModel);
+      setThinkingChoice(newThinking);
+      showToast(`${newModel.split("-").slice(1).join(" ")} · thinking ${newThinking ? "on" : "off"}`);
+    } finally {
+      setSavingLlmCfg(false);
     }
   }
 
@@ -346,6 +375,35 @@ export function OutputPanel({
               <div className="comp-empty">Caricamento prompt...</div>
             ) : (
               <>
+                <div className="pg-prompt-modal-section" style={{ background: "var(--bg2)" }}>
+                  <div className="pg-prompt-modal-label">
+                    CONFIGURAZIONE LLM (progetto)
+                  </div>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                    <select
+                      value={modelChoice}
+                      onChange={(e) => handleSaveLlmCfg(e.target.value, thinkingChoice)}
+                      disabled={savingLlmCfg}
+                      style={{ background: "var(--bg)", color: "var(--fg)", border: "1px solid var(--bd)", borderRadius: 4, padding: "6px 10px", fontSize: 12 }}
+                    >
+                      <option value="claude-opus-4-7">Opus 4.7 (max aderenza)</option>
+                      <option value="claude-sonnet-4-6">Sonnet 4.6 (veloce)</option>
+                    </select>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                      <input
+                        type="checkbox"
+                        checked={thinkingChoice}
+                        onChange={(e) => handleSaveLlmCfg(modelChoice, e.target.checked)}
+                        disabled={savingLlmCfg}
+                      />
+                      Extended thinking
+                    </label>
+                    <span style={{ fontSize: 11, color: "var(--fg3)" }}>
+                      {thinkingChoice ? "temperature=1 (imposta dall'API)" : "temperature=0 (deterministico)"}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="pg-prompt-modal-section" style={{ background: "var(--bg2)" }}>
                   <div className="pg-prompt-modal-label">
                     ISTRUZIONI AGGIUNTIVE DEL PROGETTO (editabili — a livello progetto)

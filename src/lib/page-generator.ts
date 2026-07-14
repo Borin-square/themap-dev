@@ -32,6 +32,8 @@ export interface PgProject {
   wp_design_snippet: string;
   wp_design_notes: string;
   wp_html_prompt: string;
+  html_model: string;
+  html_thinking: boolean;
   tone_of_voice: string;
   authors_page_url: string | null;
   case_studies_page_url: string | null;
@@ -127,6 +129,8 @@ export interface PgProjectDraft {
   wp_design_snippet?: string;
   wp_design_notes?: string;
   wp_html_prompt?: string;
+  html_model?: string;
+  html_thinking?: boolean;
   tone_of_voice?: string;
   authors_page_url?: string | null;
   case_studies_page_url?: string | null;
@@ -161,6 +165,8 @@ export function emptyProject(company_slug: string): PgProjectDraft & { company_s
     wp_design_snippet: "",
     wp_design_notes: "",
     wp_html_prompt: "",
+    html_model: "claude-opus-4-7",
+    html_thinking: true,
     tone_of_voice: "",
     authors_page_url: null,
     case_studies_page_url: null,

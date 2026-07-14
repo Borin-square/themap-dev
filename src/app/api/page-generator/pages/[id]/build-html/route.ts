@@ -108,17 +108,28 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  const model = project.html_model || "claude-opus-4-7";
+  const thinkingOn = project.html_thinking !== false;
+  // Con thinking on l'API forza temperature=1 (non è ammessa < 1).
+  // Con thinking off, usiamo temperature 0 per aderenza deterministica alle regole.
+  const thinkingBudget = 4000;
+  const maxTokens = thinkingOn ? 16000 : 8000;
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       let fullText = "";
       try {
-        const anthropicStream = anthropic.messages.stream({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8000,
+        const streamParams: Parameters<typeof anthropic.messages.stream>[0] = {
+          model,
+          max_tokens: maxTokens,
           system: systemPrompt,
           messages: [{ role: "user", content: userMsg }],
-        });
+          ...(thinkingOn
+            ? { thinking: { type: "enabled" as const, budget_tokens: thinkingBudget } }
+            : { temperature: 0 }),
+        };
+        const anthropicStream = anthropic.messages.stream(streamParams);
 
         for await (const event of anthropicStream) {
           if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
