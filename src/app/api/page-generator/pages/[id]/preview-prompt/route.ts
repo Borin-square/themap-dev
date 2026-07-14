@@ -62,6 +62,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     hasDesign ? "3. Se una struttura non è coperta dal DESIGN SNIPPET, usa i tag HTML5 semantici nativi (`<details>`/`<summary>` per accordion, `<figure>`/`<figcaption>` per immagini con didascalia, `<blockquote>`/`<cite>` per citazioni, `<table>` per dati tabulari) senza inventare classi. Meglio semantica nativa che paragrafi generici." : "",
     hasDesign ? "4. Rispetta anche gli wrapper container mostrati nello snippet (div.entry-content, article, ecc.). Se nello snippet i contenuti stanno dentro un container, mettili anche tu dentro quel container." : "",
     hasDesign ? "5. Rispetta le convenzioni di quoting (doppi apici, singoli apici), l'ordine degli attributi e lo stile di formattazione (indentazione, capo riga) visibili nello snippet." : "",
+    hasDesign ? "6. GERARCHIA OBBLIGATORIA: ogni classe del DESIGN SNIPPET presuppone un contesto. Prima di scrivere un tag chiediti: 'nel CSS esiste un selettore `.parent .child` (o annidato) per questo elemento? Se sì, il tag DEVE stare dentro `.parent`.' Il contenuto principale della pagina va dentro il container generale mostrato nello snippet (`.container-fluid`, `.ale-wrap`, `.entry-content`, `<article>`, ecc.). Gli item di una grid stanno dentro la grid; gli step di un metodo dentro il metodo; le card di un servizio dentro il loro contenitore. Un figlio senza padre = layout rotto." : "",
     "",
     project.wp_html_prompt && project.wp_html_prompt.trim()
       ? `## ISTRUZIONI AGGIUNTIVE DEL PROGETTO (integrano, non sostituiscono, le regole sopra)\n${project.wp_html_prompt.trim()}\n`
@@ -83,6 +84,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     "- Trasformare tutto in liste puntate: se il contenuto è narrativo, resta in paragrafi; usa liste per elementi realmente paralleli.",
     "- Riscrivere la bozza abbandonando il TONE OF VOICE definito.",
     "",
+    "## CSS CUSTOM (opzionale, usa con parsimonia)",
+    "Se una struttura richiesta dal contenuto non è pienamente coperta né dal DESIGN SNIPPET né dai tag HTML5 semantici (regola 3), puoi generare CSS custom mirato che verrà incollato nel campo \"CSS dedicato\" di WordPress. Regole:",
+    "- Usa il CSS custom SOLO se strettamente necessario. Se il DESIGN SNIPPET copre già la struttura, NON scrivere CSS.",
+    "- Prefissa TUTTI i selettori con `pg-` per non collidere con lo snippet: `.pg-hero-branding`, `.pg-grid-triple`, `.pg-callout-yellow`, ecc.",
+    "- NON ridefinire, sovrascrivere o duplicare classi già presenti nel DESIGN SNIPPET.",
+    "- NON usare `!important` se non strettamente necessario.",
+    "- Massimo ~100 righe, approccio mobile-first, media query solo dove servono.",
+    "- Se generi CSS custom, ricordati di applicare quelle classi ai relativi tag nell'HTML.",
+    "",
     "## STRUTTURA CONTENUTO",
     "- NON generare header, footer, tag <html>, <head>, <body>. Solo il body della pagina, senza tag wrapper globali.",
     "- Il primo elemento visibile deve essere l'H1 con il titolo della pagina.",
@@ -92,8 +102,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     "- Alla fine del body includi UN SOLO `<script type=\"application/ld+json\">` con schema Article base (headline, description, inLanguage=\"it-IT\"). Sarà arricchito successivamente.",
     "",
     "## OUTPUT",
-    "- Restituisci SOLO HTML raw. Nessun code fence (```), nessun frontmatter, nessun commento esplicativo.",
-    "- Nessun testo introduttivo o conclusivo. La prima riga della risposta è la prima riga di HTML.",
+    "1. Prima l'HTML raw (nessun code fence ```, nessun frontmatter, nessun commento esplicativo). La prima riga della risposta è la prima riga di HTML.",
+    "2. Se — e SOLO se — hai generato CSS custom seguendo la sezione precedente, alla fine dell'HTML (dopo lo script JSON-LD) aggiungi il blocco CSS tra i marker:",
+    "   `<!--__PG_CSS_START__-->`",
+    "   [il tuo CSS custom, senza tag `<style>`, senza commenti aggiuntivi]",
+    "   `<!--__PG_CSS_END__-->`",
+    "3. Nessun testo introduttivo, conclusivo o esterno ai marker.",
   ].filter(Boolean).join("\n");
 
   const mediaBlock = media.length > 0

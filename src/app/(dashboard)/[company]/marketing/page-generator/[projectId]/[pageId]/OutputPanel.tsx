@@ -9,7 +9,7 @@ async function getToken(): Promise<string> {
   return data.session?.access_token || "";
 }
 
-type OutputTab = "html" | "kg";
+type OutputTab = "html" | "css" | "kg";
 
 export function OutputPanel({
   pageId, projectId, companySlug, latestVersion, onReload, showToast,
@@ -235,6 +235,7 @@ export function OutputPanel({
   }
 
   const htmlOutput = latestVersion?.html_output ?? "";
+  const cssOutput = latestVersion?.css_output ?? "";
   const kgOutput = latestVersion?.kg_json ?? null;
   const kgString = kgOutput ? JSON.stringify(kgOutput, null, 2) : "";
 
@@ -293,6 +294,9 @@ export function OutputPanel({
     <div className="pg-output">
       <div className="pg-output-tabs">
         <button className={tab === "html" ? "act" : ""} onClick={() => setTab("html")}>HTML WordPress</button>
+        <button className={tab === "css" ? "act" : ""} onClick={() => setTab("css")}>
+          CSS dedicato{cssOutput ? " •" : ""}
+        </button>
         <button className={tab === "kg" ? "act" : ""} onClick={() => setTab("kg")}>Knowledge Graph</button>
       </div>
 
@@ -374,6 +378,35 @@ export function OutputPanel({
                 sandbox="allow-same-origin"
                 srcDoc={`<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preview</title>${wpBaseHref ? `<base href="${wpBaseHref}">` : ""}${wpCss ? `<style>${wpCss}</style>` : `<style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:820px;margin:0 auto;padding:32px;line-height:1.7;color:#222}h1{font-size:2rem}h2{margin-top:2em}img{max-width:100%;height:auto}</style>`}</head><body>${htmlOutput}</body></html>`}
               />
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === "css" && (
+        <div className="pg-output-body">
+          <div className="pg-output-actions">
+            {cssOutput && (
+              <>
+                <button className="pg-btn-small" onClick={() => copyToClipboard(cssOutput, "CSS")}>Copia</button>
+                <button className="pg-btn-small" onClick={() => download(cssOutput, "page.css", "text/css")}>Scarica</button>
+              </>
+            )}
+          </div>
+
+          {!cssOutput && (
+            <div className="comp-empty">
+              Nessun CSS custom generato per questa pagina.<br />
+              Il tema copre già tutte le strutture necessarie: incolla solo l&apos;HTML nel campo &quot;HTML del layout&quot; di WordPress.
+            </div>
+          )}
+
+          {cssOutput && (
+            <>
+              <div className="pg-hint" style={{ marginBottom: 8 }}>
+                Incolla questo CSS nel campo &quot;CSS dedicato&quot; della pagina WordPress. Non serve il tag <code>&lt;style&gt;</code>: viene stampato inline automaticamente.
+              </div>
+              <pre className="pg-code-block">{cssOutput}</pre>
             </>
           )}
         </div>

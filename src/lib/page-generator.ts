@@ -107,6 +107,7 @@ export interface PgPageVersion {
   draft_text: string | null;
   sections: PgSection[];
   html_output: string | null;
+  css_output: string | null;
   kg_json: unknown | null;
   created_at: string;
 }
