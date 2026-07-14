@@ -80,6 +80,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     "",
     project.wp_design_notes ? `## NOTE OPERATIVE DEL DESIGNER\n${project.wp_design_notes}` : "",
     "",
+    project.tone_of_voice && project.tone_of_voice.trim()
+      ? `## TONE OF VOICE\n${project.tone_of_voice.trim()}\nApplica questo tone a tutto il testo che scrivi (titoli, paragrafi, FAQ, CTA, callout). Se il markup attuale ha una scrittura fuori tone, puoi riformulare mantenendo argomenti e significato.\n`
+      : "",
     "## REGOLE DI ADERENZA ALLO STILE",
     hasDesign ? "1. Usa SOLO le classi CSS del DESIGN SNIPPET. Vietato inventare classi." : "1. Solo markup semantico standard.",
     hasDesign ? "2. Rispetta i pattern del DESIGN SNIPPET per h2, h3, p, ul, blockquote, figure, ecc." : "2. Struttura minimale.",

@@ -59,6 +59,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     "",
     project.wp_design_notes ? `## NOTE OPERATIVE DEL DESIGNER\n${project.wp_design_notes}` : "",
     "",
+    project.tone_of_voice && project.tone_of_voice.trim()
+      ? `## TONE OF VOICE\n${project.tone_of_voice.trim()}\nUsa questo tone in TUTTO il testo che scrivi o riscrivi: titoli, paragrafi, FAQ, CTA, callout, alt text, meta. Se la bozza è formulata diversamente, riformulala nel tone mantenendo significato e argomenti.\n`
+      : "",
     "## REGOLE DI ADERENZA ALLO STILE (rispetta tutte)",
     hasDesign ? "1. Usa SOLO ed ESCLUSIVAMENTE le classi CSS presenti nel DESIGN SNIPPET. È vietato inventare nomi di classe. Se una classe non appare nello snippet, non esiste." : "1. Nessuna classe CSS custom: usa solo tag semantici.",
     hasDesign ? "2. Copia i PATTERN DI MARKUP dello snippet: se lo snippet mostra `<h2 class=\"wp-block-heading\">Testo</h2>`, gli H2 li scrivi ESATTAMENTE così. Stesso principio per paragrafi, liste, immagini, callout, blockquote, wrapper." : "2. Struttura minimale: h1/h2/p/ul/blockquote.",
@@ -100,7 +103,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     page.reference_urls && page.reference_urls.length > 0
       ? `ESEMPI DI DESIGN (altre pagine dello stesso sito — usale come riferimento per markup e classi da riprodurre):\n${page.reference_urls.map((u, i) => `${i + 1}. ${u}`).join("\n")}\n`
       : "",
-    `BOZZA (contenuto da convertire — non alterare significato e ordine):`,
+    `BOZZA (contenuto di partenza — puoi migliorare la scrittura applicando il tone of voice se definito, ma mantieni significato, argomenti e ordine delle sezioni):`,
     draftText,
     ``,
     `Prima di scrivere l'HTML, ripassa mentalmente le classi e i pattern presenti nel DESIGN SNIPPET del system prompt e usa SOLO quelli. Se una struttura non è coperta, adotta la variante più semplice compatibile senza inventare classi.`,
