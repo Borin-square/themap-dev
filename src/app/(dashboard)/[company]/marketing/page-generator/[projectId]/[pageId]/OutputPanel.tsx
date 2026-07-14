@@ -375,21 +375,18 @@ export function OutputPanel({
               <div className="comp-empty">Caricamento prompt...</div>
             ) : (
               <>
-                <div className="pg-prompt-modal-section" style={{ background: "var(--bg2)" }}>
-                  <div className="pg-prompt-modal-label">
-                    CONFIGURAZIONE LLM (progetto)
-                  </div>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                <div className="pg-prompt-modal-config">
+                  <div className="pg-prompt-modal-config-row">
+                    <div className="pg-prompt-modal-label" style={{ marginBottom: 0 }}>MODELLO</div>
                     <select
                       value={modelChoice}
                       onChange={(e) => handleSaveLlmCfg(e.target.value, thinkingChoice)}
                       disabled={savingLlmCfg}
-                      style={{ background: "var(--bg)", color: "var(--fg)", border: "1px solid var(--bd)", borderRadius: 4, padding: "6px 10px", fontSize: 12 }}
                     >
                       <option value="claude-opus-4-7">Opus 4.7 (max aderenza)</option>
                       <option value="claude-sonnet-4-6">Sonnet 4.6 (veloce)</option>
                     </select>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                    <label className="pg-prompt-modal-checkbox">
                       <input
                         type="checkbox"
                         checked={thinkingChoice}
@@ -398,69 +395,56 @@ export function OutputPanel({
                       />
                       Extended thinking
                     </label>
-                    <span style={{ fontSize: 11, color: "var(--fg3)" }}>
-                      {thinkingChoice ? "temperature=1 (imposta dall'API)" : "temperature=0 (deterministico)"}
+                    <span className="pg-prompt-modal-temp">
+                      {thinkingChoice ? "temperature=1 (API)" : "temperature=0"}
                     </span>
+                  </div>
+                  <div>
+                    <div className="pg-prompt-modal-label" style={{ marginTop: 8 }}>
+                      ISTRUZIONI AGGIUNTIVE DEL PROGETTO (editabili)
+                    </div>
+                    <textarea
+                      className="pg-prompt-modal-textarea"
+                      rows={4}
+                      value={customPromptDraft}
+                      onChange={(e) => setCustomPromptDraft(e.target.value)}
+                      placeholder="Es. Per gli elenchi di card informative usa sempre <div class='grid-card-item'>. Non usare wp-block-heading."
+                    />
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+                      <button className="btn-save" onClick={handleSaveCustomPrompt} disabled={savingCustomPrompt}>
+                        {savingCustomPrompt ? "Salvataggio..." : "Salva e ricarica prompt"}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="pg-prompt-modal-section" style={{ background: "var(--bg2)" }}>
-                  <div className="pg-prompt-modal-label">
-                    ISTRUZIONI AGGIUNTIVE DEL PROGETTO (editabili — a livello progetto)
+                <div className="pg-prompt-modal-payload">
+                  <div className="pg-prompt-modal-pane">
+                    <div className="pg-prompt-modal-label">
+                      SYSTEM
+                      <button
+                        className="pg-btn-small"
+                        style={{ marginLeft: 8 }}
+                        onClick={() => copyToClipboard(promptSystem, "System prompt")}
+                      >
+                        Copia
+                      </button>
+                    </div>
+                    <pre className="pg-prompt-modal-code">{promptSystem}</pre>
                   </div>
-                  <p className="pg-hint" style={{ margin: "0 0 8px" }}>
-                    Verranno iniettate nel system prompt come blocco &quot;ISTRUZIONI AGGIUNTIVE
-                    DEL PROGETTO&quot;. Modifica e salva per iterare rapidamente sull&apos;aderenza al design.
-                  </p>
-                  <textarea
-                    rows={6}
-                    value={customPromptDraft}
-                    onChange={(e) => setCustomPromptDraft(e.target.value)}
-                    placeholder="Es. Per gli elenchi di card informative usa sempre <div class='grid-card-item p-4 mb-3 hover-card-trigger'>...</div>. Per liste di step numerati usa <div class='ale-make'>. Non usare wp-block-heading: applica direttamente le classi del tema."
-                    style={{
-                      width: "100%",
-                      background: "var(--bg)",
-                      color: "var(--fg)",
-                      border: "1px solid var(--bd)",
-                      borderRadius: 4,
-                      padding: "8px 10px",
-                      fontFamily: "monospace",
-                      fontSize: 12,
-                      boxSizing: "border-box",
-                      resize: "vertical",
-                    }}
-                  />
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-                    <button className="btn-save" onClick={handleSaveCustomPrompt} disabled={savingCustomPrompt}>
-                      {savingCustomPrompt ? "Salvataggio..." : "Salva e ricarica prompt"}
-                    </button>
+                  <div className="pg-prompt-modal-pane">
+                    <div className="pg-prompt-modal-label">
+                      USER
+                      <button
+                        className="pg-btn-small"
+                        style={{ marginLeft: 8 }}
+                        onClick={() => copyToClipboard(promptUser, "User message")}
+                      >
+                        Copia
+                      </button>
+                    </div>
+                    <pre className="pg-prompt-modal-code">{promptUser}</pre>
                   </div>
-                </div>
-                <div className="pg-prompt-modal-section">
-                  <div className="pg-prompt-modal-label">
-                    SYSTEM
-                    <button
-                      className="pg-btn-small"
-                      style={{ marginLeft: 8 }}
-                      onClick={() => copyToClipboard(promptSystem, "System prompt")}
-                    >
-                      Copia
-                    </button>
-                  </div>
-                  <pre className="pg-code-block">{promptSystem}</pre>
-                </div>
-                <div className="pg-prompt-modal-section">
-                  <div className="pg-prompt-modal-label">
-                    USER
-                    <button
-                      className="pg-btn-small"
-                      style={{ marginLeft: 8 }}
-                      onClick={() => copyToClipboard(promptUser, "User message")}
-                    >
-                      Copia
-                    </button>
-                  </div>
-                  <pre className="pg-code-block">{promptUser}</pre>
                 </div>
               </>
             )}
