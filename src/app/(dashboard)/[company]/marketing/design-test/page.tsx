@@ -1,27 +1,79 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useLocalState } from "@/lib/useLocalState";
+
+const STARTER_CODE = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #000; color: #fff; overflow: hidden;
+    font-family: system-ui, sans-serif; }
+  .stage { position: fixed; inset: 0; display: grid; place-items: center; }
+  .stage h1 { font-size: clamp(48px, 10vw, 160px); font-weight: 800; letter-spacing: -0.03em; }
+  .cursor { position: fixed; top: 0; left: 0; width: 20px; height: 20px;
+    border-radius: 50%; background: #fff; mix-blend-mode: difference;
+    pointer-events: none; transform: translate(-50%, -50%); z-index: 9999; }
+</style>
+</head>
+<body>
+  <div class="stage"><h1>Design Canvas</h1></div>
+  <div class="cursor" id="c"></div>
+  <script>
+    const c = document.getElementById('c');
+    let x = 0, y = 0, tx = 0, ty = 0;
+    window.addEventListener('mousemove', (e) => { tx = e.clientX; ty = e.clientY; });
+    function loop() {
+      x += (tx - x) * 0.18;
+      y += (ty - y) * 0.18;
+      c.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -50%)';
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>`;
 
 export default function DesignTestPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
 
+  const [code, setCode] = useLocalState<string>(
+    `themap:${slug}:designTest`,
+    () => STARTER_CODE,
+  );
+
+  const [draft, setDraft] = useState<string>(code);
+  const [autoRender, setAutoRender] = useState(true);
   const [fs, setFs] = useState(false);
+
+  useEffect(() => { setDraft(code); }, [code]);
+
+  useEffect(() => {
+    if (!autoRender) return;
+    const t = setTimeout(() => { if (draft !== code) setCode(draft); }, 400);
+    return () => clearTimeout(t);
+  }, [draft, autoRender, code, setCode]);
 
   useEffect(() => {
     if (!fs) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFs(false); };
     window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
+      document.body.style.overflow = prev;
     };
   }, [fs]);
+
+  const iframeKey = useMemo(() => (autoRender ? code : `manual-${code.length}`), [code, autoRender]);
 
   return (
     <div>
@@ -42,36 +94,74 @@ export default function DesignTestPage() {
             {company && <span style={{ color: company.color }}>{"\u25A0"}</span>}
             {company?.name || slug} — Design Test
           </div>
-          <button
-            onClick={() => setFs(true)}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "1px solid var(--bd)",
-              background: "var(--bg2)",
-              color: "var(--fg)",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            Apri fullscreen
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--fg2)" }}>
+              <input
+                type="checkbox"
+                checked={autoRender}
+                onChange={(e) => setAutoRender(e.target.checked)}
+              />
+              Auto-render
+            </label>
+            {!autoRender && (
+              <button className="btn-save" onClick={() => setCode(draft)}>Render</button>
+            )}
+            <button className="btn-cancel" onClick={() => setDraft(STARTER_CODE)}>
+              Ripristina esempio
+            </button>
+            <button className="btn-save" onClick={() => setFs(true)}>
+              Fullscreen
+            </button>
+          </div>
         </div>
 
         <div
           style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+            gap: 12,
             marginTop: 12,
-            border: "1px dashed var(--bd)",
-            borderRadius: 8,
-            minHeight: 420,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--fg3)",
-            fontSize: 13,
+            height: "calc(100vh - 220px)",
+            minHeight: 480,
           }}
         >
-          Canvas di test — clicca &ldquo;Apri fullscreen&rdquo; per testare le animazioni
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            spellCheck={false}
+            style={{
+              width: "100%",
+              height: "100%",
+              padding: 12,
+              border: "1px solid var(--bd)",
+              borderRadius: 8,
+              background: "var(--bg2)",
+              color: "var(--fg)",
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+              fontSize: 12,
+              lineHeight: 1.5,
+              resize: "none",
+              outline: "none",
+            }}
+            placeholder="Incolla qui HTML/CSS/JS completo (con <style> e <script>)…"
+          />
+
+          <div
+            style={{
+              border: "1px solid var(--bd)",
+              borderRadius: 8,
+              overflow: "hidden",
+              background: "#000",
+            }}
+          >
+            <iframe
+              key={iframeKey}
+              srcDoc={code}
+              sandbox="allow-scripts"
+              style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+              title="Design preview"
+            />
+          </div>
         </div>
       </div>
 
@@ -82,7 +172,6 @@ export default function DesignTestPage() {
             inset: 0,
             zIndex: 9999,
             background: "#000",
-            color: "#fff",
           }}
         >
           <button
@@ -105,9 +194,13 @@ export default function DesignTestPage() {
             Chiudi (Esc)
           </button>
 
-          <div id="design-canvas" style={{ position: "absolute", inset: 0 }}>
-            {/* Qui dentro andranno il tunnel + cursor animation */}
-          </div>
+          <iframe
+            key={`fs-${iframeKey}`}
+            srcDoc={code}
+            sandbox="allow-scripts"
+            style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+            title="Design preview fullscreen"
+          />
         </div>
       )}
     </div>
