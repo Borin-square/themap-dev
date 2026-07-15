@@ -110,7 +110,7 @@ export default function DesignTestPage() {
 
   const [draft, setDraft] = useState<string>(active.code);
   const [lastLoadedId, setLastLoadedId] = useState<string>(active.id);
-  const [autoRender, setAutoRender] = useState(true);
+  const [autoRender, setAutoRender] = useState(false);
   const [fs, setFs] = useState(false);
   type BarMode = "idle" | "rename" | "new" | "duplicate";
   const [barMode, setBarMode] = useState<BarMode>("idle");
@@ -119,18 +119,22 @@ export default function DesignTestPage() {
   // renderId cambia SOLO su render esplicito o cambio versione, non su ogni tasto.
   // Serve a evitare di ricreare l'iframe (e con esso il contesto WebGL) ad ogni digitazione.
   const [renderId, setRenderId] = useState(0);
-  const [renderedCode, setRenderedCode] = useState<string>(active.code);
+  // Preview parte VUOTA — l'utente deve cliccare "Render" per far girare il codice.
+  // Serve per evitare che WebGL/canvas heavy parta al solo caricamento pagina.
+  const EMPTY_PREVIEW = "<!doctype html><html><head><style>html,body{background:#0a0a0a;color:#666;font-family:system-ui,sans-serif;height:100%;margin:0;display:grid;place-items:center;font-size:12px;letter-spacing:.2em;text-transform:uppercase;}</style></head><body>Clicca Render per avviare il preview</body></html>";
+  const [renderedCode, setRenderedCode] = useState<string>(EMPTY_PREVIEW);
 
-  // When the user switches version, reset draft + rendered code to that version's code
+  // When the user switches version, reset draft to that version's code and STOP the preview
   useEffect(() => {
     if (active.id !== lastLoadedId) {
       setDraft(active.code);
-      setRenderedCode(active.code);
+      setRenderedCode(EMPTY_PREVIEW);
       setRenderId((n) => n + 1);
       setLastLoadedId(active.id);
       setBarMode("idle");
       setConfirmDel(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active.id, active.code, lastLoadedId]);
 
   // Debounced auto-render: salva su versione + aggiorna renderedCode + incrementa renderId
@@ -352,9 +356,13 @@ export default function DesignTestPage() {
             />
             Auto-render
           </label>
-          {!autoRender && (
-            <button className="btn-save" onClick={manualRender}>Render</button>
-          )}
+          <button
+            style={btnStyle}
+            onClick={() => { setRenderedCode(EMPTY_PREVIEW); setRenderId((n) => n + 1); }}
+          >
+            Stop preview
+          </button>
+          <button className="btn-save" onClick={manualRender}>Render</button>
         </div>
 
         {/* Editor + preview */}
