@@ -55,6 +55,7 @@ export default function MktgFlywheelRealPage() {
         <Link href={`/${slug}/marketing/seo-cluster`} className="ee-tab">SEO Cluster</Link>
         <Link href={`/${slug}/marketing/geo-tool`} className="ee-tab">GEO Tool</Link>
         <Link href={`/${slug}/marketing/flywheel`} className="ee-tab">Flywheel</Link>
+        <Link href={`/${slug}/marketing/design-test`} className="ee-tab">Design Test</Link>
       </div>
 
       <div className="fws-page">

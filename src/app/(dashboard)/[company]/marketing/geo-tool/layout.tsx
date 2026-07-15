@@ -47,6 +47,7 @@ export default function GEOToolLayout({ children }: { children: React.ReactNode 
         <Link href={`/${slug}/marketing/seo-cluster`} className="ee-tab">SEO Cluster</Link>
         <span className="ee-tab active">GEO Tool</span>
         <Link href={`/${slug}/marketing/flywheel`} className="ee-tab">Flywheel</Link>
+        <Link href={`/${slug}/marketing/design-test`} className="ee-tab">Design Test</Link>
       </div>
 
       <div className="geo-suite">

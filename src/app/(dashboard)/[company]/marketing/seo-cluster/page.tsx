@@ -211,6 +211,7 @@ export default function SEOClusterPage() {
         <span className="ee-tab active">SEO Cluster</span>
         <Link href={`/${slug}/marketing/geo-tool`} className="ee-tab">GEO Tool</Link>
         <Link href={`/${slug}/marketing/flywheel`} className="ee-tab">Flywheel</Link>
+        <Link href={`/${slug}/marketing/design-test`} className="ee-tab">Design Test</Link>
       </div>
 
       {toast && <div className="fws-toast">{toast}</div>}

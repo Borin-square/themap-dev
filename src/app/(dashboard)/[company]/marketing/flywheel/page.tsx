@@ -190,6 +190,7 @@ export default function MktgFlywheelOverviewPage() {
         <Link href={`/${slug}/marketing/seo-cluster`} className="ee-tab">SEO Cluster</Link>
         <Link href={`/${slug}/marketing/geo-tool`} className="ee-tab">GEO Tool</Link>
         <span className="ee-tab active">Flywheel</span>
+        <Link href={`/${slug}/marketing/design-test`} className="ee-tab">Design Test</Link>
       </div>
 
       <div className="fw-area">
