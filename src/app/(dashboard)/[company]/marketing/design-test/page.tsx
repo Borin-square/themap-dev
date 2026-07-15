@@ -176,6 +176,7 @@ export default function DesignTestPage() {
   }
 
   function startCreate(mode: "new" | "duplicate") {
+    console.log("[design-test] startCreate", mode);
     const suggested =
       mode === "duplicate"
         ? `${active.name} — copia`
@@ -185,11 +186,13 @@ export default function DesignTestPage() {
   }
 
   function startRename() {
+    console.log("[design-test] startRename", active.name);
     setNameDraft(active.name);
     setBarMode("rename");
   }
 
   function commitBar() {
+    console.log("[design-test] commitBar", barMode, nameDraft);
     const name = nameDraft.trim();
     if (!name) { setBarMode("idle"); return; }
     if (barMode === "rename") {
