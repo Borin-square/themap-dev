@@ -112,7 +112,8 @@ export default function DesignTestPage() {
   const [lastLoadedId, setLastLoadedId] = useState<string>(active.id);
   const [autoRender, setAutoRender] = useState(true);
   const [fs, setFs] = useState(false);
-  const [renaming, setRenaming] = useState(false);
+  type BarMode = "idle" | "rename" | "new" | "duplicate";
+  const [barMode, setBarMode] = useState<BarMode>("idle");
   const [nameDraft, setNameDraft] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
   // renderId cambia SOLO su render esplicito o cambio versione, non su ogni tasto.
@@ -127,7 +128,7 @@ export default function DesignTestPage() {
       setRenderedCode(active.code);
       setRenderId((n) => n + 1);
       setLastLoadedId(active.id);
-      setRenaming(false);
+      setBarMode("idle");
       setConfirmDel(false);
     }
   }, [active.id, active.code, lastLoadedId]);
@@ -174,40 +175,44 @@ export default function DesignTestPage() {
     setRawState((prev) => ({ ...sanitize(prev), activeId: id }));
   }
 
-  function createVersion(fromCurrent: boolean) {
-    const suggested = fromCurrent
-      ? `${active.name} — copia`
-      : `Versione ${state.versions.length + 1}`;
-    const name = prompt("Nome nuova versione:", suggested);
-    if (!name || !name.trim()) return;
-    const code = fromCurrent ? draft : STARTER_CODE;
-    const v = newVersion(name.trim(), code);
-    setRawState((prev) => {
-      const s = sanitize(prev);
-      return { versions: [...s.versions, v], activeId: v.id };
-    });
+  function startCreate(mode: "new" | "duplicate") {
+    const suggested =
+      mode === "duplicate"
+        ? `${active.name} — copia`
+        : `Versione ${state.versions.length + 1}`;
+    setNameDraft(suggested);
+    setBarMode(mode);
   }
 
   function startRename() {
     setNameDraft(active.name);
-    setRenaming(true);
+    setBarMode("rename");
   }
 
-  function commitRename() {
+  function commitBar() {
     const name = nameDraft.trim();
-    if (!name) { setRenaming(false); return; }
-    setRawState((prev) => {
-      const s = sanitize(prev);
-      return {
-        ...s,
-        versions: s.versions.map((v) =>
-          v.id === s.activeId
-            ? { ...v, name, updatedAt: new Date().toISOString() }
-            : v,
-        ),
-      };
-    });
-    setRenaming(false);
+    if (!name) { setBarMode("idle"); return; }
+    if (barMode === "rename") {
+      setRawState((prev) => {
+        const s = sanitize(prev);
+        return {
+          ...s,
+          versions: s.versions.map((v) =>
+            v.id === s.activeId
+              ? { ...v, name, updatedAt: new Date().toISOString() }
+              : v,
+          ),
+        };
+      });
+    } else if (barMode === "new" || barMode === "duplicate") {
+      const code = barMode === "duplicate" ? draft : STARTER_CODE;
+      const v = newVersion(name, code);
+      setRawState((prev) => {
+        const s = sanitize(prev);
+        return { versions: [...s.versions, v], activeId: v.id };
+      });
+    }
+    setBarMode("idle");
   }
 
   function deleteActive() {
@@ -282,20 +287,25 @@ export default function DesignTestPage() {
         >
           <span style={{ color: "var(--fg3)", marginRight: 4 }}>Versione:</span>
 
-          {renaming ? (
+          {barMode !== "idle" ? (
             <>
+              <span style={{ color: "var(--fg2)" }}>
+                {barMode === "rename" ? "Nuovo nome:" : barMode === "duplicate" ? "Nome copia:" : "Nome versione:"}
+              </span>
               <input
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") commitRename();
-                  if (e.key === "Escape") setRenaming(false);
+                  if (e.key === "Enter") commitBar();
+                  if (e.key === "Escape") setBarMode("idle");
                 }}
                 autoFocus
                 style={inputStyle}
               />
-              <button className="btn-save" onClick={commitRename}>Salva nome</button>
-              <button className="btn-cancel" onClick={() => setRenaming(false)}>Annulla</button>
+              <button className="btn-save" onClick={commitBar}>
+                {barMode === "rename" ? "Salva nome" : "Crea"}
+              </button>
+              <button className="btn-cancel" onClick={() => setBarMode("idle")}>Annulla</button>
             </>
           ) : (
             <>
@@ -309,8 +319,8 @@ export default function DesignTestPage() {
                 ))}
               </select>
               <button style={btnStyle} onClick={startRename}>Rinomina</button>
-              <button style={btnStyle} onClick={() => createVersion(true)}>+ Duplica</button>
-              <button style={btnStyle} onClick={() => createVersion(false)}>+ Nuova</button>
+              <button style={btnStyle} onClick={() => startCreate("duplicate")}>+ Duplica</button>
+              <button style={btnStyle} onClick={() => startCreate("new")}>+ Nuova</button>
               {state.versions.length > 1 && (
                 confirmDel ? (
                   <span className="fws-confirm">
