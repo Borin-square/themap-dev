@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
@@ -39,41 +39,199 @@ const STARTER_CODE = `<!doctype html>
 </body>
 </html>`;
 
+interface DesignVersion {
+  id: string;
+  name: string;
+  code: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface DesignTestState {
+  versions: DesignVersion[];
+  activeId: string;
+}
+
+function newVersion(name: string, code: string): DesignVersion {
+  const now = new Date().toISOString();
+  return { id: crypto.randomUUID(), name, code, createdAt: now, updatedAt: now };
+}
+
+function emptyState(): DesignTestState {
+  const v = newVersion("Starter", STARTER_CODE);
+  return { versions: [v], activeId: v.id };
+}
+
+function sanitize(raw: unknown): DesignTestState {
+  if (typeof raw === "string") {
+    const v = newVersion("Legacy", raw);
+    return { versions: [v], activeId: v.id };
+  }
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    if (Array.isArray(r.versions)) {
+      const versions: DesignVersion[] = [];
+      for (const item of r.versions) {
+        if (!item || typeof item !== "object") continue;
+        const it = item as Record<string, unknown>;
+        if (typeof it.id !== "string" || typeof it.code !== "string") continue;
+        versions.push({
+          id: it.id,
+          name: typeof it.name === "string" && it.name.trim() ? it.name : "Untitled",
+          code: it.code,
+          createdAt: typeof it.createdAt === "string" ? it.createdAt : new Date().toISOString(),
+          updatedAt: typeof it.updatedAt === "string" ? it.updatedAt : new Date().toISOString(),
+        });
+      }
+      if (versions.length > 0) {
+        const activeId =
+          typeof r.activeId === "string" && versions.some((x) => x.id === r.activeId)
+            ? r.activeId
+            : versions[0].id;
+        return { versions, activeId };
+      }
+    }
+  }
+  return emptyState();
+}
+
 export default function DesignTestPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
 
-  const [code, setCode] = useLocalState<string>(
+  const [rawState, setRawState] = useLocalState<DesignTestState>(
     `themap:${slug}:designTest`,
-    () => STARTER_CODE,
+    emptyState,
   );
+  const state = sanitize(rawState);
+  const active =
+    state.versions.find((v) => v.id === state.activeId) || state.versions[0];
 
-  const [draft, setDraft] = useState<string>(code);
+  const [draft, setDraft] = useState<string>(active.code);
+  const [lastLoadedId, setLastLoadedId] = useState<string>(active.id);
   const [autoRender, setAutoRender] = useState(true);
   const [fs, setFs] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
 
-  useEffect(() => { setDraft(code); }, [code]);
+  // When the user switches version, reset draft to that version's code
+  useEffect(() => {
+    if (active.id !== lastLoadedId) {
+      setDraft(active.code);
+      setLastLoadedId(active.id);
+      setRenaming(false);
+      setConfirmDel(false);
+    }
+  }, [active.id, active.code, lastLoadedId]);
 
+  // Debounced save of draft into the correct version
   useEffect(() => {
     if (!autoRender) return;
-    const t = setTimeout(() => { if (draft !== code) setCode(draft); }, 400);
+    const versionId = active.id;
+    const snapshot = draft;
+    const t = setTimeout(() => {
+      setRawState((prev) => {
+        const s = sanitize(prev);
+        const target = s.versions.find((v) => v.id === versionId);
+        if (!target || target.code === snapshot) return s;
+        return {
+          ...s,
+          versions: s.versions.map((v) =>
+            v.id === versionId
+              ? { ...v, code: snapshot, updatedAt: new Date().toISOString() }
+              : v,
+          ),
+        };
+      });
+    }, 400);
     return () => clearTimeout(t);
-  }, [draft, autoRender, code, setCode]);
+  }, [draft, autoRender, active.id, setRawState]);
 
   useEffect(() => {
     if (!fs) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFs(false); };
     window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevOverflow;
     };
   }, [fs]);
 
-  const iframeKey = useMemo(() => (autoRender ? code : `manual-${code.length}`), [code, autoRender]);
+  function selectVersion(id: string) {
+    setRawState((prev) => ({ ...sanitize(prev), activeId: id }));
+  }
+
+  function createVersion(fromCurrent: boolean) {
+    const suggested = fromCurrent
+      ? `${active.name} — copia`
+      : `Versione ${state.versions.length + 1}`;
+    const name = prompt("Nome nuova versione:", suggested);
+    if (!name || !name.trim()) return;
+    const code = fromCurrent ? draft : STARTER_CODE;
+    const v = newVersion(name.trim(), code);
+    setRawState((prev) => {
+      const s = sanitize(prev);
+      return { versions: [...s.versions, v], activeId: v.id };
+    });
+  }
+
+  function startRename() {
+    setNameDraft(active.name);
+    setRenaming(true);
+  }
+
+  function commitRename() {
+    const name = nameDraft.trim();
+    if (!name) { setRenaming(false); return; }
+    setRawState((prev) => {
+      const s = sanitize(prev);
+      return {
+        ...s,
+        versions: s.versions.map((v) =>
+          v.id === s.activeId
+            ? { ...v, name, updatedAt: new Date().toISOString() }
+            : v,
+        ),
+      };
+    });
+    setRenaming(false);
+  }
+
+  function deleteActive() {
+    setRawState((prev) => {
+      const s = sanitize(prev);
+      if (s.versions.length <= 1) return s;
+      const next = s.versions.filter((v) => v.id !== s.activeId);
+      return { versions: next, activeId: next[0].id };
+    });
+    setConfirmDel(false);
+  }
+
+  function manualRender() {
+    const versionId = active.id;
+    const snapshot = draft;
+    setRawState((prev) => {
+      const s = sanitize(prev);
+      return {
+        ...s,
+        versions: s.versions.map((v) =>
+          v.id === versionId
+            ? { ...v, code: snapshot, updatedAt: new Date().toISOString() }
+            : v,
+        ),
+      };
+    });
+  }
+
+  const code = active.code;
+  const iframeKey = useMemo(
+    () => `${active.id}-${code.length}-${active.updatedAt}`,
+    [active.id, code, active.updatedAt],
+  );
 
   return (
     <div>
@@ -94,35 +252,97 @@ export default function DesignTestPage() {
             {company && <span style={{ color: company.color }}>{"\u25A0"}</span>}
             {company?.name || slug} — Design Test
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--fg2)" }}>
-              <input
-                type="checkbox"
-                checked={autoRender}
-                onChange={(e) => setAutoRender(e.target.checked)}
-              />
-              Auto-render
-            </label>
-            {!autoRender && (
-              <button className="btn-save" onClick={() => setCode(draft)}>Render</button>
-            )}
-            <button className="btn-cancel" onClick={() => setDraft(STARTER_CODE)}>
-              Ripristina esempio
-            </button>
-            <button className="btn-save" onClick={() => setFs(true)}>
-              Fullscreen
-            </button>
-          </div>
+          <button className="btn-save" onClick={() => setFs(true)}>Fullscreen</button>
         </div>
 
+        {/* Version bar */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginTop: 12,
+            padding: "10px 12px",
+            background: "var(--bg2)",
+            border: "1px solid var(--bd)",
+            borderRadius: 8,
+            fontSize: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span style={{ color: "var(--fg3)", marginRight: 4 }}>Versione:</span>
+
+          {renaming ? (
+            <>
+              <input
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename();
+                  if (e.key === "Escape") setRenaming(false);
+                }}
+                autoFocus
+                style={inputStyle}
+              />
+              <button className="btn-save" onClick={commitRename}>Salva nome</button>
+              <button className="btn-cancel" onClick={() => setRenaming(false)}>Annulla</button>
+            </>
+          ) : (
+            <>
+              <select
+                value={state.activeId}
+                onChange={(e) => selectVersion(e.target.value)}
+                style={inputStyle}
+              >
+                {state.versions.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+              <button style={btnStyle} onClick={startRename}>Rinomina</button>
+              <button style={btnStyle} onClick={() => createVersion(true)}>+ Duplica</button>
+              <button style={btnStyle} onClick={() => createVersion(false)}>+ Nuova</button>
+              {state.versions.length > 1 && (
+                confirmDel ? (
+                  <span className="fws-confirm">
+                    <button className="fws-confirm-yes" onClick={deleteActive}>Sì</button>
+                    <button className="fws-confirm-no" onClick={() => setConfirmDel(false)}>No</button>
+                  </span>
+                ) : (
+                  <button
+                    style={{ ...btnStyle, color: "#ff5566", borderColor: "rgba(255,85,102,0.4)" }}
+                    onClick={() => setConfirmDel(true)}
+                  >
+                    Elimina
+                  </button>
+                )
+              )}
+            </>
+          )}
+
+          <span style={{ flex: 1 }} />
+
+          <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--fg2)" }}>
+            <input
+              type="checkbox"
+              checked={autoRender}
+              onChange={(e) => setAutoRender(e.target.checked)}
+            />
+            Auto-render
+          </label>
+          {!autoRender && (
+            <button className="btn-save" onClick={manualRender}>Render</button>
+          )}
+        </div>
+
+        {/* Editor + preview */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
             gap: 12,
             marginTop: 12,
-            height: "calc(100vh - 220px)",
-            minHeight: 480,
+            height: "calc(100vh - 280px)",
+            minHeight: 460,
           }}
         >
           <textarea
@@ -145,7 +365,6 @@ export default function DesignTestPage() {
             }}
             placeholder="Incolla qui HTML/CSS/JS completo (con <style> e <script>)…"
           />
-
           <div
             style={{
               border: "1px solid var(--bd)",
@@ -166,34 +385,47 @@ export default function DesignTestPage() {
       </div>
 
       {fs && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            background: "#000",
-          }}
-        >
-          <button
-            onClick={() => setFs(false)}
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#000" }}>
+          <div
             style={{
               position: "fixed",
               top: 12,
               right: 12,
               zIndex: 10000,
-              padding: "6px 10px",
-              borderRadius: 6,
-              border: "1px solid rgba(255,255,255,0.2)",
-              background: "rgba(0,0,0,0.6)",
-              color: "#fff",
-              fontSize: 11,
-              cursor: "pointer",
-              backdropFilter: "blur(6px)",
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
             }}
           >
-            Chiudi (Esc)
-          </button>
-
+            <span
+              style={{
+                padding: "6px 10px",
+                borderRadius: 6,
+                background: "rgba(0,0,0,0.6)",
+                color: "#fff",
+                fontSize: 11,
+                border: "1px solid rgba(255,255,255,0.2)",
+                backdropFilter: "blur(6px)",
+              }}
+            >
+              {active.name}
+            </span>
+            <button
+              onClick={() => setFs(false)}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 6,
+                border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(0,0,0,0.6)",
+                color: "#fff",
+                fontSize: 11,
+                cursor: "pointer",
+                backdropFilter: "blur(6px)",
+              }}
+            >
+              Chiudi (Esc)
+            </button>
+          </div>
           <iframe
             key={`fs-${iframeKey}`}
             srcDoc={code}
@@ -206,3 +438,23 @@ export default function DesignTestPage() {
     </div>
   );
 }
+
+const inputStyle: CSSProperties = {
+  padding: "5px 8px",
+  border: "1px solid var(--bd)",
+  borderRadius: 4,
+  background: "var(--bg)",
+  color: "var(--fg)",
+  fontSize: 12,
+  minWidth: 200,
+};
+
+const btnStyle: CSSProperties = {
+  padding: "5px 10px",
+  border: "1px solid var(--bd)",
+  borderRadius: 4,
+  background: "var(--bg)",
+  color: "var(--fg)",
+  fontSize: 11,
+  cursor: "pointer",
+};
