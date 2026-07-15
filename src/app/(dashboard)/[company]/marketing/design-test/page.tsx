@@ -119,28 +119,26 @@ export default function DesignTestPage() {
   // renderId cambia SOLO su render esplicito o cambio versione, non su ogni tasto.
   // Serve a evitare di ricreare l'iframe (e con esso il contesto WebGL) ad ogni digitazione.
   const [renderId, setRenderId] = useState(0);
-  // Preview parte VUOTA — l'utente deve cliccare "Render" per far girare il codice.
-  // Serve per evitare che WebGL/canvas heavy parta al solo caricamento pagina.
-  const EMPTY_PREVIEW = "<!doctype html><html><head><style>html,body{background:#0a0a0a;color:#666;font-family:system-ui,sans-serif;height:100%;margin:0;display:grid;place-items:center;font-size:12px;letter-spacing:.2em;text-transform:uppercase;}</style></head><body>Clicca Render per avviare il preview</body></html>";
-  const [renderedCode, setRenderedCode] = useState<string>(EMPTY_PREVIEW);
+  const [renderedCode, setRenderedCode] = useState<string>("");
+  // showPreview: quando è FALSE l'iframe non esiste proprio nel DOM.
+  // Ogni iframe = renderer process separato di Chrome + pipe della sandbox = FD.
+  // Tenerlo smontato di default evita che si accumulino FD al solo caricamento pagina.
+  const [showPreview, setShowPreview] = useState(false);
 
   // When the user switches version, reset draft to that version's code and STOP the preview
   useEffect(() => {
     if (active.id !== lastLoadedId) {
       setDraft(active.code);
-      setRenderedCode(EMPTY_PREVIEW);
-      setRenderId((n) => n + 1);
+      setShowPreview(false);
+      setRenderedCode("");
       setLastLoadedId(active.id);
       setBarMode("idle");
       setConfirmDel(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active.id, active.code, lastLoadedId]);
 
-  // Debounced auto-render: salva su versione + aggiorna renderedCode + incrementa renderId
+  // Debounced auto-save del draft nella versione. NON ricrea l'iframe.
   useEffect(() => {
-    if (!autoRender) return;
-    if (draft === renderedCode) return;
     const versionId = active.id;
     const snapshot = draft;
     const t = setTimeout(() => {
@@ -157,11 +155,14 @@ export default function DesignTestPage() {
           ),
         };
       });
-      setRenderedCode(snapshot);
-      setRenderId((n) => n + 1);
+      // Se auto-render è ON, aggiorna anche l'iframe
+      if (autoRender && showPreview) {
+        setRenderedCode(snapshot);
+        setRenderId((n) => n + 1);
+      }
     }, 800);
     return () => clearTimeout(t);
-  }, [draft, autoRender, active.id, renderedCode, setRawState]);
+  }, [draft, autoRender, showPreview, active.id, setRawState]);
 
   useEffect(() => {
     if (!fs) return;
@@ -180,7 +181,6 @@ export default function DesignTestPage() {
   }
 
   function startCreate(mode: "new" | "duplicate") {
-    console.log("[design-test] startCreate", mode);
     const suggested =
       mode === "duplicate"
         ? `${active.name} — copia`
@@ -190,13 +190,11 @@ export default function DesignTestPage() {
   }
 
   function startRename() {
-    console.log("[design-test] startRename", active.name);
     setNameDraft(active.name);
     setBarMode("rename");
   }
 
   function commitBar() {
-    console.log("[design-test] commitBar", barMode, nameDraft);
     const name = nameDraft.trim();
     if (!name) { setBarMode("idle"); return; }
     if (barMode === "rename") {
@@ -247,6 +245,13 @@ export default function DesignTestPage() {
       };
     });
     setRenderedCode(snapshot);
+    setRenderId((n) => n + 1);
+    setShowPreview(true);
+  }
+
+  function stopPreview() {
+    setShowPreview(false);
+    setRenderedCode("");
     setRenderId((n) => n + 1);
   }
 
@@ -356,13 +361,12 @@ export default function DesignTestPage() {
             />
             Auto-render
           </label>
-          <button
-            style={btnStyle}
-            onClick={() => { setRenderedCode(EMPTY_PREVIEW); setRenderId((n) => n + 1); }}
-          >
-            Stop preview
+          {showPreview && (
+            <button style={btnStyle} onClick={stopPreview}>Stop preview</button>
+          )}
+          <button className="btn-save" onClick={manualRender}>
+            {showPreview ? "Re-render" : "Render"}
           </button>
-          <button className="btn-save" onClick={manualRender}>Render</button>
         </div>
 
         {/* Editor + preview */}
@@ -401,16 +405,24 @@ export default function DesignTestPage() {
               border: "1px solid var(--bd)",
               borderRadius: 8,
               overflow: "hidden",
-              background: "#000",
+              background: "#0a0a0a",
+              display: "grid",
+              placeItems: "center",
             }}
           >
-            <iframe
-              key={iframeKey}
-              srcDoc={renderedCode}
-              sandbox="allow-scripts"
-              style={{ width: "100%", height: "100%", border: 0, display: "block" }}
-              title="Design preview"
-            />
+            {showPreview ? (
+              <iframe
+                key={iframeKey}
+                srcDoc={renderedCode}
+                sandbox="allow-scripts"
+                style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+                title="Design preview"
+              />
+            ) : (
+              <div style={{ color: "#666", fontSize: 11, letterSpacing: "0.3em", textTransform: "uppercase", textAlign: "center", padding: 24 }}>
+                Clicca Render per avviare il preview
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -457,13 +469,30 @@ export default function DesignTestPage() {
               Chiudi (Esc)
             </button>
           </div>
-          <iframe
-            key={`fs-${iframeKey}`}
-            srcDoc={renderedCode}
-            sandbox="allow-scripts"
-            style={{ width: "100%", height: "100%", border: 0, display: "block" }}
-            title="Design preview fullscreen"
-          />
+          {showPreview ? (
+            <iframe
+              key={`fs-${iframeKey}`}
+              srcDoc={renderedCode}
+              sandbox="allow-scripts"
+              style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+              title="Design preview fullscreen"
+            />
+          ) : (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "grid",
+                placeItems: "center",
+                color: "#666",
+                fontSize: 12,
+                letterSpacing: "0.3em",
+                textTransform: "uppercase",
+              }}
+            >
+              Clicca Render per avviare il preview
+            </div>
+          )}
         </div>
       )}
     </div>
