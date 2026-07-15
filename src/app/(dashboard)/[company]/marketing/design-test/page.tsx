@@ -115,20 +115,27 @@ export default function DesignTestPage() {
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
+  // renderId cambia SOLO su render esplicito o cambio versione, non su ogni tasto.
+  // Serve a evitare di ricreare l'iframe (e con esso il contesto WebGL) ad ogni digitazione.
+  const [renderId, setRenderId] = useState(0);
+  const [renderedCode, setRenderedCode] = useState<string>(active.code);
 
-  // When the user switches version, reset draft to that version's code
+  // When the user switches version, reset draft + rendered code to that version's code
   useEffect(() => {
     if (active.id !== lastLoadedId) {
       setDraft(active.code);
+      setRenderedCode(active.code);
+      setRenderId((n) => n + 1);
       setLastLoadedId(active.id);
       setRenaming(false);
       setConfirmDel(false);
     }
   }, [active.id, active.code, lastLoadedId]);
 
-  // Debounced save of draft into the correct version
+  // Debounced auto-render: salva su versione + aggiorna renderedCode + incrementa renderId
   useEffect(() => {
     if (!autoRender) return;
+    if (draft === renderedCode) return;
     const versionId = active.id;
     const snapshot = draft;
     const t = setTimeout(() => {
@@ -145,9 +152,11 @@ export default function DesignTestPage() {
           ),
         };
       });
-    }, 400);
+      setRenderedCode(snapshot);
+      setRenderId((n) => n + 1);
+    }, 800);
     return () => clearTimeout(t);
-  }, [draft, autoRender, active.id, setRawState]);
+  }, [draft, autoRender, active.id, renderedCode, setRawState]);
 
   useEffect(() => {
     if (!fs) return;
@@ -225,12 +234,13 @@ export default function DesignTestPage() {
         ),
       };
     });
+    setRenderedCode(snapshot);
+    setRenderId((n) => n + 1);
   }
 
-  const code = active.code;
   const iframeKey = useMemo(
-    () => `${active.id}-${code.length}-${active.updatedAt}`,
-    [active.id, code, active.updatedAt],
+    () => `${active.id}-${renderId}`,
+    [active.id, renderId],
   );
 
   return (
@@ -375,7 +385,7 @@ export default function DesignTestPage() {
           >
             <iframe
               key={iframeKey}
-              srcDoc={code}
+              srcDoc={renderedCode}
               sandbox="allow-scripts"
               style={{ width: "100%", height: "100%", border: 0, display: "block" }}
               title="Design preview"
@@ -428,7 +438,7 @@ export default function DesignTestPage() {
           </div>
           <iframe
             key={`fs-${iframeKey}`}
-            srcDoc={code}
+            srcDoc={renderedCode}
             sandbox="allow-scripts"
             style={{ width: "100%", height: "100%", border: 0, display: "block" }}
             title="Design preview fullscreen"
