@@ -26,10 +26,11 @@ export default function ForecastPage() {
   const { prevValues } = initEeValues(metrics, year);
   const [values, setValues] = useLocalState<Record<string, number>>(`themap:${slug}:eeForecast`, () => ({}), undefined, year);
   const hasForecast = Object.keys(values).length > 0;
+  const [confirmDel, setConfirmDel] = useState(false);
 
   function deleteForecast() {
-    if (!confirm(`Eliminare il forecast ${year}? L'operazione non e' reversibile.`)) return;
     setValues({});
+    setConfirmDel(false);
   }
   const { calc, monthly } = eeRecalc(values);
   const grouped = eeGroupMetrics(metrics);
@@ -57,15 +58,23 @@ export default function ForecastPage() {
         <div className="ee-actions" style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span className="ee-badge" style={{ fontSize: 10, color: "var(--fg3)" }}>Sola lettura — promosso dal Playground</span>
           {hasForecast && (
-            <button
-              onClick={deleteForecast}
-              style={{
-                fontSize: 11, padding: "5px 10px", borderRadius: 4,
-                border: "1px solid rgba(239,68,68,.35)", background: "rgba(239,68,68,.08)",
-                color: "#ef4444", cursor: "pointer", fontWeight: 600,
-              }}
-              title={`Elimina forecast ${year}`}
-            >Elimina forecast</button>
+            confirmDel ? (
+              <span className="fws-confirm">
+                <span className="fws-confirm-text">Eliminare forecast {year}?</span>
+                <button className="fws-confirm-yes" onClick={deleteForecast}>Elimina</button>
+                <button className="fws-confirm-no" onClick={() => setConfirmDel(false)}>Annulla</button>
+              </span>
+            ) : (
+              <button
+                onClick={() => setConfirmDel(true)}
+                style={{
+                  fontSize: 11, padding: "5px 10px", borderRadius: 4,
+                  border: "1px solid rgba(239,68,68,.35)", background: "rgba(239,68,68,.08)",
+                  color: "#ef4444", cursor: "pointer", fontWeight: 600,
+                }}
+                title={`Elimina forecast ${year}`}
+              >Elimina forecast</button>
+            )
           )}
         </div>
       </div>
