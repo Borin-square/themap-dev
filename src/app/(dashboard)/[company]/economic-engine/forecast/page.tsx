@@ -24,8 +24,13 @@ export default function ForecastPage() {
   // Se non e' mai stato promosso nulla, l'oggetto e' vuoto e la pagina mostra lo stato "assente".
   const metrics = getEeMockMetrics();
   const { prevValues } = initEeValues(metrics, year);
-  const [values] = useLocalState<Record<string, number>>(`themap:${slug}:eeForecast`, () => ({}), undefined, year);
+  const [values, setValues] = useLocalState<Record<string, number>>(`themap:${slug}:eeForecast`, () => ({}), undefined, year);
   const hasForecast = Object.keys(values).length > 0;
+
+  function deleteForecast() {
+    if (!confirm(`Eliminare il forecast ${year}? L'operazione non e' reversibile.`)) return;
+    setValues({});
+  }
   const { calc, monthly } = eeRecalc(values);
   const grouped = eeGroupMetrics(metrics);
 
@@ -49,8 +54,19 @@ export default function ForecastPage() {
           {company && <span style={{ color: company.color }}>{"\u25A0"}</span>}
           {company?.name || params.company} — Forecast {year}
         </div>
-        <div className="ee-actions">
+        <div className="ee-actions" style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span className="ee-badge" style={{ fontSize: 10, color: "var(--fg3)" }}>Sola lettura — promosso dal Playground</span>
+          {hasForecast && (
+            <button
+              onClick={deleteForecast}
+              style={{
+                fontSize: 11, padding: "5px 10px", borderRadius: 4,
+                border: "1px solid rgba(239,68,68,.35)", background: "rgba(239,68,68,.08)",
+                color: "#ef4444", cursor: "pointer", fontWeight: 600,
+              }}
+              title={`Elimina forecast ${year}`}
+            >Elimina forecast</button>
+          )}
         </div>
       </div>
 
