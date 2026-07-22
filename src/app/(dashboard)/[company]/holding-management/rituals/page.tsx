@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { COMPANIES, type Company } from "@/lib/companies";
 import { Skeleton } from "@/components/Skeleton";
@@ -20,6 +21,8 @@ interface Ritual {
   odg: string | null;
 }
 
+interface OwnershipRow { holding_slug: string; operative_slug: string }
+
 const MESI_FULL = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
 function companyBySlug(slug: string): Company | undefined {
@@ -32,11 +35,16 @@ function fmtItDate(iso: string): string {
 }
 
 export default function HoldingRitualsPage() {
+  const params = useParams();
+  const holdingSlug = params.company as string;
+
   const [rituals, setRituals] = useState<Ritual[]>([]);
+  const [operatives, setOperatives] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterAz, setFilterAz] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<"upcoming" | "past" | "all">("upcoming");
+  const [createFor, setCreateFor] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -44,30 +52,49 @@ export default function HoldingRitualsPage() {
       setLoading(true);
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token || "";
-      const res = await fetch(`/api/rituals`, { headers: { Authorization: `Bearer ${token}` } });
+      const [ritRes, ownRes] = await Promise.all([
+        fetch(`/api/rituals?holding=${holdingSlug}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/holding-management/ownership?holding=${holdingSlug}`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
       if (cancelled) return;
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+      if (!ritRes.ok) {
+        const j = await ritRes.json().catch(() => ({}));
         setError(j.error || "Errore caricamento");
         setLoading(false);
         return;
       }
-      const json = await res.json();
-      setRituals(json.rows || []);
+      const ritJson = await ritRes.json();
+      setRituals(ritJson.rows || []);
+
+      // Elenco operative della holding (anche se ownership fallisce, procediamo).
+      let ops: Company[] = [];
+      if (ownRes.ok) {
+        const ownJson = await ownRes.json();
+        const slugs = Array.from(new Set(((ownJson.rows || []) as OwnershipRow[]).map((r) => r.operative_slug)));
+        ops = slugs
+          .map((s) => companyBySlug(s))
+          .filter((c): c is Company => !!c)
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
+      setOperatives(ops);
       setError(null);
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [holdingSlug]);
 
-  const aziendeInUse = useMemo(() => {
-    const seen = new Set<string>();
-    for (const r of rituals) seen.add(r.azienda);
-    return Array.from(seen)
-      .map((s) => companyBySlug(s))
-      .filter((c): c is Company => !!c)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rituals]);
+  // Le operative da mostrare nel chip-filter: unione tra operative-della-holding e
+  // eventuali azienda gia' presenti nei rituals (per robustezza se ownership manca).
+  const operativesForFilter = useMemo(() => {
+    const map = new Map<string, Company>();
+    for (const op of operatives) map.set(op.slug, op);
+    for (const r of rituals) {
+      if (map.has(r.azienda)) continue;
+      const c = companyBySlug(r.azienda);
+      if (c) map.set(c.slug, c);
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [operatives, rituals]);
 
   const today = new Date().toISOString().slice(0, 10);
   const filtered = useMemo(() => {
@@ -107,36 +134,62 @@ export default function HoldingRitualsPage() {
     <div>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Rituals</h1>
-        <div style={{ display: "flex", gap: 4 }}>
-          {(["upcoming", "past", "all"] as const).map((t) => {
-            const active = tab === t;
-            const label = t === "upcoming" ? "Prossimi" : t === "past" ? "Passati" : "Tutti";
-            return (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            {(["upcoming", "past", "all"] as const).map((t) => {
+              const active = tab === t;
+              const label = t === "upcoming" ? "Prossimi" : t === "past" ? "Passati" : "Tutti";
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  style={{
+                    padding: "5px 12px",
+                    fontSize: 11,
+                    borderRadius: 4,
+                    border: "1px solid var(--bd)",
+                    background: active ? "var(--fg)" : "transparent",
+                    color: active ? "var(--bg)" : "var(--fg2)",
+                    cursor: "pointer",
+                    fontWeight: active ? 700 : 500,
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {operatives.length > 0 && (
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <select
+                value={createFor}
+                onChange={(e) => setCreateFor(e.target.value)}
                 style={{
-                  padding: "5px 12px",
-                  fontSize: 11,
-                  borderRadius: 4,
-                  border: "1px solid var(--bd)",
-                  background: active ? "var(--fg)" : "transparent",
-                  color: active ? "var(--bg)" : "var(--fg2)",
-                  cursor: "pointer",
-                  fontWeight: active ? 700 : 500,
+                  fontSize: 11, padding: "5px 8px", borderRadius: 4,
+                  border: "1px solid var(--bd)", background: "var(--cd)", color: "var(--fg)",
                 }}
               >
-                {label}
-              </button>
-            );
-          })}
+                <option value="">Nuovo ritual per…</option>
+                {operatives.map((op) => <option key={op.slug} value={op.slug}>{op.name}</option>)}
+              </select>
+              {createFor && (
+                <Link
+                  href={`/${createFor}/people/rituals`}
+                  style={{
+                    padding: "5px 12px", fontSize: 11, borderRadius: 4, border: 0,
+                    background: "var(--fg)", color: "var(--bg)", fontWeight: 700, textDecoration: "none",
+                  }}
+                >Vai →</Link>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {aziendeInUse.length > 0 && (
+      {operativesForFilter.length > 0 && (
         <div className="cd" style={{ padding: 10, marginBottom: 16, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "var(--fg3)", minWidth: 60 }}>AZIENDA</span>
-          {aziendeInUse.map((az) => {
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "var(--fg3)", minWidth: 60 }}>OPERATIVA</span>
+          {operativesForFilter.map((az) => {
             const active = filterAz.has(az.slug);
             return (
               <button
@@ -184,7 +237,11 @@ export default function HoldingRitualsPage() {
         <div className="cd" style={{ padding: 20, color: "#ef4444" }}>{error}</div>
       ) : filtered.length === 0 ? (
         <div className="cd" style={{ padding: 40, textAlign: "center", color: "var(--fg3)" }}>
-          {rituals.length === 0 ? "Nessun ritual salvato. Creane nella tab Organization → Rituals di una operativa." : "Nessun ritual con i filtri attivi"}
+          {rituals.length === 0
+            ? (operatives.length === 0
+                ? "Questa holding non ha operative collegate (imposta le quote in Ownership)."
+                : "Nessun ritual per le operative di questa holding. Usa il selettore in alto per crearne uno.")
+            : "Nessun ritual con i filtri attivi"}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>

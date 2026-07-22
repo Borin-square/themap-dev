@@ -18,12 +18,29 @@ export async function GET(req: NextRequest) {
   if (!(await authOk(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const azienda = req.nextUrl.searchParams.get("azienda"); // optional filter
+  const holding = req.nextUrl.searchParams.get("holding"); // optional: solo rituals delle operative di questa holding
   const from = req.nextUrl.searchParams.get("from"); // ISO date
   const to = req.nextUrl.searchParams.get("to"); // ISO date
 
   const svc = createServiceClient();
+
+  let operativeSlugs: string[] | null = null;
+  if (holding) {
+    const { data: own, error: oErr } = await svc
+      .from("holding_ownership")
+      .select("operative_slug")
+      .eq("holding_slug", holding);
+    if (oErr) return NextResponse.json({ error: oErr.message }, { status: 500 });
+    operativeSlugs = Array.from(new Set((own ?? []).map((r) => r.operative_slug as string)));
+    if (operativeSlugs.length === 0) {
+      // La holding non possiede operative → nessun ritual da mostrare.
+      return NextResponse.json({ rows: [] });
+    }
+  }
+
   let q = svc.from("rituals").select("*").order("data", { ascending: true });
   if (azienda) q = q.eq("azienda", azienda);
+  if (operativeSlugs) q = q.in("azienda", operativeSlugs);
   if (from) q = q.gte("data", from);
   if (to) q = q.lte("data", to);
 
