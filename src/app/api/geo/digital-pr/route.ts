@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const analysis = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{
         role: "user",
         content: `Sei un esperto di Digital PR e link building. Identifica i siti piu' rilevanti dove il brand "${body.brandName}" dovrebbe ottenere visibilita', menzioni e backlink per migliorare la sua authority e la citabilita' da parte degli LLM.
@@ -76,7 +76,12 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
     } catch {
-      return Response.json({ error: "Errore nel parsing dell'analisi" }, { status: 500 });
+      const truncated = analysis.stop_reason === "max_tokens";
+      return Response.json({
+        error: truncated
+          ? "Analisi troppo lunga: il modello ha esaurito i token. Riduci il numero di siti richiesti."
+          : "Errore nel parsing dell'analisi",
+      }, { status: 500 });
     }
 
     const result: DigitalPRResult = {

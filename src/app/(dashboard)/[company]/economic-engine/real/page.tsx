@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
+import { useYear } from "@/components/YearProvider";
 import {
-  getEeMockMetrics, getEeYear, initEeValues, eeRecalc, eeFmtEuro,
+  eeRecalc, eeFmtEuro,
   eeGetDelta, EE_KPI_ITEMS, EE_MONTHS,
   type EeMonthlyRow,
 } from "@/lib/economic-engine";
@@ -32,15 +33,14 @@ const ROWS: { label: string; key: keyof RealRow; group: "ricavi" | "costi" }[] =
 export default function ConsuntivoPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
-  const year = getEeYear();
+  const { year } = useYear();
+  const slug = params.company as string;
 
-  // Forecast data (reference)
-  const metrics = getEeMockMetrics();
-  const { values: fcValues } = initEeValues(metrics, year);
+  // Forecast di riferimento: quello promosso dal Playground (eeForecast).
+  const [fcValues] = useLocalState<Record<string, number>>(`themap:${slug}:eeForecast`, () => ({}), undefined, year);
   const { calc: fcCalc, monthly: fcMonthly } = eeRecalc(fcValues);
 
-  // Real data — prima 5 mesi con valori mock, resto vuoto
-  const slug = params.company as string;
+  // Real data — first 5 months mock (only 2026), rest empty
   const [realData, setRealData] = useLocalState<RealRow[]>(`themap:${slug}:eeReal`, () => {
     const rows: RealRow[] = [];
     for (let i = 0; i < 12; i++) {
@@ -66,7 +66,7 @@ export default function ConsuntivoPage() {
       }
     }
     return rows;
-  });
+  }, undefined, year);
 
   const [editing, setEditing] = useState<{ row: number; key: keyof RealRow } | null>(null);
 

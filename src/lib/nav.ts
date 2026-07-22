@@ -1,5 +1,5 @@
 import type { Company } from "./companies";
-import { type DisabledFeatures, isFeatureEnabled } from "./features";
+import { type DisabledFeatures, type FeatureState, isFeatureEnabled } from "./features";
 
 export interface NavItem {
   id: string;
@@ -7,6 +7,7 @@ export interface NavItem {
   href?: string;
   color?: string;
   featureKey?: string;
+  companyType?: Company["type"];
   children?: NavItem[];
 }
 
@@ -15,6 +16,7 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
     id: c.slug,
     label: c.name,
     color: c.color,
+    companyType: c.type,
     children: [
       {
         id: `${c.slug}-strategy`,
@@ -47,7 +49,16 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
         id: `${c.slug}-mktg`,
         label: "Marketing",
         children: [
-          { id: `${c.slug}-mktg-camp`, label: "Campaign Manager", featureKey: "marketing.campaigns", href: `/${c.slug}/marketing` },
+          {
+            id: `${c.slug}-mktg-camp`,
+            label: "Campaign Manager",
+            featureKey: "marketing.campaigns",
+            children: [
+              { id: `${c.slug}-mktg-camp-ov`, label: "Overview", href: `/${c.slug}/marketing` },
+              { id: `${c.slug}-mktg-camp-report`, label: "Report", featureKey: "marketing.campaign-manager.report", href: `/${c.slug}/marketing/campaign-manager/report` },
+              { id: `${c.slug}-mktg-camp-imp`, label: "Impostazioni", featureKey: "marketing.campaign-manager.impostazioni", href: `/${c.slug}/marketing/campaign-manager/impostazioni` },
+            ],
+          },
           { id: `${c.slug}-mktg-strat`, label: "Strategy", featureKey: "marketing.strategy", href: `/${c.slug}/marketing/strategy` },
           { id: `${c.slug}-mktg-brand`, label: "Brand Asset", featureKey: "marketing.brand-asset", href: `/${c.slug}/marketing/brand-asset` },
           { id: `${c.slug}-mktg-seo`, label: "SEO Cluster", featureKey: "marketing.seo-cluster", href: `/${c.slug}/marketing/seo-cluster` },
@@ -76,24 +87,44 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           { id: `${c.slug}-mcp`, label: "MCP", featureKey: "organization.mcp", href: `/${c.slug}/organization/mcp` },
         ],
       },
+      {
+        id: `${c.slug}-hm`,
+        label: "Holding Management",
+        children: [
+          { id: `${c.slug}-hm-overview`, label: "Overview", featureKey: "holding-management.overview", href: `/${c.slug}/holding-management/overview` },
+          { id: `${c.slug}-hm-flywheels`, label: "Flywheels", featureKey: "holding-management.flywheels", href: `/${c.slug}/holding-management/flywheels` },
+          { id: `${c.slug}-hm-alerts`, label: "Alerts", featureKey: "holding-management.alerts", href: `/${c.slug}/holding-management/alerts` },
+          { id: `${c.slug}-hm-multiyear`, label: "Multiyear", featureKey: "holding-management.multiyear", href: `/${c.slug}/holding-management/multiyear` },
+          { id: `${c.slug}-hm-rituals`, label: "Rituals", featureKey: "holding-management.rituals", href: `/${c.slug}/holding-management/rituals` },
+          { id: `${c.slug}-hm-vision`, label: "Vision", featureKey: "holding-management.vision", href: `/${c.slug}/holding-management/vision` },
+          { id: `${c.slug}-hm-workload`, label: "Workload", featureKey: "holding-management.workload", href: `/${c.slug}/holding-management/workload` },
+          { id: `${c.slug}-hm-tasks`, label: "Task Manager", featureKey: "holding-management.tasks", href: `/${c.slug}/holding-management/tasks` },
+        ],
+      },
     ],
   }));
 }
 
-/** Filtra i nav items in base alle feature flags. I company slug sono estratti dal contesto nav. */
-export function filterNavByFeatures(items: NavItem[], disabled: DisabledFeatures, companySlug?: string): NavItem[] {
+/** Filtra i nav items in base alle feature flags. I company slug e type sono estratti dal contesto nav. */
+export function filterNavByFeatures(
+  items: NavItem[],
+  state: FeatureState | DisabledFeatures,
+  companySlug?: string,
+  companyType?: Company["type"],
+): NavItem[] {
   return items.reduce<NavItem[]>((acc, item) => {
-    // Determina il company slug: se l'item è una company root (ha color), usa il suo id
+    // Determina il company slug/type: se l'item è una company root (ha color), usa il suo id/type
     const slug = item.color ? item.id : companySlug;
+    const type = item.companyType ?? companyType;
 
     // Se l'item ha una featureKey e la feature è disabilitata, skip
-    if (item.featureKey && slug && !isFeatureEnabled(disabled, slug, item.featureKey)) {
+    if (item.featureKey && slug && !isFeatureEnabled(state, slug, item.featureKey, type)) {
       return acc;
     }
 
     // Filtra ricorsivamente i children
     if (item.children) {
-      const filteredChildren = filterNavByFeatures(item.children, disabled, slug);
+      const filteredChildren = filterNavByFeatures(item.children, state, slug, type);
       // Se aveva children ma ora sono tutti filtrati, nascondi il parent
       if (filteredChildren.length === 0) return acc;
       acc.push({ ...item, children: filteredChildren });
@@ -105,22 +136,26 @@ export function filterNavByFeatures(items: NavItem[], disabled: DisabledFeatures
   }, []);
 }
 
+const TYPE_GROUPS: { id: string; label: string; type: Company["type"] }[] = [
+  { id: "type-holding", label: "Holding", type: "holding" },
+  { id: "type-operative", label: "Operative", type: "operative" },
+  { id: "type-client", label: "Client", type: "client" },
+];
+
 export function buildNav(companies: Company[]): NavItem[] {
+  const groups: NavItem[] = TYPE_GROUPS.flatMap((g) => {
+    const kids = buildOperativeNav(companies.filter((c) => c.type === g.type));
+    return kids.length > 0 ? [{ id: g.id, label: g.label, children: kids }] : [];
+  });
+
   return [
     { id: "home", label: "Home", href: "/" },
-    {
-      id: "holding",
-      label: "Panoramica",
-      children: [
-        { id: "overview", label: "Overview", href: "/holding/overview" },
-        { id: "vision", label: "Vision", href: "/holding/vision" },
-        { id: "workload", label: "Workload", href: "/holding/workload" },
-        { id: "tasks", label: "Task Manager", href: "/holding/tasks" },
-      ],
-    },
-    { id: "operative", label: "Operative", children: buildOperativeNav(companies) },
+    ...groups,
   ];
 }
+
+/** Ritorna gli id dei gruppi-tipo (usato per il filtro sidebar OPERATIVO). */
+export const TYPE_GROUP_IDS: string[] = TYPE_GROUPS.map((g) => g.id);
 
 export const FOOTER_NAV: NavItem[] = [
   { id: "library", label: "Library", href: "/library" },

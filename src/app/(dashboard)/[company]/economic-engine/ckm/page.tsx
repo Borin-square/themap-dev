@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
+import { useYear } from "@/components/YearProvider";
 import {
   getEeMockMetrics, initEeValues, eeRecalc, eeIsPercent,
   EE_INVERTED, type EeMetric,
@@ -113,14 +114,15 @@ function Sparkline({ vals }: { vals: (number | null)[] }) {
 export default function CkmPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
+  const { year } = useYear();
 
   const { forecasts, metrics } = useMemo(buildForecasts, []);
   const catalog = useMemo(() => buildCatalog(metrics), [metrics]);
 
   const slug = params.company as string;
-  const [selected, setSelected] = useLocalState<string[]>(`themap:${slug}:ckmSelected`, () => []);
-  const [pickerOpen, setPickerOpen] = useLocalState<boolean>(`themap:${slug}:ckmPickerOpen`, () => true);
-  const [notes, setNotes] = useLocalState<Record<string, string>>(`themap:${slug}:ckmNotes`, () => ({}));
+  const [selected, setSelected] = useLocalState<string[]>(`themap:${slug}:ckmSelected`, () => [], undefined, year);
+  const [pickerOpen, setPickerOpen] = useLocalState<boolean>(`themap:${slug}:ckmPickerOpen`, () => true, undefined, year);
+  const [notes, setNotes] = useLocalState<Record<string, string>>(`themap:${slug}:ckmNotes`, () => ({}), undefined, year);
 
   function toggleMetric(key: string) {
     setSelected((prev) =>

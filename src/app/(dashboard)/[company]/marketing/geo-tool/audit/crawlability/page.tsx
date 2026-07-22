@@ -7,6 +7,7 @@ import type { GEOProject, CrawlabilityResult } from "@/lib/geo/types";
 import { emptyAudits, AI_CRAWLER_INFO, AI_CRAWLERS_CRITICAL } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
 import { scoreColor } from "@/lib/geo/scoring";
+import { AuditLogPanel } from "@/components/AuditLogPanel";
 
 export default function CrawlabilityPage() {
   const params = useParams();
@@ -183,6 +184,12 @@ export default function CrawlabilityPage() {
           <div className="geo-audit-meta">
             Scansione: {new Date(latest.scannedAt).toLocaleString("it-IT")} | URL: {latest.url}
           </div>
+
+          <AuditLogPanel
+            log={latest._log}
+            toolName="crawlability"
+            extra={{ input: { siteUrl: url }, result: latest }}
+          />
         </>
       )}
 

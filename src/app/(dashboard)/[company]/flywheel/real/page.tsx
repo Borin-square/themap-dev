@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useAuth } from "@/components/AuthProvider";
+import { isAdmin } from "@/lib/auth";
 import { useLocalState } from "@/lib/useLocalState";
+import { useYear } from "@/components/YearProvider";
 import { dataVersion } from "@/lib/square-marketing-data";
 import {
   FW_FUNCS, FW_MN, getMockDataForCompany, fwSegColor, fwSortedGoals,
@@ -15,19 +18,44 @@ export default function FlywheelRealPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
+  const { session } = useAuth();
+  const admin = isAdmin(session);
+  const visibleFuncs = admin ? FW_FUNCS : FW_FUNCS.filter((fn) => fn !== "DIREZIONE" && fn !== "AMMINISTRAZIONE");
   const mock = getMockDataForCompany(slug);
+  const { year } = useYear();
   const dv = dataVersion(slug);
-  const [data, setData] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data, dv);
+  const emptyInit = () => (year === 2026 ? mock.data : ({} as FwData));
+  const [data, setData, flush, hydrated] = useLocalState<FwData>(`themap:${slug}:fwData`, emptyInit, dv, year);
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   function toggle(id: string) {
     setOpen((p) => ({ ...p, [id]: !p[id] }));
   }
 
-  function showToast(msg: string) {
-    setToast(msg);
+  function showToast(msg: string, err?: boolean) {
+    setToast({ msg, err });
     setTimeout(() => setToast(null), 3000);
+  }
+
+  async function handleSave() {
+    if (saving) return;
+    // Blur any focused input so its pending onBlur fires and its value flows into state.
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLInputElement) {
+      document.activeElement.blur();
+    }
+    setSaving(true);
+    try {
+      // Wait a macrotask so React commits the state update from the blur before we flush.
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      showToast("Valori salvati");
+    } catch {
+      showToast("Errore salvataggio", true);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function updateReal(goalName: string, subName: string, month: number, value: number) {
@@ -56,14 +84,18 @@ export default function FlywheelRealPage() {
       </div>
 
       <div className="fws-page">
-        {toast && <div className="fws-toast">{toast}</div>}
+        {toast && <div className={`fws-toast${toast.err ? " fws-toast-err" : ""}`}>{toast.msg}</div>}
 
         <div className="fws-head">
           {company && <div className="fws-head-dot" style={{ background: company.color }} />}
           {company?.name || params.company} — Flywheel Consuntivo
         </div>
 
-        {FW_FUNCS.map((fn) => {
+        {!hydrated && (
+          <div className="fws-empty">Caricamento dati…</div>
+        )}
+
+        {hydrated && visibleFuncs.map((fn) => {
           const goals = data[fn] || {};
           const goalKeys = fwSortedGoals(goals);
           const segColor = fwSegColor(fn);
@@ -94,7 +126,8 @@ export default function FlywheelRealPage() {
                         <RealTable
                           real={g.real}
                           onChange={(m, v) => updateReal(gn, "", m, v)}
-                          onSave={() => showToast("Valori salvati")}
+                          onSave={handleSave}
+                          saving={saving}
                         />
                         {subKeys.map((sn) => (
                           <div key={sn}>
@@ -104,7 +137,8 @@ export default function FlywheelRealPage() {
                             <RealTable
                               real={g.subgoals[sn].real}
                               onChange={(m, v) => updateReal(gn, sn, m, v)}
-                              onSave={() => showToast("Valori salvati")}
+                              onSave={handleSave}
+                              saving={saving}
                             />
                           </div>
                         ))}
@@ -117,7 +151,7 @@ export default function FlywheelRealPage() {
           );
         })}
 
-        {FW_FUNCS.every((fn) => Object.keys(data[fn] || {}).length === 0) && (
+        {hydrated && visibleFuncs.every((fn) => Object.keys(data[fn] || {}).length === 0) && (
           <div className="fws-empty">Nessun goal configurato. Vai su Setup per creare i goal.</div>
         )}
       </div>
@@ -126,11 +160,12 @@ export default function FlywheelRealPage() {
 }
 
 function RealTable({
-  real, onChange, onSave,
+  real, onChange, onSave, saving,
 }: {
   real: (number | null)[];
   onChange: (month: number, value: number) => void;
   onSave: () => void;
+  saving?: boolean;
 }) {
   return (
     <div className="fws-vals">
@@ -145,7 +180,7 @@ function RealTable({
           <tr className="fws-real">
             <td className="fws-v-label">Real</td>
             {Array.from({ length: 12 }, (_, i) => (
-              <td key={i}>
+              <td key={`${i}-${real[i] ?? ""}`}>
                 <input
                   className="fws-val-inp"
                   type="number"
@@ -159,7 +194,16 @@ function RealTable({
         </tbody>
       </table>
       <div className="fws-fill-row">
-        <button className="fws-save-btn" onClick={onSave}>Salva</button>
+        <button
+          className="fws-save-btn"
+          onClick={(e) => {
+            (e.currentTarget as HTMLButtonElement).focus();
+            onSave();
+          }}
+          disabled={saving}
+        >
+          {saving ? "Salvataggio…" : "Salva"}
+        </button>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ export interface FwSubgoalData {
   owner: string;
   isPercent: boolean;
   isCurrency: boolean;
+  decimals?: number;
   real: (number | null)[];
   forecast: (number | null)[];
 }
@@ -66,6 +67,13 @@ export const FW_PER_LBL: Record<string, string> = {
   m0: "Gennaio", m1: "Febbraio", m2: "Marzo", m3: "Aprile", m4: "Maggio", m5: "Giugno",
   m6: "Luglio", m7: "Agosto", m8: "Settembre", m9: "Ottobre", m10: "Novembre", m11: "Dicembre",
 };
+
+/** Label del periodo con l'anno selezionato (rimpiazza "2026" nei preset annuali). */
+export function fwPerLabel(per: string, year: number): string {
+  const base = FW_PER_LBL[per] ?? per;
+  if (year === 2026) return base;
+  return base.replace("2026", String(year));
+}
 
 /** Get goal keys sorted by _order (fallback: insertion order) */
 export function fwSortedGoals(goals: Record<string, FwGoalData>): string[] {
@@ -323,7 +331,11 @@ export function fwSCl(r: number | null): "green" | "yellow" | "red" | "grey" {
   return "red";
 }
 
-export function fwDV(months: (number | null)[] | undefined, per: string, isPct: boolean, isCur: boolean): string {
+function fmtNum(n: number, dec: number): string {
+  return n.toLocaleString("it-IT", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+export function fwDV(months: (number | null)[] | undefined, per: string, isPct: boolean, isCur: boolean, decimals?: number): string {
   if (!months) return "N/D";
   const idx = FW_PER[per];
   let s = 0, c = 0;
@@ -332,18 +344,18 @@ export function fwDV(months: (number | null)[] | undefined, per: string, isPct: 
     if (v !== null && v !== undefined && !isNaN(v)) { s += v; c++; }
   }
   if (c === 0) return "N/D";
-  if (isPct) return (((s / c) * 100).toFixed(1)) + "%";
-  if (isCur) return "\u20AC " + Math.round(s).toLocaleString("it-IT");
-  return (Math.round(s * 10) / 10).toLocaleString("it-IT");
+  if (isPct) return fmtNum((s / c) * 100, decimals ?? 1) + "%";
+  if (isCur) return "\u20AC " + fmtNum(s, decimals ?? 0);
+  return fmtNum(s, decimals ?? 1);
 }
 
-export function fwMDV(months: (number | null)[] | undefined, idx: number, isPct: boolean, isCur: boolean): string {
+export function fwMDV(months: (number | null)[] | undefined, idx: number, isPct: boolean, isCur: boolean, decimals?: number): string {
   if (!months) return "N/D";
   const v = months[idx];
   if (v === null || v === undefined || isNaN(v)) return "N/D";
-  if (isPct) return ((v * 100).toFixed(1)) + "%";
-  if (isCur) return "\u20AC " + Math.round(v).toLocaleString("it-IT");
-  return (Math.round(v * 10) / 10).toLocaleString("it-IT");
+  if (isPct) return fmtNum(v * 100, decimals ?? 1) + "%";
+  if (isCur) return "\u20AC " + fmtNum(v, decimals ?? 0);
+  return fmtNum(v, decimals ?? 1);
 }
 
 // === MOCK DATA ===

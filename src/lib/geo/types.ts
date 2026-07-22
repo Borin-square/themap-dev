@@ -246,6 +246,20 @@ export const AI_CRAWLER_UAS: Record<string, string> = {
 
 export type CrawlerStatus = "allowed" | "blocked" | "unknown";
 
+export interface GEOAuditLog {
+  durationMs: number;
+  steps: { label: string; timestamp: string; detail?: string }[];
+  fetches?: { url: string; status?: number; ok?: boolean; contentSnippet?: string; error?: string }[];
+  llm?: {
+    model: string;
+    prompt: string;
+    rawResponse: string;
+    stopReason?: string;
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+}
+
 export interface CrawlabilityResult {
   id: string;
   url: string;
@@ -255,6 +269,7 @@ export interface CrawlabilityResult {
   sitemap: { found: boolean; url?: string; entries?: number };
   issues: AuditIssue[];
   score: number;
+  _log?: GEOAuditLog;
 }
 
 export interface AuditIssue {
@@ -284,6 +299,7 @@ export interface ContentReadinessResult {
   missingBlocks: string[];
   suggestions: string[];
   issues: AuditIssue[];
+  _log?: GEOAuditLog;
 }
 
 export interface StructuredDataResult {
@@ -294,6 +310,7 @@ export interface StructuredDataResult {
   overallScore: number;
   suggestedMarkup: string[];
   issues: AuditIssue[];
+  _log?: GEOAuditLog;
 }
 
 export interface EntityStrengthResult {
@@ -318,6 +335,7 @@ export interface EntityStrengthResult {
   }[];
   issues: AuditIssue[];
   suggestions: string[];
+  _log?: GEOAuditLog;
 }
 
 export interface GEOAudits {
@@ -381,6 +399,7 @@ export interface KGAnalysis {
   newSchemas: KGSuggestion[];
   overallNotes: string;
   analyzedAt: string;
+  _log?: GEOAuditLog;
 }
 
 export interface KGAudit {

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { isSuperAdmin } from "@/lib/auth";
-import { FEATURE_DEFS } from "@/lib/features";
+import { FEATURE_DEFS, OPT_IN_FEATURES } from "@/lib/features";
 import { fetchCompanies, type Company } from "@/lib/companies";
 import { supabase } from "@/lib/supabase";
 
@@ -46,7 +46,13 @@ export default function AdminFeaturesPage() {
 
   function isEnabled(companySlug: string, featureKey: string): boolean {
     const row = features.find((f) => f.company_slug === companySlug && f.feature_key === featureKey);
-    return row ? row.enabled : true; // default enabled
+    if (row) return row.enabled;
+    if (OPT_IN_FEATURES.has(featureKey)) {
+      // Holding Management: default ON sulle holding, OFF su altre.
+      const co = companies.find((c) => c.slug === companySlug);
+      return co?.type === "holding";
+    }
+    return true;
   }
 
   async function toggle(companySlug: string, featureKey: string) {

@@ -179,7 +179,7 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
 
     const synthesis = await getAnthropicClient().messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{ role: "user", content: synthesisPrompt }],
     });
 
@@ -193,7 +193,12 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
     } catch {
-      return Response.json({ error: "Errore nel parsing dell'analisi." }, { status: 500 });
+      const truncated = synthesis.stop_reason === "max_tokens";
+      return Response.json({
+        error: truncated
+          ? "Analisi troppo lunga: il modello ha esaurito i token. Riduci il numero di competitor o fonti."
+          : "Errore nel parsing dell'analisi.",
+      }, { status: 500 });
     }
 
     // Ensure new fields have defaults for safety

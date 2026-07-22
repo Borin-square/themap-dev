@@ -7,6 +7,7 @@ import type { GEOProject, EntityStrengthResult } from "@/lib/geo/types";
 import { emptyAudits } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
 import { scoreColor } from "@/lib/geo/scoring";
+import { AuditLogPanel } from "@/components/AuditLogPanel";
 
 const SCORE_LABELS: Record<string, string> = {
   consistency: "Coerenza Brand",
@@ -215,6 +216,12 @@ export default function EntityStrengthPage() {
           <div className="geo-audit-meta">
             Scansione: {new Date(latest.scannedAt).toLocaleString("it-IT")}
           </div>
+
+          <AuditLogPanel
+            log={latest._log}
+            toolName="entity-strength"
+            extra={{ config: cfg, result: latest }}
+          />
         </>
       )}
 

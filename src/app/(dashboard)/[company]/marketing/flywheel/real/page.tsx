@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
+import { useYear } from "@/components/YearProvider";
 import {
   FW_MN, fwSortedGoals,
   type FwData,
@@ -16,17 +17,37 @@ export default function MktgFlywheelRealPage() {
   const company = getCompany(params.company as string);
   const slug = params.company as string;
   const mock = getMfwMockData();
-  const [data, setData] = useLocalState<FwData>(`themap:${slug}:mfwData`, () => mock.data);
+  const { year } = useYear();
+  const emptyInit = () => (year === 2026 ? mock.data : ({} as FwData));
+  const [data, setData, flush, hydrated] = useLocalState<FwData>(`themap:${slug}:mfwData`, emptyInit, undefined, year);
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   function toggle(id: string) {
     setOpen((p) => ({ ...p, [id]: !p[id] }));
   }
 
-  function showToast(msg: string) {
-    setToast(msg);
+  function showToast(msg: string, err?: boolean) {
+    setToast({ msg, err });
     setTimeout(() => setToast(null), 3000);
+  }
+
+  async function handleSave() {
+    if (saving) return;
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLInputElement) {
+      document.activeElement.blur();
+    }
+    setSaving(true);
+    try {
+      await new Promise((r) => setTimeout(r, 0));
+      await flush();
+      showToast("Valori salvati");
+    } catch {
+      showToast("Errore salvataggio", true);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function updateReal(goalName: string, subName: string, month: number, value: number) {
@@ -55,11 +76,12 @@ export default function MktgFlywheelRealPage() {
         <Link href={`/${slug}/marketing/seo-cluster`} className="ee-tab">SEO Cluster</Link>
         <Link href={`/${slug}/marketing/geo-tool`} className="ee-tab">GEO Tool</Link>
         <Link href={`/${slug}/marketing/flywheel`} className="ee-tab">Flywheel</Link>
+        <Link href={`/${slug}/marketing/page-generator`} className="ee-tab">Page Generator</Link>
         <Link href={`/${slug}/marketing/design-test`} className="ee-tab">Design Test</Link>
       </div>
 
       <div className="fws-page">
-        {toast && <div className="fws-toast">{toast}</div>}
+        {toast && <div className={`fws-toast${toast.err ? " fws-toast-err" : ""}`}>{toast.msg}</div>}
 
         <div className="fws-head">
           {company && <div className="fws-head-dot" style={{ background: company.color }} />}
@@ -72,7 +94,11 @@ export default function MktgFlywheelRealPage() {
           <span className="ee-tab active">Consuntivo</span>
         </div>
 
-        {MFW_FUNCS.map((fn) => {
+        {!hydrated && (
+          <div className="fws-empty">Caricamento dati…</div>
+        )}
+
+        {hydrated && MFW_FUNCS.map((fn) => {
           const goals = data[fn] || {};
           const goalKeys = fwSortedGoals(goals);
           const segColor = mfwSegColor(fn);
@@ -103,7 +129,8 @@ export default function MktgFlywheelRealPage() {
                         <RealTable
                           real={g.real}
                           onChange={(m, v) => updateReal(gn, "", m, v)}
-                          onSave={() => showToast("Valori salvati")}
+                          onSave={handleSave}
+                          saving={saving}
                         />
                         {subKeys.map((sn) => (
                           <div key={sn}>
@@ -113,7 +140,8 @@ export default function MktgFlywheelRealPage() {
                             <RealTable
                               real={g.subgoals[sn].real}
                               onChange={(m, v) => updateReal(gn, sn, m, v)}
-                              onSave={() => showToast("Valori salvati")}
+                              onSave={handleSave}
+                              saving={saving}
                             />
                           </div>
                         ))}
@@ -126,7 +154,7 @@ export default function MktgFlywheelRealPage() {
           );
         })}
 
-        {MFW_FUNCS.every((fn) => Object.keys(data[fn] || {}).length === 0) && (
+        {hydrated && MFW_FUNCS.every((fn) => Object.keys(data[fn] || {}).length === 0) && (
           <div className="fws-empty">Nessun goal configurato. Vai su Setup per creare i goal.</div>
         )}
       </div>
@@ -135,11 +163,12 @@ export default function MktgFlywheelRealPage() {
 }
 
 function RealTable({
-  real, onChange, onSave,
+  real, onChange, onSave, saving,
 }: {
   real: (number | null)[];
   onChange: (month: number, value: number) => void;
   onSave: () => void;
+  saving?: boolean;
 }) {
   return (
     <div className="fws-vals">
@@ -154,7 +183,7 @@ function RealTable({
           <tr className="fws-real">
             <td className="fws-v-label">Real</td>
             {Array.from({ length: 12 }, (_, i) => (
-              <td key={i}>
+              <td key={`${i}-${real[i] ?? ""}`}>
                 <input
                   className="fws-val-inp"
                   type="number"
@@ -168,7 +197,9 @@ function RealTable({
         </tbody>
       </table>
       <div className="fws-fill-row">
-        <button className="fws-save-btn" onClick={onSave}>Salva</button>
+        <button className="fws-save-btn" onClick={onSave} disabled={saving}>
+          {saving ? "Salvataggio…" : "Salva"}
+        </button>
       </div>
     </div>
   );

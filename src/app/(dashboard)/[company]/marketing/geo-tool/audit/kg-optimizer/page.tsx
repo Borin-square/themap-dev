@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useLocalState } from "@/lib/useLocalState";
 import { getMockGEOProject } from "@/lib/geo/mock";
+import { AuditLogPanel } from "@/components/AuditLogPanel";
 import type {
   GEOProject,
   KGAudit,
@@ -679,6 +680,12 @@ function AuditDetail({ audit, onSetStatus, onUpdateOverride, onClearOverride }: 
               </div>
             </div>
           )}
+
+          <AuditLogPanel
+            log={audit.analysis._log}
+            toolName="kg-optimizer"
+            extra={{ url: audit.url, analysis: audit.analysis }}
+          />
         </>
       )}
     </div>

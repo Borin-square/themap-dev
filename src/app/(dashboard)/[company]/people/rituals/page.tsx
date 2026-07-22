@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany, COMPANIES } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import { dataVersion } from "@/lib/square-marketing-data";
 import { getMockPeopleForCompany, type Persona } from "@/lib/people";
+import { supabase } from "@/lib/supabase";
 
 interface Evento {
-  id: number;
+  id: string;
   azienda: string;
   tipologia: string;
   titolo: string;
@@ -20,6 +21,53 @@ interface Evento {
   confermato: boolean;
   partecipanti: string;
   odg: string;
+}
+
+interface RitualRow {
+  id: string;
+  azienda: string;
+  tipologia: string;
+  titolo: string;
+  data: string; // yyyy-mm-dd
+  data_fine: string | null;
+  ora: string | null;
+  luogo: string | null;
+  confermato: boolean;
+  partecipanti: string | null;
+  odg: string | null;
+}
+
+function rowToEvento(r: RitualRow): Evento {
+  return {
+    id: r.id,
+    azienda: r.azienda,
+    tipologia: r.tipologia,
+    titolo: r.titolo,
+    data: fromIso(r.data),
+    dataFine: r.data_fine ? fromIso(r.data_fine) : "",
+    ora: r.ora ?? "",
+    luogo: r.luogo ?? "",
+    confermato: r.confermato,
+    partecipanti: r.partecipanti ?? "",
+    odg: r.odg ?? "",
+  };
+}
+
+function eventoToPayload(e: Evento, includeId: boolean) {
+  const payload: Record<string, unknown> = {
+    azienda: e.azienda,
+    tipologia: e.tipologia,
+    titolo: e.titolo,
+    data: toIso(e.data),
+    data_fine: e.dataFine ? toIso(e.dataFine) : null,
+    ora: e.ora || null,
+    luogo: e.luogo || null,
+    confermato: e.confermato,
+    partecipanti: e.partecipanti || null,
+    odg: e.odg || null,
+  };
+  if (includeId) payload.id = e.id;
+  return payload;
 }
 
 const MESI = ["GEN", "FEB", "MAR", "APR", "MAG", "GIU", "LUG", "AGO", "SET", "OTT", "NOV", "DIC"];
@@ -60,37 +108,42 @@ function azColor(slug: string): string {
   return COMPANIES.find((c) => c.slug === slug || c.name.toUpperCase() === slug.toUpperCase())?.color || "var(--accent)";
 }
 
-let _nextId = 100;
-function getMockEvents(): Evento[] {
-  const y = 2026;
-  return [
-    { id: 1, azienda: "acme", tipologia: "PLANNING", titolo: "Q1 Planning Session", data: `15/01/${y}`, dataFine: "", ora: "09:00", luogo: "Ufficio Milano", confermato: true, partecipanti: "Marco Rossi, Anna Neri, Roberto Sala", odg: "1. Review Q4\n2. OKR Q1\n3. Budget allocation" },
-    { id: 2, azienda: "acme", tipologia: "WORKSHOP", titolo: "Product Strategy Workshop", data: `22/02/${y}`, dataFine: `23/02/${y}`, ora: "10:00", luogo: "Coworking Roma", confermato: true, partecipanti: "Silvia Rizzo", odg: "Roadmap H1, Feature prioritization" },
-    { id: 3, azienda: "acme", tipologia: "REVIEW", titolo: "Q1 Business Review", data: `28/03/${y}`, dataFine: "", ora: "14:00", luogo: "Sala Riunioni A", confermato: true, partecipanti: "Marco Rossi, Roberto Sala", odg: "" },
-    { id: 4, azienda: "acme", tipologia: "MEETING", titolo: "Sales Kickoff H2", data: `10/04/${y}`, dataFine: "", ora: "09:30", luogo: "", confermato: true, partecipanti: "Roberto Sala, Chiara Monti, Luca Barbieri", odg: "Targets H2, Nuovi territori" },
-    { id: 5, azienda: "acme", tipologia: "FORMAZIONE", titolo: "AI Tools Training", data: `05/05/${y}`, dataFine: "", ora: "15:00", luogo: "Online", confermato: false, partecipanti: "Marco Rossi, Silvia Rizzo, Federico Gallo", odg: "Claude, Cursor, Automazioni" },
-    { id: 6, azienda: "acme", tipologia: "PLANNING", titolo: "Q2 Planning Session", data: `20/05/${y}`, dataFine: "", ora: "09:00", luogo: "Ufficio Milano", confermato: false, partecipanti: "Marco Rossi, Giuseppe Verdi, Roberto Sala, Silvia Rizzo", odg: "" },
-    { id: 7, azienda: "acme", tipologia: "EVENTO", titolo: "Team Building Estate", data: `15/06/${y}`, dataFine: `16/06/${y}`, ora: "10:00", luogo: "Lago di Garda", confermato: false, partecipanti: "", odg: "" },
-    { id: 8, azienda: "acme", tipologia: "REVIEW", titolo: "Mid-Year Review", data: `05/07/${y}`, dataFine: "", ora: "14:00", luogo: "Sala Board", confermato: false, partecipanti: "Marco Rossi, Laura Bianchi", odg: "P&L H1, Forecast H2" },
-    { id: 9, azienda: "acme", tipologia: "WORKSHOP", titolo: "OKR Setting Q3-Q4", data: `10/09/${y}`, dataFine: "", ora: "09:00", luogo: "", confermato: false, partecipanti: "", odg: "" },
-    { id: 10, azienda: "acme", tipologia: "EVENTO", titolo: "Christmas Party", data: `18/12/${y}`, dataFine: "", ora: "19:00", luogo: "Da definire", confermato: false, partecipanti: "", odg: "" },
-  ];
-}
 
 export default function RitualsPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
   const dv = dataVersion(slug);
-  const [events, setEvents] = useLocalState<Evento[]>(`themap:${slug}:events`, getMockEvents, dv);
+  const [events, setEvents] = useState<Evento[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [people] = useLocalState<Persona[]>(`themap:${slug}:people`, () => getMockPeopleForCompany(slug), dv);
-  const [editId, setEditId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [draft, setDraft] = useState<Evento | null>(null);
-  const [confirmDel, setConfirmDel] = useState<number | null>(null);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const todayMarkerRef = useRef<HTMLDivElement>(null);
+
+  const loadEvents = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token || "";
+    const res = await fetch(`/api/rituals?azienda=${slug}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      setLoaded(true);
+      return;
+    }
+    const json = await res.json();
+    const rows = (json.rows || []) as RitualRow[];
+    setEvents(rows.map(rowToEvento));
+    setLoaded(true);
+  }, [slug]);
+
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
 
   const now = today();
 
@@ -124,7 +177,7 @@ export default function RitualsPage() {
 
   function startAdd() {
     const ev: Evento = {
-      id: 0, azienda: params.company as string, tipologia: "MEETING",
+      id: "", azienda: params.company as string, tipologia: "MEETING",
       titolo: "", data: fmtDate(now), dataFine: "", ora: "", luogo: "",
       confermato: false, partecipanti: "", odg: "",
     };
@@ -139,23 +192,39 @@ export default function RitualsPage() {
     setDraft(null);
   }
 
-  function saveDraft() {
+  async function saveDraft() {
     if (!draft || !draft.titolo.trim()) return;
-    if (addingNew) {
-      draft.id = _nextId++;
-      setEvents((p) => [...p, { ...draft, titolo: draft.titolo.trim() }]);
-      showToast("Evento aggiunto");
-    } else if (editId) {
-      setEvents((p) => p.map((e) => (e.id === editId ? { ...draft, titolo: draft.titolo.trim() } : e)));
-      showToast("Evento aggiornato");
+    const cleaned = { ...draft, titolo: draft.titolo.trim() };
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token || "";
+    const res = await fetch(`/api/rituals`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(eventoToPayload(cleaned, !addingNew)),
+    });
+    if (!res.ok) {
+      showToast("Errore salvataggio");
+      return;
     }
+    showToast(addingNew ? "Evento aggiunto" : "Evento aggiornato");
     cancelEdit();
+    await loadEvents();
   }
 
-  function deleteEvent(id: number) {
-    setEvents((p) => p.filter((e) => e.id !== id));
+  async function deleteEvent(id: string) {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token || "";
+    const res = await fetch(`/api/rituals?id=${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
     setConfirmDel(null);
+    if (!res.ok) {
+      showToast("Errore eliminazione");
+      return;
+    }
     showToast("Evento eliminato");
+    await loadEvents();
   }
 
   function updateDraft(field: keyof Evento, value: string | boolean) {

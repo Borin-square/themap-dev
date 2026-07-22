@@ -1,6 +1,8 @@
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import AuthGuard from "@/components/AuthGuard";
+import { YearProvider } from "@/components/YearProvider";
+import SaveStatusToast from "@/components/SaveStatusToast";
 
 export default function DashboardLayout({
   children,
@@ -9,13 +11,16 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="shell">
-        <Sidebar />
-        <div className="main">
-          <Topbar />
-          <div className="content page-enter">{children}</div>
+      <YearProvider>
+        <div className="shell">
+          <Sidebar />
+          <div className="main">
+            <Topbar />
+            <div className="content page-enter">{children}</div>
+          </div>
         </div>
-      </div>
+        <SaveStatusToast />
+      </YearProvider>
     </AuthGuard>
   );
 }

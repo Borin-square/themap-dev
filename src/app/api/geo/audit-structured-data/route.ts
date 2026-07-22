@@ -1,4 +1,4 @@
-import type { StructuredDataResult, AuditIssue } from "@/lib/geo/types";
+import type { StructuredDataResult, AuditIssue, GEOAuditLog } from "@/lib/geo/types";
 import { fetchHtml } from "@/lib/geo/fetch-html";
 
 export const maxDuration = 30;
@@ -22,18 +22,29 @@ interface SDRequest {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+  const steps: GEOAuditLog["steps"] = [];
+  const fetches: NonNullable<GEOAuditLog["fetches"]> = [];
+  const step = (label: string, detail?: string) =>
+    steps.push({ label, timestamp: new Date().toISOString(), detail });
+
   try {
     const { url } = (await req.json()) as SDRequest;
+    step("Richiesta ricevuta", `url=${url}`);
     if (!url?.trim()) {
       return Response.json({ error: "URL richiesto." }, { status: 400 });
     }
 
+    step("Fetch HTML", url);
     const fetched = await fetchHtml(url);
     if (!fetched.ok) {
+      fetches.push({ url, error: fetched.error });
       return Response.json({ error: fetched.error }, { status: 400 });
     }
     const html = fetched.html;
+    fetches.push({ url, ok: true, contentSnippet: `HTML length: ${html.length}` });
 
+    step("Estrazione JSON-LD");
     // Extract JSON-LD blocks
     const jsonLdBlocks: Record<string, unknown>[] = [];
     const jsonLdRegex = /<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
@@ -53,6 +64,7 @@ export async function POST(req: Request) {
 
     // Check for microdata (basic)
     const hasMicrodata = html.includes('itemscope') && html.includes('itemtype');
+    step("JSON-LD trovati", `${jsonLdBlocks.length} blocchi, microdata=${hasMicrodata}`);
 
     // Analyze each expected schema
     const issues: AuditIssue[] = [];
@@ -139,6 +151,8 @@ export async function POST(req: Request) {
       : 0;
     const overallScore = Math.round(coverageScore * 0.6 + completenessScore * 0.4);
 
+    step("Score calcolato", `overall=${overallScore}, found=${foundCount}/${totalExpected}`);
+
     const result: StructuredDataResult = {
       id: crypto.randomUUID(),
       url,
@@ -147,6 +161,11 @@ export async function POST(req: Request) {
       overallScore,
       suggestedMarkup,
       issues,
+      _log: {
+        durationMs: Date.now() - startedAt,
+        steps,
+        fetches,
+      },
     };
 
     return Response.json(result);

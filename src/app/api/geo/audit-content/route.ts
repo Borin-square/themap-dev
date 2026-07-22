@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ContentReadinessResult, AuditIssue } from "@/lib/geo/types";
+import type { ContentReadinessResult, AuditIssue, GEOAuditLog } from "@/lib/geo/types";
 import { fetchHtml } from "@/lib/geo/fetch-html";
+
+const MODEL = "claude-sonnet-4-6";
 
 export const maxDuration = 120;
 
@@ -12,17 +14,27 @@ interface ContentRequest {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+  const steps: GEOAuditLog["steps"] = [];
+  const fetches: NonNullable<GEOAuditLog["fetches"]> = [];
+  const step = (label: string, detail?: string) =>
+    steps.push({ label, timestamp: new Date().toISOString(), detail });
+
   try {
     const { url, brandName, industry, services } = (await req.json()) as ContentRequest;
+    step("Richiesta ricevuta", `url=${url}`);
     if (!url?.trim()) {
       return Response.json({ error: "URL richiesto." }, { status: 400 });
     }
 
+    step("Fetch HTML", url);
     const fetched = await fetchHtml(url);
     if (!fetched.ok) {
+      fetches.push({ url, error: fetched.error });
       return Response.json({ error: fetched.error }, { status: 400 });
     }
     const html = fetched.html;
+    fetches.push({ url, ok: true, contentSnippet: `HTML length: ${html.length}` });
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
     const title = titleMatch ? titleMatch[1].trim() : url;
 
@@ -45,14 +57,11 @@ export async function POST(req: Request) {
     const hasFaq = html.includes("FAQPage") || html.toLowerCase().includes("faq") ||
       html.toLowerCase().includes("domande frequenti");
 
+    step("Contenuto estratto", `text=${textContent.length} char, headings=${headings.length}, faq=${hasFaq}`);
+
     // Analyze with Claude
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const analysis = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [{
-        role: "user",
-        content: `Analizza questa pagina web per capire se e' adatta a essere citata dagli LLM.
+    const prompt = `Analizza questa pagina web per capire se e' adatta a essere citata dagli LLM.
 
 URL: ${url}
 TITOLO: ${title}
@@ -99,11 +108,17 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
       "fix": "<come risolverlo>"
     }
   ]
-}`,
-      }],
+}`;
+
+    step("Chiamata LLM", `model=${MODEL}, prompt=${prompt.length} char`);
+    const analysis = await client.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }],
     });
 
     const text = analysis.content.find((b) => b.type === "text")?.text || "{}";
+    step("Risposta LLM ricevuta", `stop_reason=${analysis.stop_reason}, output=${text.length} char`);
     let parsed: {
       scores: ContentReadinessResult["scores"];
       missingBlocks: string[];
@@ -124,6 +139,8 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
         scores.proofPresence + scores.faqPresence + scores.dataPresence + scores.extractability) / 8
     );
 
+    step("Parsing completato", `overall=${overallScore}`);
+
     const result: ContentReadinessResult = {
       id: crypto.randomUUID(),
       url,
@@ -134,6 +151,19 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
       missingBlocks: parsed.missingBlocks || [],
       suggestions: parsed.suggestions || [],
       issues: parsed.issues || [],
+      _log: {
+        durationMs: Date.now() - startedAt,
+        steps,
+        fetches,
+        llm: {
+          model: MODEL,
+          prompt,
+          rawResponse: text,
+          stopReason: analysis.stop_reason ?? undefined,
+          inputTokens: analysis.usage?.input_tokens,
+          outputTokens: analysis.usage?.output_tokens,
+        },
+      },
     };
 
     return Response.json(result);

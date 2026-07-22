@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useLocalState } from "@/lib/useLocalState";
+import { useYear } from "@/components/YearProvider";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
@@ -17,22 +18,26 @@ import {
 export default function EconomicEnginePage() {
   const params = useParams();
   const company = getCompany(params.company as string);
-  const year = getEeYear();
+  const { year } = useYear();
 
   const [metrics] = useState(() => getEeMockMetrics());
-  const [{ values, origValues, prevValues }] = useState(() =>
-    initEeValues(getEeMockMetrics(), year),
+  const { values, origValues, prevValues } = useMemo(
+    () => initEeValues(getEeMockMetrics(), year),
+    [year],
   );
   const slug = params.company as string;
-  const [vals, setVals] = useLocalState(`themap:${slug}:eeVals`, () => values);
+  const emptyValsInit = () => (year === 2026 ? values : ({} as Record<string, number>));
+  const [vals, setVals] = useLocalState(`themap:${slug}:eeVals`, emptyValsInit, undefined, year);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ mensile: true });
   const [filterFn, setFilterFn] = useState<string | null>(null);
   const [drillKpi, setDrillKpi] = useState<string | null>(null);
-  const [scenarios, setScenarios] = useLocalState<EeScenario[]>(`themap:${slug}:eeScenarios`, () => []);
+  const [scenarios, setScenarios] = useLocalState<EeScenario[]>(`themap:${slug}:eeScenarios`, () => [], undefined, year);
+  const [, setForecast] = useLocalState<Record<string, number>>(`themap:${slug}:eeForecast`, () => ({}), undefined, year);
   const [scOpen, setScOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [scName, setScName] = useState("");
   const [scDesc, setScDesc] = useState("");
+  const [promoteConfirm, setPromoteConfirm] = useState<number | null>(null);
 
   const { calc, monthly } = eeRecalc(vals);
   const warnings = eeCheckConstraints(vals);
@@ -93,6 +98,12 @@ export default function EconomicEnginePage() {
     setScenarios((p) => p.filter((s) => s.id !== id));
   }
 
+  function promoteToForecast(sc: EeScenario) {
+    setForecast({ ...sc.values });
+    setPromoteConfirm(null);
+    setScOpen(false);
+  }
+
   // Funzioni uniche nei dati
   const fns = EE_FN_ORDER.filter((fn) =>
     metrics.some((m) => m.funzione === fn && m.funzione !== "DIREZIONE"),
@@ -139,6 +150,21 @@ export default function EconomicEnginePage() {
                         <div className="ee-sc-name" onClick={() => loadScenario(sc)}>{sc.nome}</div>
                         {sc.descrizione && <div className="ee-sc-desc">{sc.descrizione}</div>}
                         <span className="ee-sc-date">{sc.data}</span>
+                        {promoteConfirm === sc.id ? (
+                          <span style={{ display: "inline-flex", gap: 4, marginLeft: 6, fontSize: 11 }}>
+                            <button className="fws-confirm-yes" onClick={() => promoteToForecast(sc)}>Conferma</button>
+                            <button className="fws-confirm-no" onClick={() => setPromoteConfirm(null)}>Annulla</button>
+                          </span>
+                        ) : (
+                          <button
+                            className="ee-btn"
+                            style={{ fontSize: 11, padding: "2px 8px", marginLeft: 6 }}
+                            title="Promuovi questo scenario a Forecast ufficiale (sovrascrive l'esistente)"
+                            onClick={(e) => { e.stopPropagation(); setPromoteConfirm(sc.id); }}
+                          >
+                            &rarr; Forecast
+                          </button>
+                        )}
                         <span className="ee-sc-del" onClick={() => deleteScenario(sc.id)}>&times;</span>
                       </div>
                     ))}

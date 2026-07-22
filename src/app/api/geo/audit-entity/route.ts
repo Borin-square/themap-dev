@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { EntityStrengthResult, AuditIssue } from "@/lib/geo/types";
+import type { EntityStrengthResult, AuditIssue, GEOAuditLog } from "@/lib/geo/types";
+
+const MODEL = "claude-sonnet-4-6";
 
 export const maxDuration = 120;
 
@@ -14,8 +16,15 @@ interface EntityRequest {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+  const steps: GEOAuditLog["steps"] = [];
+  const fetches: NonNullable<GEOAuditLog["fetches"]> = [];
+  const step = (label: string, detail?: string) =>
+    steps.push({ label, timestamp: new Date().toISOString(), detail });
+
   try {
     const { brandName, siteUrl, services, competitors, country, industry, market } = (await req.json()) as EntityRequest;
+    step("Richiesta ricevuta", `brand=${brandName}, site=${siteUrl}`);
 
     if (!brandName?.trim()) {
       return Response.json({ error: "Brand name richiesto." }, { status: 400 });
@@ -25,8 +34,9 @@ export async function POST(req: Request) {
     let homepageContent = "";
     let jsonLdData: Record<string, unknown>[] = [];
     if (siteUrl) {
+      const baseUrl = siteUrl.startsWith("http") ? siteUrl : `https://${siteUrl}`;
+      step("Fetch homepage", baseUrl);
       try {
-        const baseUrl = siteUrl.startsWith("http") ? siteUrl : `https://${siteUrl}`;
         const res = await fetch(baseUrl, {
           headers: { "User-Agent": "Mozilla/5.0 (compatible; GEOTool/1.0)" },
           signal: AbortSignal.timeout(15000),
@@ -34,6 +44,7 @@ export async function POST(req: Request) {
         });
         if (res.ok) {
           const html = await res.text();
+          fetches.push({ url: baseUrl, status: res.status, ok: true, contentSnippet: `HTML length: ${html.length}` });
           // Extract JSON-LD
           const jsonLdRegex = /<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
           let match;
@@ -53,18 +64,18 @@ export async function POST(req: Request) {
             .replace(/\s+/g, " ")
             .trim()
             .slice(0, 5000);
+          step("Homepage parsata", `JSON-LD blocchi=${jsonLdData.length}, testo=${homepageContent.length} char`);
+        } else {
+          fetches.push({ url: baseUrl, status: res.status, ok: false });
         }
-      } catch { /* site unreachable */ }
+      } catch (e) {
+        fetches.push({ url: baseUrl, error: e instanceof Error ? e.message : "fetch error" });
+      }
     }
 
     // Analyze with Claude
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const analysis = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [{
-        role: "user",
-        content: `Analizza la forza dell'entita' "${brandName}" come entita' riconoscibile dagli LLM.
+    const prompt = `Analizza la forza dell'entita' "${brandName}" come entita' riconoscibile dagli LLM.
 
 BRAND: ${brandName}
 SITO: ${siteUrl || "non specificato"}
@@ -117,11 +128,17 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
     {"type": "critical|warning|info", "category": "<cat>", "message": "<problema>", "fix": "<soluzione>"}
   ],
   "suggestions": ["<suggerimento concreto>"]
-}`,
-      }],
+}`;
+
+    step("Chiamata LLM", `model=${MODEL}, prompt=${prompt.length} char`);
+    const analysis = await client.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }],
     });
 
     const text = analysis.content.find((b) => b.type === "text")?.text || "{}";
+    step("Risposta LLM ricevuta", `stop_reason=${analysis.stop_reason}, output=${text.length} char`);
     let parsed: {
       scores: EntityStrengthResult["scores"];
       entities: EntityStrengthResult["entities"];
@@ -142,6 +159,8 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
         s.reviews + s.serviceClarity + s.geoClarity) / 7
     );
 
+    step("Parsing completato", `overall=${overallScore}, entities=${(parsed.entities || []).length}`);
+
     const result: EntityStrengthResult = {
       id: crypto.randomUUID(),
       scannedAt: new Date().toISOString(),
@@ -150,6 +169,19 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
       entities: parsed.entities || [],
       issues: parsed.issues || [],
       suggestions: parsed.suggestions || [],
+      _log: {
+        durationMs: Date.now() - startedAt,
+        steps,
+        fetches,
+        llm: {
+          model: MODEL,
+          prompt,
+          rawResponse: text,
+          stopReason: analysis.stop_reason ?? undefined,
+          inputTokens: analysis.usage?.input_tokens,
+          outputTokens: analysis.usage?.output_tokens,
+        },
+      },
     };
 
     return Response.json(result);

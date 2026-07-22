@@ -3,22 +3,26 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { supabase, supabaseReady } from "@/lib/supabase";
 import type { Session, UserProfile } from "@/lib/auth";
-import { type DisabledFeatures, fetchDisabledFeatures } from "@/lib/features";
+import { type DisabledFeatures, type FeatureState, fetchFeatureState } from "@/lib/features";
 
 interface AuthCtx {
   session: Session | null;
   loading: boolean;
   disabledFeatures: DisabledFeatures;
+  featureState: FeatureState;
   login: (email: string, password: string) => Promise<string | null>;
   logout: () => void;
   refresh: () => void;
   refreshFeatures: () => void;
 }
 
+const EMPTY_FEATURE_STATE: FeatureState = { disabled: new Set(), enabled: new Set() };
+
 const AuthContext = createContext<AuthCtx>({
   session: null,
   loading: true,
   disabledFeatures: new Set(),
+  featureState: EMPTY_FEATURE_STATE,
   login: async () => null,
   logout: () => {},
   refresh: () => {},
@@ -46,7 +50,7 @@ async function loadProfile(userId: string): Promise<Session | null> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [disabledFeatures, setDisabledFeatures] = useState<DisabledFeatures>(new Set());
+  const [featureState, setFeatureState] = useState<FeatureState>(EMPTY_FEATURE_STATE);
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
@@ -66,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const profile = await loadProfile(authSession.user.id);
           if (profile) {
             setSession(profile);
-            fetchDisabledFeatures().then(setDisabledFeatures);
+            fetchFeatureState().then(setFeatureState);
           }
         }
       })
@@ -113,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const profile = await loadProfile(data.user.id);
         if (!profile) return "Profilo utente non trovato. Contatta l'amministratore.";
         setSession(profile);
-        fetchDisabledFeatures().then(setDisabledFeatures);
+        fetchFeatureState().then(setFeatureState);
       }
       return null;
     } catch (e) {
@@ -137,11 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshFeatures = useCallback(() => {
-    fetchDisabledFeatures().then(setDisabledFeatures);
+    fetchFeatureState().then(setFeatureState);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ session, loading, disabledFeatures, login, logout, refresh, refreshFeatures }}>
+    <AuthContext.Provider value={{ session, loading, disabledFeatures: featureState.disabled, featureState, login, logout, refresh, refreshFeatures }}>
       {children}
     </AuthContext.Provider>
   );

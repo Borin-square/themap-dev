@@ -27,31 +27,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const { slug, name, color } = await req.json();
+  const { slug, name, color, type } = await req.json();
   if (!slug || !name || !color) {
     return NextResponse.json({ error: "Slug, nome e colore richiesti" }, { status: 400 });
   }
+  const companyType = type === "holding" || type === "operative" ? type : "client";
 
   const svc = createServiceClient();
-  const { error } = await svc.from("companies").insert({ slug, name, color });
+  const { error } = await svc.from("companies").insert({ slug, name, color, type: companyType });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
 
-// PUT — update company (slug is immutable, only name and color)
+// PUT — update company (slug is immutable)
 export async function PUT(req: NextRequest) {
   const caller = await getCallerProfile(req);
   if (!caller || (caller.ruolo !== "SUPER_ADMIN" && caller.ruolo !== "ADMIN")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const { slug, name, color } = await req.json();
+  const { slug, name, color, type } = await req.json();
   if (!slug) {
     return NextResponse.json({ error: "Slug richiesto" }, { status: 400 });
   }
 
+  const patch: { name?: string; color?: string; type?: "holding" | "operative" | "client" } = {};
+  if (name !== undefined) patch.name = name;
+  if (color !== undefined) patch.color = color;
+  if (type === "holding" || type === "operative" || type === "client") patch.type = type;
+
   const svc = createServiceClient();
-  const { error } = await svc.from("companies").update({ name, color }).eq("slug", slug);
+  const { error } = await svc.from("companies").update(patch).eq("slug", slug);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

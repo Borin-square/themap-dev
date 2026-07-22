@@ -7,6 +7,7 @@ import type { GEOProject, ContentReadinessResult } from "@/lib/geo/types";
 import { emptyAudits } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
 import { scoreColor } from "@/lib/geo/scoring";
+import { AuditLogPanel } from "@/components/AuditLogPanel";
 
 const SCORE_LABELS: Record<string, string> = {
   clarity: "Chiarezza",
@@ -175,6 +176,12 @@ export default function ContentReadinessPage() {
           <div className="geo-audit-meta">
             Scansione: {new Date(selected.scannedAt).toLocaleString("it-IT")} | Pagina: {selected.title}
           </div>
+
+          <AuditLogPanel
+            log={selected._log}
+            toolName="content-readiness"
+            extra={{ input: { url: selected.url, brandName: project.config.brandName }, result: selected }}
+          />
         </>
       )}
 

@@ -7,6 +7,7 @@ import type { GEOProject, StructuredDataResult } from "@/lib/geo/types";
 import { emptyAudits } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
 import { scoreColor } from "@/lib/geo/scoring";
+import { AuditLogPanel } from "@/components/AuditLogPanel";
 
 export default function StructuredDataPage() {
   const params = useParams();
@@ -182,6 +183,12 @@ export default function StructuredDataPage() {
           <div className="geo-audit-meta">
             Scansione: {new Date(latest.scannedAt).toLocaleString("it-IT")} | URL: {latest.url}
           </div>
+
+          <AuditLogPanel
+            log={latest._log}
+            toolName="structured-data"
+            extra={{ input: { url }, result: latest }}
+          />
         </>
       )}
 

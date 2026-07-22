@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useLocalState } from "@/lib/useLocalState";
-import { getCachedCompanies, type Company } from "@/lib/companies";
-import { PE_FUNZIONI, peFnColor } from "@/lib/people";
+import { fetchCompanies, getCachedCompanies, type Company } from "@/lib/companies";
 import {
   WL_MAX_EFFORT, WL_LIVELLI, WL_FUNZIONI,
   effortColor, groupByPerson, emptyMission,
@@ -12,7 +11,13 @@ import {
 } from "@/lib/workload";
 
 export default function WorkloadPage() {
-  const companies = getCachedCompanies();
+  const [allCompanies, setAllCompanies] = useState<Company[]>(getCachedCompanies);
+  useEffect(() => { fetchCompanies().then(setAllCompanies); }, []);
+
+  // Solo aziende operative
+  const operatives = useMemo(() => allCompanies.filter((c) => c.type === "operative"), [allCompanies]);
+  const operativeSlugs = useMemo(() => new Set(operatives.map((c) => c.slug)), [operatives]);
+
   const [missions, setMissions] = useLocalState<Mission[]>("themap:holding:workload", getMockMissions);
   const [founders] = useLocalState<string[]>("themap:holding:founders", () => DEFAULT_FOUNDERS);
   const [filterAz, setFilterAz] = useState("ALL");
@@ -26,28 +31,26 @@ export default function WorkloadPage() {
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3000); }
 
-  // Only show missions for leaders (or founders)
-  const leaderNames = getLeaderNames(companies);
-  const leaderMissions = missions.filter((m) => founders.includes(m.persona) || leaderNames.has(m.persona));
+  // Solo leader delle operative (marchiati con la stellina in People) + i founders sempre inclusi
+  const leaderNames = useMemo(() => getLeaderNames(operatives), [operatives]);
 
-  // All unique people names for the add form
-  const allPeople = Array.from(new Set(leaderMissions.map((m) => m.persona))).sort();
+  const leaderMissions = missions.filter((m) => {
+    if (!operativeSlugs.has(m.azienda)) return false;
+    return founders.includes(m.persona) || leaderNames.has(m.persona);
+  });
 
-  // Filter missions
   const filtered = leaderMissions.filter((m) => {
     if (filterAz !== "ALL" && m.azienda !== filterAz) return false;
     if (filterFn !== "ALL" && m.funzione !== filterFn) return false;
     return true;
   });
 
-  // Group into person cards
+  // Raggruppa per persona, separando i founders
   const cards = groupByPerson(filtered, founders);
-
-  // Split into founders and by-company groups
   const founderCards = cards.filter((c) => c.isFounder);
   const nonFounderCards = cards.filter((c) => !c.isFounder);
 
-  // Group non-founders by their primary company (most effort)
+  // Non-founders: raggruppa per azienda primaria (max effort)
   const byCompany: Record<string, PersonCard[]> = {};
   nonFounderCards.forEach((card) => {
     let maxEff = 0, primary = card.entries[0]?.azienda || "";
@@ -56,26 +59,26 @@ export default function WorkloadPage() {
     byCompany[primary].push(card);
   });
 
-  // Add mission
   function handleAdd() {
     if (!draft.persona.trim() || !draft.azienda) return;
-    // Check duplicate
-    const dup = missions.find((m) => m.persona === draft.persona.trim() && m.azienda === draft.azienda);
-    if (dup) { showToast("Missione gia' esistente per questa persona/azienda"); return; }
-    setMissions((p) => [...p, { ...draft, id: crypto.randomUUID(), persona: draft.persona.trim() }]);
+    if (!operativeSlugs.has(draft.azienda)) { showToast("Azienda non operativa"); return; }
+    const persona = draft.persona.trim();
+    if (!founders.includes(persona) && !leaderNames.has(persona)) {
+      showToast("La persona non e' un founder ne' un leader (segnala con la stellina in People)");
+      return;
+    }
+    setMissions((p) => [...p, { ...draft, id: crypto.randomUUID(), persona }]);
     setAdding(false);
     setDraft(emptyMission());
     showToast("Missione aggiunta");
   }
 
-  // Delete mission
   function handleDelete(id: string) {
     setMissions((p) => p.filter((m) => m.id !== id));
     setConfirmDel(null);
     showToast("Missione rimossa");
   }
 
-  // Inline edit effort
   function saveEffort(id: string, value: string) {
     const v = parseFloat(value);
     if (isNaN(v) || v < 0) { setEditId(null); setEditField(null); return; }
@@ -84,14 +87,12 @@ export default function WorkloadPage() {
     setEditField(null);
   }
 
-  // Inline edit funzione
   function saveFunzione(id: string, value: string) {
     setMissions((p) => p.map((m) => m.id === id ? { ...m, funzione: value } : m));
     setEditId(null);
     setEditField(null);
   }
 
-  // Inline edit livello
   function saveLivello(id: string, value: string) {
     setMissions((p) => p.map((m) => m.id === id ? { ...m, livello: value } : m));
     setEditId(null);
@@ -99,11 +100,22 @@ export default function WorkloadPage() {
   }
 
   function compColor(slug: string): string {
-    return companies.find((c) => c.slug === slug)?.color || "var(--fg2)";
+    return allCompanies.find((c) => c.slug === slug)?.color || "var(--fg2)";
   }
 
   function compName(slug: string): string {
-    return companies.find((c) => c.slug === slug)?.name || slug;
+    return allCompanies.find((c) => c.slug === slug)?.name || slug;
+  }
+
+  if (operatives.length === 0) {
+    return (
+      <div>
+        <h1 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Workload</h1>
+        <div className="cd" style={{ padding: 40, textAlign: "center", color: "var(--fg3)" }}>
+          Nessuna azienda di tipo <b>Operative</b>. Impostane almeno una da Settings → Aziende (Tipo = Operative).
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -112,12 +124,11 @@ export default function WorkloadPage() {
 
       {toast && <div className="fws-toast">{toast}</div>}
 
-      {/* Filters + Add */}
       <div className="wl-top-bar">
         <div className="wl-filters">
           <div className="wl-filter-group">
             <button className={`wl-filter-btn${filterAz === "ALL" ? " act" : ""}`} onClick={() => setFilterAz("ALL")}>Tutte</button>
-            {companies.map((c) => (
+            {operatives.map((c) => (
               <button key={c.slug} className={`wl-filter-btn${filterAz === c.slug ? " act" : ""}`} onClick={() => setFilterAz(c.slug)}>
                 {c.name}
               </button>
@@ -135,7 +146,6 @@ export default function WorkloadPage() {
         <button className="wl-add-btn" onClick={() => setAdding(!adding)}>+ Missione</button>
       </div>
 
-      {/* Add form */}
       {adding && (
         <div className="wl-add-row">
           <input
@@ -147,11 +157,11 @@ export default function WorkloadPage() {
             autoFocus
           />
           <datalist id="wl-people-list">
-            {allPeople.map((n) => <option key={n} value={n} />)}
+            {Array.from(new Set([...founders, ...leaderNames])).sort().map((n) => <option key={n} value={n} />)}
           </datalist>
           <select className="wl-add-sel" value={draft.azienda} onChange={(e) => setDraft({ ...draft, azienda: e.target.value })}>
             <option value="">Azienda...</option>
-            {companies.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
+            {operatives.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
           </select>
           <select className="wl-add-sel" value={draft.funzione} onChange={(e) => setDraft({ ...draft, funzione: e.target.value })}>
             {WL_FUNZIONI.map((f) => <option key={f}>{f}</option>)}
@@ -161,7 +171,6 @@ export default function WorkloadPage() {
         </div>
       )}
 
-      {/* Founders section */}
       {founderCards.length > 0 && (
         <div className="wl-section">
           <div className="wl-section-title" style={{ color: "#f59e0b" }}>FOUNDERS</div>
@@ -170,7 +179,7 @@ export default function WorkloadPage() {
               <WlCard
                 key={card.name}
                 card={card}
-                companies={companies}
+                companies={allCompanies}
                 compColor={compColor}
                 compName={compName}
                 editId={editId}
@@ -190,8 +199,7 @@ export default function WorkloadPage() {
         </div>
       )}
 
-      {/* By-company sections */}
-      {companies.map((c) => {
+      {operatives.map((c) => {
         const items = byCompany[c.slug];
         if (!items || items.length === 0) return null;
         return (
@@ -202,7 +210,7 @@ export default function WorkloadPage() {
                 <WlCard
                   key={card.name}
                   card={card}
-                  companies={companies}
+                  companies={allCompanies}
                   compColor={compColor}
                   compName={compName}
                   editId={editId}
@@ -225,7 +233,7 @@ export default function WorkloadPage() {
 
       {cards.length === 0 && (
         <div style={{ color: "var(--fg3)", textAlign: "center", padding: 60 }}>
-          Nessuna missione trovata con i filtri selezionati.
+          Nessun leader con missioni. Aggiungi una missione o segna qualcuno come leader in People.
         </div>
       )}
     </div>
@@ -273,7 +281,6 @@ function WlCard({ card, companies, compColor, compName, editId, editField, confi
               {compName(e.azienda)}
             </span>
 
-            {/* Funzione — inline edit */}
             {editId === e.id && editField === "funzione" ? (
               <InlineSelect
                 value={e.funzione}
@@ -287,7 +294,6 @@ function WlCard({ card, companies, compColor, compName, editId, editField, confi
               </span>
             )}
 
-            {/* Livello — inline edit */}
             {editId === e.id && editField === "livello" ? (
               <InlineSelect
                 value={e.livello}
@@ -301,7 +307,6 @@ function WlCard({ card, companies, compColor, compName, editId, editField, confi
               </span>
             )}
 
-            {/* Effort — inline edit */}
             {editId === e.id && editField === "effort" ? (
               <InlineNumber
                 value={e.effort}
@@ -314,7 +319,6 @@ function WlCard({ card, companies, compColor, compName, editId, editField, confi
               </span>
             )}
 
-            {/* Delete */}
             {confirmDel === e.id ? (
               <span className="wl-del-confirm">
                 <button className="fws-confirm-yes" onClick={() => onDelete(e.id)}>Si</button>

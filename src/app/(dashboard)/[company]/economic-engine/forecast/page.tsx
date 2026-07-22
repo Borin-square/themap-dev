@@ -5,21 +5,27 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import {
-  getEeMockMetrics, getEeYear, initEeValues, eeRecalc, eeFmtEuro,
+  getEeMockMetrics, initEeValues, eeRecalc, eeFmtEuro,
   eeFmtVal, eeSparkPoints, eeMarginSparkPoints,
   EE_KPI_ITEMS, EE_MONTHS, EE_SECTION_ORDER, EE_SECTION_LABELS,
   EE_SECTION_SLUGS, EE_FN_ORDER, eeGroupMetrics,
   type EeMonthlyRow,
 } from "@/lib/economic-engine";
+import { useLocalState } from "@/lib/useLocalState";
+import { useYear } from "@/components/YearProvider";
 
 export default function ForecastPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
-  const year = getEeYear();
+  const { year } = useYear();
+  const slug = params.company as string;
 
-  // Simula dati forecast (promossi dal playground)
+  // Il Forecast e' il set di valori "promosso" da uno scenario del Playground.
+  // Se non e' mai stato promosso nulla, l'oggetto e' vuoto e la pagina mostra lo stato "assente".
   const metrics = getEeMockMetrics();
-  const { values, prevValues } = initEeValues(metrics, year);
+  const { prevValues } = initEeValues(metrics, year);
+  const [values] = useLocalState<Record<string, number>>(`themap:${slug}:eeForecast`, () => ({}), undefined, year);
+  const hasForecast = Object.keys(values).length > 0;
   const { calc, monthly } = eeRecalc(values);
   const grouped = eeGroupMetrics(metrics);
 
@@ -47,6 +53,15 @@ export default function ForecastPage() {
           <span className="ee-badge" style={{ fontSize: 10, color: "var(--fg3)" }}>Sola lettura — promosso dal Playground</span>
         </div>
       </div>
+
+      {!hasForecast && (
+        <div className="cd" style={{ padding: 40, textAlign: "center", color: "var(--fg3)" }}>
+          Nessun forecast attivo per il {year}. Vai al <Link href={`/${params.company}/economic-engine`}>Playground</Link>,
+          salva uno scenario e poi promuovilo cliccando <b>&rarr; Forecast</b>.
+        </div>
+      )}
+
+      {hasForecast && <>
 
       {/* KPI row */}
       <div className="ee-kpi-row">
@@ -125,6 +140,8 @@ export default function ForecastPage() {
           <FcMonthlyTable monthly={monthly} />
         </div>
       </div>
+
+      </>}
     </div>
   );
 }

@@ -66,8 +66,16 @@ export default function SourceAcquisitionPage() {
           existingCitations,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Errore");
+      const raw = await res.text();
+      let data: { error?: string } & Partial<SourceAcquisitionResult> = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch {
+        throw new Error(
+          !res.ok
+            ? `Server error (${res.status}). L'analisi potrebbe essere andata in timeout. Riprova con meno competitor.`
+            : "Risposta non valida dal server.",
+        );
+      }
+      if (!res.ok) throw new Error(data.error || `Errore ${res.status}`);
       const result = data as SourceAcquisitionResult;
       setProject((p) => ({
         ...p,

@@ -4,11 +4,14 @@ import { useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
+import { useAuth } from "@/components/AuthProvider";
+import { isAdmin } from "@/lib/auth";
 import { useLocalState } from "@/lib/useLocalState";
+import { useYear } from "@/components/YearProvider";
 import { dataVersion } from "@/lib/square-marketing-data";
 import {
   FW_SEGS, FW_IR, FW_OR, FW_MR, FW_SR, FW_LR, FW_GAP, FW_SEG_ANGLE, FW_PAD, FW_GDR, FW_SDR,
-  FW_GRN, FW_YEL, FW_RED, FW_GRY, FW_MN, FW_PER, FW_PER_LBL,
+  FW_GRN, FW_YEL, FW_RED, FW_GRY, FW_MN, FW_PER, fwPerLabel,
   fwP, fwArc, fwTA, fwSC, fwSCl, fwGR, fwMom, fwCR, fwDV, fwMDV, fwSMR,
   getMockDataForCompany, fwSortedGoals,
   type FwGoalData, type FwConfigEntry, type FwData, type FwConfig,
@@ -27,6 +30,7 @@ interface TipData {
   fcM?: (number | null)[];
   isPct: boolean;
   isCur: boolean;
+  decimals?: number;
   hasSub: boolean;
   mode: string;
   start?: number | null;
@@ -38,15 +42,20 @@ export default function FlywheelOverviewPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const slug = params.company as string;
+  const { session } = useAuth();
+  const admin = isAdmin(session);
   const mock = getMockDataForCompany(slug);
   const [per, setPer] = useState("q1");
   const [tip, setTip] = useState<TipData | null>(null);
   const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
   const tipRef = useRef<HTMLDivElement>(null);
 
+  const { year } = useYear();
   const dv = dataVersion(slug);
-  const [data] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data, dv);
-  const [config] = useLocalState<FwConfig>(`themap:${slug}:fwConfig`, () => mock.config, dv);
+  const emptyInit = () => (year === 2026 ? mock.data : ({} as FwData));
+  const emptyCfgInit = () => (year === 2026 ? mock.config : ({} as FwConfig));
+  const [data] = useLocalState<FwData>(`themap:${slug}:fwData`, emptyInit, dv, year);
+  const [config] = useLocalState<FwConfig>(`themap:${slug}:fwConfig`, emptyCfgInit, dv, year);
 
   const getCfg = (name: string): FwConfigEntry =>
     config[name] || { mode: "STANDARD" };
@@ -84,11 +93,11 @@ export default function FlywheelOverviewPage() {
 
     const td: TipData = {
       name, parent: "", owner: gObj.owner, func: segKey,
-      real: fwDV(gObj.real, per, gObj.isPercent, gObj.isCurrency),
-      forecast: fwDV(gObj.forecast, per, gObj.isPercent, gObj.isCurrency),
+      real: fwDV(gObj.real, per, gObj.isPercent, gObj.isCurrency, gObj.decimals),
+      forecast: fwDV(gObj.forecast, per, gObj.isPercent, gObj.isCurrency, gObj.decimals),
       ratio, status: sc,
       realM: gObj.real, fcM: gObj.forecast,
-      isPct: gObj.isPercent, isCur: gObj.isCurrency,
+      isPct: gObj.isPercent, isCur: gObj.isCurrency, decimals: gObj.decimals,
       hasSub: Object.keys(gObj.subgoals).length > 0,
       mode: cfg.mode, start: cfg.start, limInf: cfg.limInf, limSup: cfg.limSup,
     };
@@ -123,15 +132,16 @@ export default function FlywheelOverviewPage() {
 
           const sTd: TipData = {
             name: sName, parent: name, owner: gObj.subgoals[sName].owner, func: segKey,
-            real: fwDV(gObj.subgoals[sName].real, per, gObj.subgoals[sName].isPercent, gObj.subgoals[sName].isCurrency),
-            forecast: fwDV(gObj.subgoals[sName].forecast, per, gObj.subgoals[sName].isPercent, gObj.subgoals[sName].isCurrency),
+            real: fwDV(gObj.subgoals[sName].real, per, gObj.subgoals[sName].isPercent, gObj.subgoals[sName].isCurrency, gObj.subgoals[sName].decimals),
+            forecast: fwDV(gObj.subgoals[sName].forecast, per, gObj.subgoals[sName].isPercent, gObj.subgoals[sName].isCurrency, gObj.subgoals[sName].decimals),
             ratio: sR, status: sSc,
             realM: gObj.subgoals[sName].real, fcM: gObj.subgoals[sName].forecast,
-            isPct: gObj.subgoals[sName].isPercent, isCur: gObj.subgoals[sName].isCurrency,
+            isPct: gObj.subgoals[sName].isPercent, isCur: gObj.subgoals[sName].isCurrency, decimals: gObj.subgoals[sName].decimals,
             hasSub: false,
             mode: sCfg.mode, start: sCfg.start, limInf: sCfg.limInf, limSup: sCfg.limSup,
           };
 
+          const sPctTxt = sR !== null ? Math.round(sR * 100).toString() : "\u2014";
           return (
             <g key={sName}>
               <line x1={lx1} y1={ly1} x2={sp.x} y2={sp.y} stroke={sCl} strokeWidth="1" strokeOpacity="0.25" pointerEvents="none" />
@@ -139,6 +149,9 @@ export default function FlywheelOverviewPage() {
                 style={{ cursor: "pointer" }}
                 onMouseEnter={() => setTip(sTd)} onMouseMove={handleTipMove}
                 onMouseLeave={() => setTip(null)} />
+              <text x={sp.x} y={sp.y} fill="#fff" fontSize="8" fontWeight="700"
+                textAnchor="middle" dominantBaseline="central" pointerEvents="none"
+                fontFamily="var(--font)">{sPctTxt}</text>
             </g>
           );
         })}
@@ -169,7 +182,7 @@ export default function FlywheelOverviewPage() {
         <div className="fw-momentum">
           <div className="fw-mom-label">FLYWHEEL MOMENTUM</div>
           <div className="fw-mom-value" style={{ color: momColor }}>{momTxt}</div>
-          <div className="fw-mom-period">{FW_PER_LBL[per]}</div>
+          <div className="fw-mom-period">{fwPerLabel(per, year)}</div>
           <div className="fw-mom-bar-bg">
             <div className="fw-mom-bar" style={{ width: `${momNorm}%`, background: momColor }} />
           </div>
@@ -290,11 +303,11 @@ export default function FlywheelOverviewPage() {
 
                   const td: TipData = {
                     name, parent: "", owner: gObj.owner, func: "DIREZIONE",
-                    real: fwDV(gObj.real, per, gObj.isPercent, gObj.isCurrency),
-                    forecast: fwDV(gObj.forecast, per, gObj.isPercent, gObj.isCurrency),
+                    real: fwDV(gObj.real, per, gObj.isPercent, gObj.isCurrency, gObj.decimals),
+                    forecast: fwDV(gObj.forecast, per, gObj.isPercent, gObj.isCurrency, gObj.decimals),
                     ratio, status: sc,
                     realM: gObj.real, fcM: gObj.forecast,
-                    isPct: gObj.isPercent, isCur: gObj.isCurrency,
+                    isPct: gObj.isPercent, isCur: gObj.isCurrency, decimals: gObj.decimals,
                     hasSub: Object.keys(gObj.subgoals).length > 0,
                     mode: cfg.mode, start: cfg.start, limInf: cfg.limInf, limSup: cfg.limSup,
                   };
@@ -305,9 +318,10 @@ export default function FlywheelOverviewPage() {
                         textAnchor="middle" dominantBaseline="central" opacity="0.85"
                         pointerEvents="none" fontFamily="var(--font)">{name}</text>
                       <circle cx={gx} cy={0} r={FW_GDR} fill={color} filter={`url(#fwg-${sc})`}
-                        style={{ cursor: "pointer" }}
-                        onMouseEnter={() => setTip(td)} onMouseMove={handleTipMove}
-                        onMouseLeave={() => setTip(null)} />
+                        style={{ cursor: admin ? "pointer" : "default" }}
+                        onMouseEnter={admin ? () => setTip(td) : undefined}
+                        onMouseMove={admin ? handleTipMove : undefined}
+                        onMouseLeave={admin ? () => setTip(null) : undefined} />
                       <text x={gx} y={0} fill="#fff" fontSize="11" fontWeight="700"
                         textAnchor="middle" dominantBaseline="central" pointerEvents="none"
                         fontFamily="var(--font)">{pctTxt}</text>
@@ -337,21 +351,25 @@ export default function FlywheelOverviewPage() {
                     <span className="fw-met-name">{name}</span>
                     <span className={`fw-met-perf ${sc}`}>{rt}</span>
                   </div>
-                  <div className="fw-met-vals">
-                    Real: {fwDV(gObj.real, per, gObj.isPercent, gObj.isCurrency)} | FC: {fwDV(gObj.forecast, per, gObj.isPercent, gObj.isCurrency)}
-                  </div>
-                  <div className="fw-met-months">
-                    {mi.map((m) => {
-                      const mr = fwSMR(gObj.real, gObj.forecast, m, cfg.mode, cfg.start, cfg.limInf, cfg.limSup);
-                      const mc = fwSCl(mr);
-                      return (
-                        <div key={m} className="fw-met-m">
-                          <span className={`fw-met-md ${mc}`} />
-                          {FW_MN[m]} {fwMDV(gObj.real, m, gObj.isPercent, gObj.isCurrency)}/{fwMDV(gObj.forecast, m, gObj.isPercent, gObj.isCurrency)}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  {admin && (
+                    <>
+                      <div className="fw-met-vals">
+                        Real: {fwDV(gObj.real, per, gObj.isPercent, gObj.isCurrency, gObj.decimals)} | FC: {fwDV(gObj.forecast, per, gObj.isPercent, gObj.isCurrency, gObj.decimals)}
+                      </div>
+                      <div className="fw-met-months">
+                        {mi.map((m) => {
+                          const mr = fwSMR(gObj.real, gObj.forecast, m, cfg.mode, cfg.start, cfg.limInf, cfg.limSup);
+                          const mc = fwSCl(mr);
+                          return (
+                            <div key={m} className="fw-met-m">
+                              <span className={`fw-met-md ${mc}`} />
+                              {FW_MN[m]} {fwMDV(gObj.real, m, gObj.isPercent, gObj.isCurrency, gObj.decimals)}/{fwMDV(gObj.forecast, m, gObj.isPercent, gObj.isCurrency, gObj.decimals)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -394,7 +412,7 @@ export default function FlywheelOverviewPage() {
                     <div key={m} className="fw-tt-mi">
                       <span className={`fw-tt-md ${mc}`} />
                       <span>{FW_MN[m]} <span style={{ color: "var(--fg)" }}>
-                        {fwMDV(tip.realM, m, tip.isPct, tip.isCur)} / {fwMDV(tip.fcM, m, tip.isPct, tip.isCur)}
+                        {fwMDV(tip.realM, m, tip.isPct, tip.isCur, tip.decimals)} / {fwMDV(tip.fcM, m, tip.isPct, tip.isCur, tip.decimals)}
                       </span></span>
                     </div>
                   );

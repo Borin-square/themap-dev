@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
+import { useYear } from "@/components/YearProvider";
 import { dataVersion } from "@/lib/square-marketing-data";
 import {
   FW_FUNCS, FW_MN, getMockDataForCompany, fwSegColor, fwSortedGoals,
@@ -18,9 +19,12 @@ export default function FlywheelSetupPage() {
   const company = getCompany(params.company as string);
   const slug = params.company as string;
   const mock = getMockDataForCompany(slug);
+  const { year } = useYear();
   const dv = dataVersion(slug);
-  const [data, setData] = useLocalState<FwData>(`themap:${slug}:fwData`, () => mock.data, dv);
-  const [config, setConfig] = useLocalState<FwConfig>(`themap:${slug}:fwConfig`, () => mock.config, dv);
+  const emptyInit = () => (year === 2026 ? mock.data : ({} as FwData));
+  const emptyCfgInit = () => (year === 2026 ? mock.config : ({} as FwConfig));
+  const [data, setData] = useLocalState<FwData>(`themap:${slug}:fwData`, emptyInit, dv, year);
+  const [config, setConfig] = useLocalState<FwConfig>(`themap:${slug}:fwConfig`, emptyCfgInit, dv, year);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null);
 
@@ -35,6 +39,7 @@ export default function FlywheelSetupPage() {
   const [gfOwner, setGfOwner] = useState("");
   const [gfMode, setGfMode] = useState("STANDARD");
   const [gfFlags, setGfFlags] = useState("");
+  const [gfDecimals, setGfDecimals] = useState("");
   const [gfLimInf, setGfLimInf] = useState("");
   const [gfLimSup, setGfLimSup] = useState("");
   const [gfStart, setGfStart] = useState("");
@@ -42,6 +47,8 @@ export default function FlywheelSetupPage() {
   // Sub form draft
   const [sfName, setSfName] = useState("");
   const [sfOwner, setSfOwner] = useState("");
+  const [sfFlags, setSfFlags] = useState("");
+  const [sfDecimals, setSfDecimals] = useState("");
 
   function showToast(msg: string, err?: boolean) {
     setToast({ msg, err });
@@ -71,6 +78,7 @@ export default function FlywheelSetupPage() {
       setGfOwner(existing?.owner || "");
       setGfMode(cfg.mode);
       setGfFlags(existing?.isPercent ? "%" : existing?.isCurrency ? "\u20AC" : "");
+      setGfDecimals(existing?.decimals != null ? String(existing.decimals) : "");
       setGfLimInf((cfg as unknown as Record<string, unknown>).limInf?.toString() ?? "");
       setGfLimSup((cfg as unknown as Record<string, unknown>).limSup?.toString() ?? "");
       setGfStart((cfg as unknown as Record<string, unknown>).start?.toString() ?? "");
@@ -80,6 +88,7 @@ export default function FlywheelSetupPage() {
       setGfOwner("");
       setGfMode("STANDARD");
       setGfFlags("");
+      setGfDecimals("");
       setGfLimInf("");
       setGfLimSup("");
       setGfStart("");
@@ -96,6 +105,8 @@ export default function FlywheelSetupPage() {
     const limSup = gfLimSup ? parseFloat(gfLimSup) : null;
     const start = gfStart ? parseFloat(gfStart) : null;
 
+    const decimals = gfDecimals === "" ? undefined : parseInt(gfDecimals, 10);
+
     if (goalForm?.editName) {
       // Update
       const oldName = goalForm.editName;
@@ -107,6 +118,8 @@ export default function FlywheelSetupPage() {
             g.owner = owner;
             g.isPercent = gfFlags === "%";
             g.isCurrency = gfFlags === "\u20AC";
+            if (decimals === undefined) delete g.decimals;
+            else g.decimals = decimals;
             if (f !== gfFunc) {
               if (!next[gfFunc]) next[gfFunc] = {};
               next[gfFunc][name] = g;
@@ -134,6 +147,7 @@ export default function FlywheelSetupPage() {
         if (!next[gfFunc]) next[gfFunc] = {};
         next[gfFunc][name] = {
           owner, isPercent: gfFlags === "%", isCurrency: gfFlags === "\u20AC",
+          ...(decimals !== undefined && { decimals }),
           real: Array(12).fill(null), forecast: Array(12).fill(null), subgoals: {},
         };
         return next;
@@ -153,16 +167,22 @@ export default function FlywheelSetupPage() {
     setGoalForm(null);
     setSfName("");
     setSfOwner("");
+    setSfFlags("");
+    setSfDecimals("");
   }
 
   function saveSubForm() {
     if (!sfName.trim() || !subForm) return;
+    const decimals = sfDecimals === "" ? undefined : parseInt(sfDecimals, 10);
     setData((prev) => {
       const next = JSON.parse(JSON.stringify(prev)) as FwData;
       for (const fn of FW_FUNCS) {
         if (next[fn]?.[subForm]) {
           next[fn][subForm].subgoals[sfName.trim()] = {
-            owner: sfOwner.trim(), isPercent: false, isCurrency: false,
+            owner: sfOwner.trim(),
+            isPercent: sfFlags === "%",
+            isCurrency: sfFlags === "\u20AC",
+            ...(decimals !== undefined && { decimals }),
             real: Array(12).fill(null), forecast: Array(12).fill(null),
           };
           break;
@@ -286,6 +306,7 @@ export default function FlywheelSetupPage() {
                   gfOwner={gfOwner} setGfOwner={setGfOwner}
                   gfMode={gfMode} setGfMode={setGfMode}
                   gfFlags={gfFlags} setGfFlags={setGfFlags}
+                  gfDecimals={gfDecimals} setGfDecimals={setGfDecimals}
                   gfLimInf={gfLimInf} setGfLimInf={setGfLimInf}
                   gfLimSup={gfLimSup} setGfLimSup={setGfLimSup}
                   gfStart={gfStart} setGfStart={setGfStart}
@@ -315,6 +336,7 @@ export default function FlywheelSetupPage() {
                             gfOwner={gfOwner} setGfOwner={setGfOwner}
                             gfMode={gfMode} setGfMode={setGfMode}
                             gfFlags={gfFlags} setGfFlags={setGfFlags}
+                            gfDecimals={gfDecimals} setGfDecimals={setGfDecimals}
                             gfLimInf={gfLimInf} setGfLimInf={setGfLimInf}
                             gfLimSup={gfLimSup} setGfLimSup={setGfLimSup}
                             gfStart={gfStart} setGfStart={setGfStart}
@@ -380,6 +402,19 @@ export default function FlywheelSetupPage() {
                             <div className="fws-inline-form">
                               <input className="fws-inline-input" placeholder="Nome subgoal..." value={sfName} onChange={(e) => setSfName(e.target.value)} autoFocus />
                               <input className="fws-inline-input" placeholder="Owner (opzionale)" value={sfOwner} onChange={(e) => setSfOwner(e.target.value)} />
+                              <select className="fws-inline-select" value={sfFlags} onChange={(e) => setSfFlags(e.target.value)}>
+                                <option value="">Nessun flag</option>
+                                <option value="%">% Percentuale</option>
+                                <option value={"\u20AC"}>{"\u20AC"} Valuta</option>
+                              </select>
+                              <select className="fws-inline-select" value={sfDecimals} onChange={(e) => setSfDecimals(e.target.value)} title="Numero di decimali">
+                                <option value="">Decimali (auto)</option>
+                                <option value="0">0 decimali</option>
+                                <option value="1">1 decimale</option>
+                                <option value="2">2 decimali</option>
+                                <option value="3">3 decimali</option>
+                                <option value="4">4 decimali</option>
+                              </select>
                               <button className="pe-act-save" onClick={saveSubForm}>Aggiungi</button>
                               <button className="pe-act-cancel" onClick={() => setSubForm(null)}>Annulla</button>
                             </div>
@@ -428,6 +463,7 @@ export default function FlywheelSetupPage() {
 function GoalInlineForm({
   gfName, setGfName, gfFunc, setGfFunc, gfOwner, setGfOwner,
   gfMode, setGfMode, gfFlags, setGfFlags,
+  gfDecimals, setGfDecimals,
   gfLimInf, setGfLimInf, gfLimSup, setGfLimSup,
   gfStart, setGfStart,
   onSave, onCancel, isEdit,
@@ -437,6 +473,7 @@ function GoalInlineForm({
   gfOwner: string; setGfOwner: (v: string) => void;
   gfMode: string; setGfMode: (v: string) => void;
   gfFlags: string; setGfFlags: (v: string) => void;
+  gfDecimals: string; setGfDecimals: (v: string) => void;
   gfLimInf: string; setGfLimInf: (v: string) => void;
   gfLimSup: string; setGfLimSup: (v: string) => void;
   gfStart: string; setGfStart: (v: string) => void;
@@ -459,6 +496,14 @@ function GoalInlineForm({
           <option value="">Nessun flag</option>
           <option value="%">% Percentuale</option>
           <option value={"\u20AC"}>{"\u20AC"} Valuta</option>
+        </select>
+        <select className="fws-inline-select" value={gfDecimals} onChange={(e) => setGfDecimals(e.target.value)} title="Numero di decimali">
+          <option value="">Decimali (auto)</option>
+          <option value="0">0 decimali</option>
+          <option value="1">1 decimale</option>
+          <option value="2">2 decimali</option>
+          <option value="3">3 decimali</option>
+          <option value="4">4 decimali</option>
         </select>
         {gfMode === "LIMITI" && (
           <>

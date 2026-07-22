@@ -1,4 +1,4 @@
-import type { CrawlabilityResult, CrawlerStatus, AuditIssue } from "@/lib/geo/types";
+import type { CrawlabilityResult, CrawlerStatus, AuditIssue, GEOAuditLog } from "@/lib/geo/types";
 import { AI_CRAWLERS, AI_CRAWLERS_CRITICAL } from "@/lib/geo/types";
 
 export const maxDuration = 30;
@@ -8,8 +8,15 @@ interface CrawlRequest {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+  const steps: GEOAuditLog["steps"] = [];
+  const fetches: NonNullable<GEOAuditLog["fetches"]> = [];
+  const step = (label: string, detail?: string) =>
+    steps.push({ label, timestamp: new Date().toISOString(), detail });
+
   try {
     const { siteUrl } = (await req.json()) as CrawlRequest;
+    step("Richiesta ricevuta", `siteUrl=${siteUrl}`);
     if (!siteUrl?.trim()) {
       return Response.json({ error: "URL del sito richiesto." }, { status: 400 });
     }
@@ -21,26 +28,32 @@ export async function POST(req: Request) {
     } catch {
       return Response.json({ error: "URL non valido." }, { status: 400 });
     }
+    step("URL normalizzato", baseUrl);
 
     const issues: AuditIssue[] = [];
 
     // Fetch robots.txt
+    const robotsUrl = `${baseUrl}/robots.txt`;
+    step("Fetch robots.txt", robotsUrl);
     let robotsTxt = "";
     try {
-      const res = await fetch(`${baseUrl}/robots.txt`, {
+      const res = await fetch(robotsUrl, {
         headers: { "User-Agent": "Mozilla/5.0" },
         signal: AbortSignal.timeout(10000),
       });
       if (res.ok) {
         robotsTxt = await res.text();
+        fetches.push({ url: robotsUrl, status: res.status, ok: true, contentSnippet: robotsTxt.slice(0, 2000) });
       } else {
+        fetches.push({ url: robotsUrl, status: res.status, ok: false });
         issues.push({
           type: "warning", category: "robots.txt",
           message: `robots.txt non trovato (HTTP ${res.status})`,
           fix: "Crea un file robots.txt nella root del sito",
         });
       }
-    } catch {
+    } catch (e) {
+      fetches.push({ url: robotsUrl, error: e instanceof Error ? e.message : "fetch error" });
       issues.push({
         type: "critical", category: "robots.txt",
         message: "Impossibile raggiungere robots.txt",
@@ -49,6 +62,7 @@ export async function POST(req: Request) {
     }
 
     // Parse robots.txt for each AI crawler
+    step("Analisi crawler AI", `${AI_CRAWLERS.length} crawler verificati`);
     const crawlers = AI_CRAWLERS.map((name) => {
       const result = checkCrawlerAccess(robotsTxt, name);
       if (result.status === "blocked") {
@@ -66,6 +80,7 @@ export async function POST(req: Request) {
     // Check sitemap
     let sitemap = { found: false as boolean, url: undefined as string | undefined, entries: undefined as number | undefined };
     const sitemapUrl = extractSitemapUrl(robotsTxt) || `${baseUrl}/sitemap.xml`;
+    step("Fetch sitemap", sitemapUrl);
     try {
       const res = await fetch(sitemapUrl, {
         headers: { "User-Agent": "Mozilla/5.0" },
@@ -75,14 +90,17 @@ export async function POST(req: Request) {
         const text = await res.text();
         const entries = (text.match(/<url>/gi) || []).length || (text.match(/<loc>/gi) || []).length;
         sitemap = { found: true, url: sitemapUrl, entries };
+        fetches.push({ url: sitemapUrl, status: res.status, ok: true, contentSnippet: text.slice(0, 1500) });
       } else {
+        fetches.push({ url: sitemapUrl, status: res.status, ok: false });
         issues.push({
           type: "warning", category: "sitemap",
           message: "Sitemap non trovata",
           fix: "Crea una sitemap.xml e dichiarala nel robots.txt",
         });
       }
-    } catch {
+    } catch (e) {
+      fetches.push({ url: sitemapUrl, error: e instanceof Error ? e.message : "fetch error" });
       issues.push({
         type: "warning", category: "sitemap",
         message: "Impossibile raggiungere la sitemap",
@@ -90,6 +108,7 @@ export async function POST(req: Request) {
     }
 
     // Check main page headers
+    step("Fetch homepage", baseUrl);
     try {
       const res = await fetch(baseUrl, {
         headers: { "User-Agent": "Mozilla/5.0" },
@@ -97,6 +116,7 @@ export async function POST(req: Request) {
         redirect: "follow",
       });
       const xRobotsTag = res.headers.get("x-robots-tag");
+      fetches.push({ url: baseUrl, status: res.status, ok: res.ok, contentSnippet: xRobotsTag ? `x-robots-tag: ${xRobotsTag}` : undefined });
       if (xRobotsTag && (xRobotsTag.includes("noindex") || xRobotsTag.includes("nofollow"))) {
         issues.push({
           type: "critical", category: "headers",
@@ -104,7 +124,8 @@ export async function POST(req: Request) {
           fix: "Rimuovi noindex/nofollow dall'header X-Robots-Tag",
         });
       }
-    } catch {
+    } catch (e) {
+      fetches.push({ url: baseUrl, error: e instanceof Error ? e.message : "fetch error" });
       issues.push({
         type: "critical", category: "accessibilita",
         message: "Il sito non risponde",
@@ -121,6 +142,8 @@ export async function POST(req: Request) {
     const penalty = criticals * 15;
     const score = Math.max(0, Math.round(crawlerScore * 0.5 + sitemapScore * 0.25 + robotsScore * 0.25 - penalty));
 
+    step("Score calcolato", `score=${score}, blocked=${blocked}, allowed=${allowed}`);
+
     const result: CrawlabilityResult = {
       id: crypto.randomUUID(),
       url: baseUrl,
@@ -130,6 +153,11 @@ export async function POST(req: Request) {
       sitemap,
       issues,
       score,
+      _log: {
+        durationMs: Date.now() - startedAt,
+        steps,
+        fetches,
+      },
     };
 
     return Response.json(result);

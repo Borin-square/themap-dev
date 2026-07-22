@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchCompanies, getCachedCompanies, type Company } from "@/lib/companies";
+import { fetchCompanies, getCachedCompanies, type Company, type CompanyType } from "@/lib/companies";
 import { useAuth } from "@/components/AuthProvider";
 import { isAdmin, type Ruolo } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -39,7 +39,7 @@ export default function SettingsPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [editingCo, setEditingCo] = useState<string | null>(null);
   const [newCo, setNewCo] = useState(false);
-  const [coForm, setCoForm] = useState({ slug: "", name: "", color: "#4f8cff" });
+  const [coForm, setCoForm] = useState<{ slug: string; name: string; color: string; type: CompanyType }>({ slug: "", name: "", color: "#4f8cff", type: "client" });
   const [confirmDelCo, setConfirmDelCo] = useState<string | null>(null);
 
   useEffect(() => { fetchCompanies().then(setCompanies); }, []);
@@ -84,14 +84,14 @@ export default function SettingsPage() {
 
   function startNewCompany() {
     setEditingCo(null);
-    setCoForm({ slug: "", name: "", color: "#4f8cff" });
+    setCoForm({ slug: "", name: "", color: "#4f8cff", type: "client" });
     setNewCo(true);
   }
 
   function startEditCompany(c: Company) {
     setNewCo(false);
     setConfirmDelCo(null);
-    setCoForm({ slug: c.slug, name: c.name, color: c.color });
+    setCoForm({ slug: c.slug, name: c.name, color: c.color, type: c.type });
     setEditingCo(c.slug);
   }
 
@@ -101,7 +101,7 @@ export default function SettingsPage() {
   }
 
   async function handleSaveCompany() {
-    const { slug, name, color } = coForm;
+    const { slug, name, color, type } = coForm;
     if (!name.trim()) return;
     const finalSlug = newCo
       ? (slug.trim() || name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""))
@@ -113,7 +113,7 @@ export default function SettingsPage() {
     const res = await fetch("/api/companies", {
       method: isNew ? "POST" : "PUT",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ slug: finalSlug, name: name.trim(), color }),
+      body: JSON.stringify({ slug: finalSlug, name: name.trim(), color, type }),
     });
 
     const result = await res.json();
@@ -276,6 +276,7 @@ export default function SettingsPage() {
                 <th style={{ width: 48 }}>Colore</th>
                 <th>Nome</th>
                 <th>Slug</th>
+                <th>Tipo</th>
                 {admin && <th></th>}
               </tr>
             </thead>
@@ -295,6 +296,15 @@ export default function SettingsPage() {
                     </td>
                     <td style={{ color: "var(--fg3)" }}>{c.slug}</td>
                     <td>
+                      <select className="setting-input" value={coForm.type}
+                        onChange={(e) => setCoForm({ ...coForm, type: e.target.value as CompanyType })}
+                        style={{ margin: 0 }}>
+                        <option value="client">Client</option>
+                        <option value="operative">Operative</option>
+                        <option value="holding">Holding</option>
+                      </select>
+                    </td>
+                    <td>
                       <div className="ac-actions">
                         <button onClick={handleSaveCompany}>Salva</button>
                         <button className="ac-del" onClick={cancelEditCompany}>Annulla</button>
@@ -306,6 +316,16 @@ export default function SettingsPage() {
                     <td><span className="ni-dot" style={{ background: c.color, display: "inline-block" }} /></td>
                     <td>{c.name}</td>
                     <td style={{ color: "var(--fg3)" }}>{c.slug}</td>
+                    <td>
+                      {(() => {
+                        const meta = c.type === "holding"
+                          ? { bg: "rgba(245,158,11,.15)", fg: "#f59e0b", label: "Holding" }
+                          : c.type === "operative"
+                          ? { bg: "rgba(34,197,94,.15)", fg: "#22c55e", label: "Operative" }
+                          : { bg: "rgba(99,102,241,.15)", fg: "#6366f1", label: "Client" };
+                        return <span className="ac-az-tag" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>;
+                      })()}
+                    </td>
                     {admin && (
                       <td>
                         {confirmDelCo === c.slug ? (
@@ -342,6 +362,14 @@ export default function SettingsPage() {
                       onChange={(e) => setCoForm({ ...coForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
                       placeholder={coForm.name ? coForm.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") : "slug"}
                       style={{ margin: 0 }} />
+                  </td>
+                  <td>
+                    <select className="setting-input" value={coForm.type}
+                      onChange={(e) => setCoForm({ ...coForm, type: e.target.value as CompanyType })}
+                      style={{ margin: 0 }}>
+                      <option value="client">Client</option>
+                      <option value="holding">Holding</option>
+                    </select>
                   </td>
                   <td>
                     <div className="ac-actions">

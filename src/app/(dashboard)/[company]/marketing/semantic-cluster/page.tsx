@@ -167,6 +167,7 @@ export default function SemanticClusterPage() {
         <Link href={`/${slug}/marketing/seo-cluster`} className="ee-tab">SEO Cluster</Link>
         <span className="ee-tab active">Semantic Cluster</span>
         <Link href={`/${slug}/marketing/flywheel`} className="ee-tab">Flywheel</Link>
+        <Link href={`/${slug}/marketing/page-generator`} className="ee-tab">Page Generator</Link>
         <Link href={`/${slug}/marketing/design-test`} className="ee-tab">Design Test</Link>
       </div>
 

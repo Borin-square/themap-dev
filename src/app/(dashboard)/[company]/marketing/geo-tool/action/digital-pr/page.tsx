@@ -58,8 +58,16 @@ export default function DigitalPRPage() {
           problems: cfg.problems,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Errore");
+      const raw = await res.text();
+      let data: { error?: string } & Partial<DigitalPRResult> = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch {
+        throw new Error(
+          !res.ok
+            ? `Server error (${res.status}). L'analisi potrebbe essere andata in timeout.`
+            : "Risposta non valida dal server.",
+        );
+      }
+      if (!res.ok) throw new Error(data.error || `Errore ${res.status}`);
       const result = data as DigitalPRResult;
       setProject((p) => ({
         ...p,
