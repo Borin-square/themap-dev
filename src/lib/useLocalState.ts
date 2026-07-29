@@ -128,6 +128,16 @@ export function useLocalState<T>(
             return;
           }
 
+          // Server ha una row ma con payload null/undefined (stub scritto da
+          // una write parziale precedente, o realtime out-of-order). NON
+          // sovrascrivere lo state locale con null: manterremmo un GEOProject
+          // valido inizializzato via init() e le prossime write dell'utente
+          // rimpiazzeranno la row stub.
+          if (serverValue == null) {
+            setHydrated(true);
+            return;
+          }
+
           // Caso normale: server autoritativo.
           if (localJson !== serverJson) {
             setState(serverValue);
@@ -168,6 +178,9 @@ export function useLocalState<T>(
           const row = (payload.new ?? payload.old) as { key?: string; year?: number; data?: unknown } | null;
           if (!row || row.key !== dataKey || row.year !== effectiveYear) return;
           if (payload.eventType === "DELETE") return;
+          // Non sovrascrivere lo state con payload null/undefined: sarebbe un
+          // downgrade a stato invalido che fa crashare i consumer.
+          if (row.data == null) return;
           const nextJson = JSON.stringify(row.data);
           if (nextJson === lastServerJson.current) return; // eco del nostro write
           lastServerJson.current = nextJson;
