@@ -246,11 +246,6 @@ export default function Sidebar() {
             <Link href="/settings" className={`ni d0${pathname === "/settings" ? " act" : ""}`} title="Settings" style={{ justifyContent: "center", padding: "8px 0" }}>
               <span style={{ fontSize: 16 }}>⚙</span>
             </Link>
-            {isSuperAdmin(session) && (
-              <Link href="/library" className={`ni d0${pathname === "/library" ? " act" : ""}`} title="Library" style={{ justifyContent: "center", padding: "8px 0" }}>
-                <span style={{ fontSize: 16 }}>◫</span>
-              </Link>
-            )}
           </>
         )}
         {!collapsed && isSuperAdmin(session) && renderItems([{ id: "admin", label: "Admin", href: "/admin" }], 0)}

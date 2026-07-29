@@ -33,6 +33,7 @@ export const FEATURE_DEFS: FeatureDef[] = [
   { key: "holding-management.multiyear", label: "Multiyear", group: "Holding Management" },
   { key: "holding-management.rituals", label: "Rituals", group: "Holding Management" },
   { key: "holding-management.vision", label: "Vision", group: "Holding Management" },
+  { key: "holding-management.objectives", label: "Obiettivi", group: "Holding Management" },
   { key: "holding-management.workload", label: "Workload", group: "Holding Management" },
   { key: "holding-management.tasks", label: "Tasks", group: "Holding Management" },
 ];
@@ -47,6 +48,7 @@ export const OPT_IN_FEATURES: ReadonlySet<string> = new Set<string>([
   "holding-management.multiyear",
   "holding-management.rituals",
   "holding-management.vision",
+  "holding-management.objectives",
   "holding-management.workload",
   "holding-management.tasks",
 ]);

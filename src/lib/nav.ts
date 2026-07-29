@@ -97,6 +97,7 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           { id: `${c.slug}-hm-multiyear`, label: "Multiyear", featureKey: "holding-management.multiyear", href: `/${c.slug}/holding-management/multiyear` },
           { id: `${c.slug}-hm-rituals`, label: "Rituals", featureKey: "holding-management.rituals", href: `/${c.slug}/holding-management/rituals` },
           { id: `${c.slug}-hm-vision`, label: "Vision", featureKey: "holding-management.vision", href: `/${c.slug}/holding-management/vision` },
+          { id: `${c.slug}-hm-objectives`, label: "Obiettivi", featureKey: "holding-management.objectives", href: `/${c.slug}/holding-management/objectives` },
           { id: `${c.slug}-hm-workload`, label: "Workload", featureKey: "holding-management.workload", href: `/${c.slug}/holding-management/workload` },
           { id: `${c.slug}-hm-tasks`, label: "Task Manager", featureKey: "holding-management.tasks", href: `/${c.slug}/holding-management/tasks` },
         ],
@@ -158,7 +159,6 @@ export function buildNav(companies: Company[]): NavItem[] {
 export const TYPE_GROUP_IDS: string[] = TYPE_GROUPS.map((g) => g.id);
 
 export const FOOTER_NAV: NavItem[] = [
-  { id: "library", label: "Library", href: "/library" },
   { id: "settings", label: "Settings", href: "/settings" },
 ];
 
