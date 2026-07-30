@@ -98,6 +98,7 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           { id: `${c.slug}-hm-rituals`, label: "Rituals", featureKey: "holding-management.rituals", href: `/${c.slug}/holding-management/rituals` },
           { id: `${c.slug}-hm-vision`, label: "Vision", featureKey: "holding-management.vision", href: `/${c.slug}/holding-management/vision` },
           { id: `${c.slug}-hm-objectives`, label: "Obiettivi", featureKey: "holding-management.objectives", href: `/${c.slug}/holding-management/objectives` },
+          { id: `${c.slug}-hm-opportunities`, label: "Opportunità", featureKey: "holding-management.opportunities", href: `/${c.slug}/holding-management/opportunities` },
           { id: `${c.slug}-hm-workload`, label: "Workload", featureKey: "holding-management.workload", href: `/${c.slug}/holding-management/workload` },
           { id: `${c.slug}-hm-tasks`, label: "Task Manager", featureKey: "holding-management.tasks", href: `/${c.slug}/holding-management/tasks` },
         ],
