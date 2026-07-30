@@ -65,48 +65,55 @@ interface UserProfile { id: string; email: string; nome: string; ruolo: string }
 
 /* ── Scorecard ── */
 
-interface Criterion { key: string; label: string; max: number }
+// Scala di voto unificata: 1 = molto negativo … 5 = molto positivo.
+// Ogni categoria ha 5 sotto-voci; il peso della sotto-voce (weight) porta il
+// voto Likert dentro la scala della categoria (Leader 35, Qualità 25, Impatto
+// 25, Coerenza 15). Es. Leader: weight 1.4 → voto 5 = 7 pt.
+const VOTE_SCALE = 5;
+const VOTE_LABELS = ["Molto negativo", "Negativo", "Neutro", "Positivo", "Molto positivo"];
+
+interface Criterion { key: string; label: string; weight: number }
 interface Category { key: CategoryKey; label: string; total: number; criteria: Criterion[] }
 
 const SCORECARD: Category[] = [
   {
     key: "leader", label: "Leader", total: 35,
     criteria: [
-      { key: "leader.value_alignment",    label: "Allineamento valoriale",                              max: 7 },
-      { key: "leader.responsibility",     label: "Capacità di assumersi responsabilità",                max: 7 },
-      { key: "leader.energy_ambition",    label: "Energia e ambizione",                                 max: 7 },
-      { key: "leader.learning_ability",   label: "Capacità di imparare",                                max: 7 },
-      { key: "leader.dedication",         label: "Possibilità concreta di dedicarsi al progetto",       max: 7 },
+      { key: "leader.value_alignment",    label: "Allineamento valoriale",                              weight: 1.4 },
+      { key: "leader.responsibility",     label: "Capacità di assumersi responsabilità",                weight: 1.4 },
+      { key: "leader.energy_ambition",    label: "Energia e ambizione",                                 weight: 1.4 },
+      { key: "leader.learning_ability",   label: "Capacità di imparare",                                weight: 1.4 },
+      { key: "leader.dedication",         label: "Possibilità concreta di dedicarsi al progetto",       weight: 1.4 },
     ],
   },
   {
     key: "project_quality", label: "Qualità del progetto", total: 25,
     criteria: [
-      { key: "project_quality.market",                label: "Mercato interessante",           max: 5 },
-      { key: "project_quality.economic_model",        label: "Modello economico",              max: 5 },
-      { key: "project_quality.margin_potential",      label: "Potenziale di marginalità",      max: 5 },
-      { key: "project_quality.competitive_advantage", label: "Vantaggio competitivo",          max: 5 },
-      { key: "project_quality.cash_generation",       label: "Capacità di generare cassa",     max: 5 },
+      { key: "project_quality.market",                label: "Mercato interessante",           weight: 1.0 },
+      { key: "project_quality.economic_model",        label: "Modello economico",              weight: 1.0 },
+      { key: "project_quality.margin_potential",      label: "Potenziale di marginalità",      weight: 1.0 },
+      { key: "project_quality.competitive_advantage", label: "Vantaggio competitivo",          weight: 1.0 },
+      { key: "project_quality.cash_generation",       label: "Capacità di generare cassa",     weight: 1.0 },
     ],
   },
   {
     key: "serenissima_impact", label: "Impatto Serenissima", total: 25,
     criteria: [
-      { key: "serenissima_impact.useful_skills",           label: "Competenze realmente utili", max: 5 },
-      { key: "serenissima_impact.network",                 label: "Network",                    max: 5 },
-      { key: "serenissima_impact.commercial_distribution", label: "Distribuzione commerciale",  max: 5 },
-      { key: "serenissima_impact.technology",              label: "Tecnologia",                 max: 5 },
-      { key: "serenissima_impact.recruiting_organization", label: "Recruiting e organizzazione", max: 5 },
+      { key: "serenissima_impact.useful_skills",           label: "Competenze realmente utili", weight: 1.0 },
+      { key: "serenissima_impact.network",                 label: "Network",                    weight: 1.0 },
+      { key: "serenissima_impact.commercial_distribution", label: "Distribuzione commerciale",  weight: 1.0 },
+      { key: "serenissima_impact.technology",              label: "Tecnologia",                 weight: 1.0 },
+      { key: "serenissima_impact.recruiting_organization", label: "Recruiting e organizzazione", weight: 1.0 },
     ],
   },
   {
     key: "portfolio_coherence", label: "Coerenza di portafoglio", total: 15,
     criteria: [
-      { key: "portfolio_coherence.risk_concentration",  label: "Concentrazione del rischio",       max: 3 },
-      { key: "portfolio_coherence.capital_absorption",  label: "Assorbimento di capitale",         max: 3 },
-      { key: "portfolio_coherence.partners_absorption", label: "Assorbimento dei soci",            max: 3 },
-      { key: "portfolio_coherence.assets_correlation",  label: "Correlazione con gli altri asset", max: 3 },
-      { key: "portfolio_coherence.time_horizon",        label: "Orizzonte temporale",              max: 3 },
+      { key: "portfolio_coherence.risk_concentration",  label: "Concentrazione del rischio",       weight: 0.6 },
+      { key: "portfolio_coherence.capital_absorption",  label: "Assorbimento di capitale",         weight: 0.6 },
+      { key: "portfolio_coherence.partners_absorption", label: "Assorbimento dei soci",            weight: 0.6 },
+      { key: "portfolio_coherence.assets_correlation",  label: "Correlazione con gli altri asset", weight: 0.6 },
+      { key: "portfolio_coherence.time_horizon",        label: "Orizzonte temporale",              weight: 0.6 },
     ],
   },
 ];
@@ -142,7 +149,7 @@ function categoryScoreForUser(scores: Score[], opportunityId: string, userId: st
   let sum = 0;
   for (const cr of cat.criteria) {
     const found = scores.find((s) => s.opportunity_id === opportunityId && s.user_id === userId && s.criterion_key === cr.key);
-    if (found) sum += found.score;
+    if (found) sum += found.score * cr.weight;
   }
   return sum;
 }
@@ -870,13 +877,16 @@ function MyScorecard({
 }) {
   return (
     <div style={{ display: "grid", gap: 20 }}>
+      <div style={{ fontSize: 11, color: "var(--fg3)", padding: "6px 10px", background: "var(--bg)", borderRadius: 4 }}>
+        Scala: 1 = molto negativo · 2 = negativo · 3 = neutro · 4 = positivo · 5 = molto positivo. Il peso della sotto-voce viene applicato dietro le quinte.
+      </div>
       {SCORECARD.map((cat) => {
         const catScore = categoryScoreForUser(scores, opportunityId, currentUid, cat.key);
         return (
           <div key={cat.key}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>{cat.label}</div>
-              <div style={{ fontSize: 12, color: "var(--fg3)" }}>{catScore} / {cat.total}</div>
+              <div style={{ fontSize: 12, color: "var(--fg3)" }}>{catScore.toFixed(1)} / {cat.total}</div>
             </div>
             <div style={{ display: "grid", gap: 6 }}>
               {cat.criteria.map((cr) => {
@@ -884,7 +894,7 @@ function MyScorecard({
                 return (
                   <div key={cr.key} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "8px 12px", background: "var(--bg)", border: "1px solid var(--bd)", borderRadius: 6 }}>
                     <div style={{ fontSize: 12 }}>{cr.label}</div>
-                    <VoteButtons max={cr.max} value={currentScore} onChange={(v) => onVote(cr.key, v)} />
+                    <VoteButtons value={currentScore} onChange={(v) => onVote(cr.key, v)} />
                   </div>
                 );
               })}
@@ -896,19 +906,20 @@ function MyScorecard({
   );
 }
 
-function VoteButtons({ max, value, onChange }: { max: number; value: number | undefined; onChange: (v: number) => void }) {
+function VoteButtons({ value, onChange }: { value: number | undefined; onChange: (v: number) => void }) {
   return (
     <div style={{ display: "flex", gap: 3 }}>
-      {Array.from({ length: max + 1 }, (_, i) => i).map((n) => {
+      {Array.from({ length: VOTE_SCALE }, (_, i) => i + 1).map((n) => {
         const selected = value === n;
         return (
           <button
             key={n}
             onClick={() => onChange(n)}
+            title={VOTE_LABELS[n - 1]}
             style={{
-              width: 28, height: 28, border: "1px solid var(--bd)", borderRadius: 4,
+              width: 32, height: 32, border: "1px solid var(--bd)", borderRadius: 4,
               background: selected ? "var(--accent)" : "var(--cd)", color: selected ? "#fff" : "var(--fg2)",
-              cursor: "pointer", fontSize: 12, fontWeight: 600,
+              cursor: "pointer", fontSize: 13, fontWeight: 600,
             }}
           >{n}</button>
         );
@@ -934,28 +945,36 @@ function RevealedScorecard({
 
       {SCORECARD.map((cat) => (
         <div key={cat.key} style={{ marginBottom: 16 }}>
-          {/* Riepilogo categoria */}
+          {/* Riepilogo categoria (punti pesati / totale) */}
           <div style={{ display: "grid", gridTemplateColumns: `1fr repeat(${partners.length}, 60px) 60px`, gap: 8, padding: "8px 12px", background: "var(--cd)", border: "1px solid var(--bd)", borderRadius: 6, marginBottom: 4, alignItems: "center" }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{cat.label} <span style={{ color: "var(--fg3)", fontWeight: 400 }}>/ {cat.total}</span></div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{cat.label} <span style={{ color: "var(--fg3)", fontWeight: 400 }}>/ {cat.total} pt</span></div>
             {partners.map((p) => {
               const s = categoryScoreForUser(scores, opp.id, p.id, cat.key);
-              return <div key={p.id} style={{ textAlign: "center", fontSize: 12, fontWeight: 600 }}>{s}</div>;
+              return <div key={p.id} style={{ textAlign: "center", fontSize: 12, fontWeight: 600 }}>{s.toFixed(1)}</div>;
             })}
             <div style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--accent)" }}>
               {agg.avgByCategory[cat.key]?.toFixed(1) ?? "—"}
             </div>
           </div>
 
-          {/* Sotto-voci */}
+          {/* Sotto-voci: mostra il voto Likert (1-5) di ogni socio + media Likert */}
           {cat.criteria.map((cr) => {
             const per = partners.map((p) => scores.find((s) => s.opportunity_id === opp.id && s.user_id === p.id && s.criterion_key === cr.key)?.score);
             const valid = per.filter((v): v is number => v != null);
             const avg = valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
             return (
               <div key={cr.key} style={{ display: "grid", gridTemplateColumns: `1fr repeat(${partners.length}, 60px) 60px`, gap: 8, padding: "6px 12px", fontSize: 12, color: "var(--fg2)", alignItems: "center", borderBottom: "1px solid var(--bd)" }}>
-                <div>{cr.label} <span style={{ color: "var(--fg3)" }}>/ {cr.max}</span></div>
-                {per.map((v, i) => <div key={i} style={{ textAlign: "center", color: v == null ? "var(--fg3)" : "var(--fg)" }}>{v ?? "—"}</div>)}
-                <div style={{ textAlign: "center", fontWeight: 600, color: "var(--accent)" }}>{avg != null ? avg.toFixed(1) : "—"}</div>
+                <div>
+                  {cr.label} <span style={{ color: "var(--fg3)" }}>· peso ×{cr.weight}</span>
+                </div>
+                {per.map((v, i) => (
+                  <div key={i} style={{ textAlign: "center", color: v == null ? "var(--fg3)" : "var(--fg)" }} title={v != null ? `${VOTE_LABELS[v - 1]} → ${(v * cr.weight).toFixed(1)} pt` : "—"}>
+                    {v ?? "—"}
+                  </div>
+                ))}
+                <div style={{ textAlign: "center", fontWeight: 600, color: "var(--accent)" }} title={avg != null ? `Media Likert · ${(avg * cr.weight).toFixed(1)} pt` : ""}>
+                  {avg != null ? avg.toFixed(1) : "—"}
+                </div>
               </div>
             );
           })}
