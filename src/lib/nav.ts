@@ -76,33 +76,21 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
           },
         ],
       },
-      {
-        id: `${c.slug}-org`,
-        label: "Organization",
-        children: [
-          { id: `${c.slug}-pe`, label: "People", featureKey: "organization.people", href: `/${c.slug}/people` },
-          { id: `${c.slug}-orgchart`, label: "Organigramma", featureKey: "organization.organigramma", href: `/${c.slug}/people/organization` },
-          { id: `${c.slug}-rituals`, label: "Rituals", featureKey: "organization.rituals", href: `/${c.slug}/people/rituals` },
-          { id: `${c.slug}-tools`, label: "Tools", featureKey: "organization.tools", href: `/${c.slug}/organization/tools` },
-          { id: `${c.slug}-mcp`, label: "MCP", featureKey: "organization.mcp", href: `/${c.slug}/organization/mcp` },
-        ],
-      },
-      {
-        id: `${c.slug}-hm`,
-        label: "Holding Management",
-        children: [
-          { id: `${c.slug}-hm-overview`, label: "Overview", featureKey: "holding-management.overview", href: `/${c.slug}/holding-management/overview` },
-          { id: `${c.slug}-hm-flywheels`, label: "Flywheels", featureKey: "holding-management.flywheels", href: `/${c.slug}/holding-management/flywheels` },
-          { id: `${c.slug}-hm-alerts`, label: "Alerts", featureKey: "holding-management.alerts", href: `/${c.slug}/holding-management/alerts` },
-          { id: `${c.slug}-hm-multiyear`, label: "Multiyear", featureKey: "holding-management.multiyear", href: `/${c.slug}/holding-management/multiyear` },
-          { id: `${c.slug}-hm-rituals`, label: "Rituals", featureKey: "holding-management.rituals", href: `/${c.slug}/holding-management/rituals` },
-          { id: `${c.slug}-hm-vision`, label: "Vision", featureKey: "holding-management.vision", href: `/${c.slug}/holding-management/vision` },
-          { id: `${c.slug}-hm-objectives`, label: "Obiettivi", featureKey: "holding-management.objectives", href: `/${c.slug}/holding-management/objectives` },
-          { id: `${c.slug}-hm-opportunities`, label: "Opportunità", featureKey: "holding-management.opportunities", href: `/${c.slug}/holding-management/opportunities` },
-          { id: `${c.slug}-hm-workload`, label: "Workload", featureKey: "holding-management.workload", href: `/${c.slug}/holding-management/workload` },
-          { id: `${c.slug}-hm-tasks`, label: "Task Manager", featureKey: "holding-management.tasks", href: `/${c.slug}/holding-management/tasks` },
-        ],
-      },
+      // Tab dirette sotto la company (senza gruppo contenitore Organization/Holding
+      // Management). Ordine richiesto: VISION → OBIETTIVI → OVERVIEW → MULTIYEAR
+      // → OPPORTUNITÀ → RITUALS → WORKLOAD → TASK → PEOPLE.
+      // Le voci non incluse (Organigramma, Tools, MCP, Flywheels, Alerts,
+      // Rituals-organization) sono state rimosse dal nav — le pagine restano
+      // raggiungibili via URL diretto se la feature è abilitata.
+      { id: `${c.slug}-hm-vision`,        label: "Vision",       featureKey: "holding-management.vision",        href: `/${c.slug}/holding-management/vision` },
+      { id: `${c.slug}-hm-objectives`,    label: "Obiettivi",    featureKey: "holding-management.objectives",    href: `/${c.slug}/holding-management/objectives` },
+      { id: `${c.slug}-hm-overview`,      label: "Overview",     featureKey: "holding-management.overview",      href: `/${c.slug}/holding-management/overview` },
+      { id: `${c.slug}-hm-multiyear`,     label: "Multiyear",    featureKey: "holding-management.multiyear",     href: `/${c.slug}/holding-management/multiyear` },
+      { id: `${c.slug}-hm-opportunities`, label: "Opportunità",  featureKey: "holding-management.opportunities", href: `/${c.slug}/holding-management/opportunities` },
+      { id: `${c.slug}-hm-rituals`,       label: "Rituals",      featureKey: "holding-management.rituals",       href: `/${c.slug}/holding-management/rituals` },
+      { id: `${c.slug}-hm-workload`,      label: "Workload",     featureKey: "holding-management.workload",      href: `/${c.slug}/holding-management/workload` },
+      { id: `${c.slug}-hm-tasks`,         label: "Task",         featureKey: "holding-management.tasks",         href: `/${c.slug}/holding-management/tasks` },
+      { id: `${c.slug}-pe`,               label: "People",       featureKey: "organization.people",              href: `/${c.slug}/people` },
     ],
   }));
 }

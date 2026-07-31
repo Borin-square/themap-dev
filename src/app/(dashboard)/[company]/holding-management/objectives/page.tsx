@@ -209,14 +209,14 @@ export default function ObjectivesPage() {
         )}
       </Section>
 
-      {/* ─── Traguardi 3-5 anni ─── */}
+      {/* ─── Milestone del ciclo (3-5 anni) ─── */}
       <Section
-        title="Traguardi medio termine"
+        title="Milestone del ciclo"
         subtitle="Pochissimi risultati intermedi che aprono la strada al BHAG"
         badge={`${mediums.length}`}
         action={!editing ? (
           <button onClick={() => setEditing({ kind: "medium", target_year: new Date().getFullYear() + 3, parent_id: bhag?.id ?? null })} style={btnPrimary}>
-            + Nuovo traguardo
+            + Nuova milestone
           </button>
         ) : null}
       >
@@ -224,10 +224,10 @@ export default function ObjectivesPage() {
           <ObjectiveForm value={editing} allObjectives={objectives} onCancel={() => setEditing(null)} onSave={save} />
         )}
         {mediums.length === 0 && !editing && (
-          <div style={empty}>Nessun traguardo medio-termine. Aggiungi 3-5 traguardi che portano al BHAG.</div>
+          <div style={empty}>Nessuna milestone. Aggiungi 3-5 milestone che portano al BHAG.</div>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {mediums.map((m) => (
+          {mediums.map((m, i) => (
             editing?.id === m.id ? (
               <div key={m.id} style={{ gridColumn: "1 / -1" }}>
                 <ObjectiveForm value={editing} allObjectives={objectives} onCancel={() => setEditing(null)} onSave={save} />
@@ -235,6 +235,7 @@ export default function ObjectivesPage() {
             ) : (
               <MediumCard
                 key={m.id}
+                index={i + 1}
                 objective={m}
                 parent={objectives.find((x) => x.id === m.parent_id) ?? null}
                 onEdit={() => setEditing(m)}
@@ -263,7 +264,27 @@ export default function ObjectivesPage() {
           <ObjectiveForm value={editing} allObjectives={objectives} onCancel={() => setEditing(null)} onSave={save} />
         )}
         {marches.length === 0 && !editing && (
-          <div style={empty}>Nessuna soglia annuale per il {year}. Aggiungi 5-6 traguardi minimi da rispettare.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                onClick={() => setEditing({ kind: "march", year, status: "ontrack", parent_id: null })}
+                style={{
+                  display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, alignItems: "center",
+                  padding: "10px 14px", border: "1px dashed var(--bd)", borderRadius: 8,
+                  background: "transparent", color: "var(--fg3)", cursor: "pointer",
+                  textAlign: "left", fontSize: 12, fontFamily: "inherit",
+                }}
+              >
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, fontVariantNumeric: "tabular-nums" }}>{String(n).padStart(2, "0")}</span>
+                <span>—</span>
+                <span style={{ fontSize: 10 }}>+ soglia</span>
+              </button>
+            ))}
+            <div style={{ fontSize: 10, color: "var(--fg3)", textAlign: "center", marginTop: 4, letterSpacing: 0.5 }}>
+              Definisci 5-6 soglie minime da rispettare nel {year}.
+            </div>
+          </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {marches.map((m) => (
@@ -286,22 +307,22 @@ export default function ObjectivesPage() {
         </div>
 
         {marchYears.filter((y) => y !== year).length > 0 && (
-          <div style={{ marginTop: 16, padding: 10, border: "1px dashed var(--bd)", borderRadius: 8 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "var(--fg3)", marginBottom: 8 }}>STORICO</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {marchYears.filter((y) => y !== year).map((y) => {
-                const rows = objectives.filter((o) => o.kind === "march" && o.year === y);
-                const hits = rows.filter((r) => r.status === "hit").length;
-                return (
-                  <div key={y} style={{
-                    fontSize: 11, padding: "4px 10px", borderRadius: 999, border: "1px solid var(--bd)",
-                    background: "var(--cd)", color: "var(--fg2)",
-                  }}>
-                    {y} · {hits}/{rows.length} raggiunte
-                  </div>
-                );
-              })}
-            </div>
+          <div style={{
+            marginTop: 20, paddingTop: 12, borderTop: "1px solid var(--bd)",
+            display: "flex", gap: 16, flexWrap: "wrap", alignItems: "baseline",
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            fontSize: 11, color: "var(--fg3)",
+          }}>
+            <span style={{ fontWeight: 700, letterSpacing: 1.2 }}>STORICO</span>
+            {marchYears.filter((y) => y !== year).map((y) => {
+              const rows = objectives.filter((o) => o.kind === "march" && o.year === y);
+              const hits = rows.filter((r) => r.status === "hit").length;
+              return (
+                <span key={y} style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {y} · <span style={{ color: "var(--fg2)" }}>{hits}/{rows.length}</span>
+                </span>
+              );
+            })}
           </div>
         )}
       </Section>
@@ -349,15 +370,21 @@ function BhagCard({ objective, onEdit, onDelete, confirmDel, cancelDel, confirmD
   cancelDel: () => void;
   confirmDelete: () => void;
 }) {
+  const currentYear = new Date().getFullYear();
+  const yearsAway = objective.target_year != null ? objective.target_year - currentYear : null;
   return (
     <div style={{
-      padding: 24, border: "1px solid var(--bd)", borderRadius: 12,
+      padding: 32, border: "1px solid var(--bd)", borderRadius: 12,
       background: "linear-gradient(135deg, rgba(79,140,255,.06), rgba(168,85,247,.06))",
       position: "relative",
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "var(--fg3)" }}>
-          BHAG · {objective.target_year ?? "—"}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "var(--fg3)", display: "flex", gap: 10, alignItems: "baseline" }}>
+          <span>BHAG · {objective.target_year ?? "—"}</span>
+          {yearsAway != null && yearsAway > 0 && (
+            <span style={{ letterSpacing: 0.5, fontWeight: 500 }}>tra {yearsAway} {yearsAway === 1 ? "anno" : "anni"}</span>
+          )}
+          {objective.owner && <span style={{ letterSpacing: 0.5, fontWeight: 500 }}>· {objective.owner}</span>}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <button onClick={onEdit} style={btnGhost}>Modifica</button>
@@ -372,12 +399,9 @@ function BhagCard({ objective, onEdit, onDelete, confirmDel, cancelDel, confirmD
           )}
         </div>
       </div>
-      <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.3, marginBottom: 6 }}>{objective.title}</div>
+      <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.2, letterSpacing: -0.5, marginBottom: 12 }}>{objective.title}</div>
       {objective.description && (
-        <div style={{ fontSize: 13, color: "var(--fg2)", lineHeight: 1.5 }}><RichText text={objective.description} /></div>
-      )}
-      {objective.owner && (
-        <div style={{ fontSize: 11, color: "var(--fg3)", marginTop: 10 }}>Owner: {objective.owner}</div>
+        <div style={{ fontSize: 14, color: "var(--fg2)", lineHeight: 1.55, maxWidth: 780 }}><RichText text={objective.description} /></div>
       )}
     </div>
   );
@@ -387,7 +411,8 @@ function BhagCard({ objective, onEdit, onDelete, confirmDel, cancelDel, confirmD
    MEDIUM CARD (3-5 anni)
    ═══════════════════════════════════════════ */
 
-function MediumCard({ objective, parent, onEdit, onDelete, confirmDel, cancelDel, confirmDelete }: {
+function MediumCard({ index, objective, parent, onEdit, onDelete, confirmDel, cancelDel, confirmDelete }: {
+  index: number;
   objective: Objective;
   parent: Objective | null;
   onEdit: () => void;
@@ -398,37 +423,40 @@ function MediumCard({ objective, parent, onEdit, onDelete, confirmDel, cancelDel
 }) {
   const pct = progressPct(objective.metric_current, objective.metric_target);
   return (
-    <div style={{ padding: 14, border: "1px solid var(--bd)", borderRadius: 10, background: "var(--cd)", display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "var(--fg3)" }}>
-          {objective.target_year ? `→ ${objective.target_year}` : "MEDIO TERMINE"}
+    <div style={{ padding: 16, border: "1px solid var(--bd)", borderRadius: 10, background: "var(--cd)", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "var(--fg3)", display: "flex", gap: 8 }}>
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>{String(index).padStart(2, "0")}</span>
+          <span>{objective.target_year ? `→ ${objective.target_year}` : "MEDIO TERMINE"}</span>
         </div>
         {parent && (
-          <div style={{ fontSize: 10, color: "var(--fg3)", fontStyle: "italic" }} title={parent.title}>
-            ↑ BHAG
-          </div>
+          <div style={{ fontSize: 10, color: "var(--fg3)", fontStyle: "italic" }} title={parent.title}>↑ BHAG</div>
         )}
       </div>
       <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.25 }}>{objective.title}</div>
       {objective.description && <div style={{ fontSize: 12, color: "var(--fg2)", lineHeight: 1.4 }}>{objective.description}</div>}
       {objective.metric_name && (
-        <div style={{ fontSize: 11, color: "var(--fg2)", marginTop: 4 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span>{objective.metric_name}</span>
-            <span>
-              <b style={{ color: "var(--fg)" }}>{fmtMetric(objective.metric_current, objective.metric_unit)}</b>
-              {" / "}
-              <span style={{ color: "var(--fg3)" }}>{fmtMetric(objective.metric_target, objective.metric_unit)}</span>
+        <div style={{ marginTop: 2 }}>
+          <div style={{ fontSize: 10, color: "var(--fg3)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>{objective.metric_name}</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 22, fontWeight: 700, color: "var(--fg)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+              {fmtMetric(objective.metric_current, objective.metric_unit)}
             </span>
+            <span style={{ fontSize: 11, color: "var(--fg3)", fontVariantNumeric: "tabular-nums" }}>
+              / {fmtMetric(objective.metric_target, objective.metric_unit)}
+            </span>
+            {pct != null && (
+              <span style={{ marginLeft: "auto", fontSize: 10, color: pct >= 100 ? "#22c55e" : "var(--fg3)", fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
+            )}
           </div>
           {pct != null && (
-            <div style={{ height: 4, background: "var(--bd)", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "#22c55e" : "#4f8cff" }} />
+            <div style={{ height: 1, background: "var(--bd)", position: "relative", overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "#22c55e" : "var(--fg2)" }} />
             </div>
           )}
         </div>
       )}
-      {objective.owner && <div style={{ fontSize: 10, color: "var(--fg3)" }}>Owner: {objective.owner}</div>}
+      {objective.owner && <div style={{ fontSize: 10, color: "var(--fg3)" }}>· {objective.owner}</div>}
       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 4 }}>
         <button onClick={onEdit} style={btnGhost}>Modifica</button>
         {confirmDel ? (
@@ -554,7 +582,7 @@ function ObjectiveForm({ value, allObjectives, onCancel, onSave }: {
       marginBottom: 14, display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10,
     }}>
       <div style={{ gridColumn: "1 / -1", fontSize: 12, fontWeight: 700, color: "var(--fg2)" }}>
-        {form.id ? "Modifica" : "Nuovo"} · {isBhag ? "BHAG" : isMarch ? "20 Mile March" : "Traguardo medio termine"}
+        {form.id ? "Modifica" : "Nuovo"} · {isBhag ? "BHAG" : isMarch ? "20 Mile March" : "Milestone del ciclo"}
       </div>
 
       <label style={{ ...fld, gridColumn: "1 / -1" }}>
