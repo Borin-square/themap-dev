@@ -9,9 +9,8 @@ import type { GEOProject, GEOPrompt, GEOScan } from "@/lib/geo/types";
 import { LLM_LIST, GEO_INTENTS, GEO_FUNNELS, emptyPrompt, llmLabel } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
 import { promptMentionRate, promptAvgPosition, promptSentimentAvg, enrichPromptScores, scoreColor } from "@/lib/geo/scoring";
-import { DOW_LABELS, type Cadence } from "@/lib/geo/schedule";
 
-/* ── Job/Schedule types ── */
+/* ── Job types ── */
 
 interface ScanJob {
   id: string;
@@ -27,21 +26,6 @@ interface ScanJob {
   completed_at: string | null;
   error: string | null;
   result_scan: GEOScan | null;
-}
-
-interface Schedule {
-  id: string;
-  company: string;
-  prompt_id: string;
-  llm: string;
-  cadence: Cadence;
-  dow: number | null;
-  day_of_month: number | null;
-  hour: number;
-  minute: number;
-  enabled: boolean;
-  next_run_at: string;
-  last_run_at: string | null;
 }
 
 async function bearer(): Promise<string> {
@@ -79,30 +63,24 @@ export default function PromptMonitorPage() {
   const [viewResponse, setViewResponse] = useState<{ promptId: string; scanId: string } | null>(null);
 
   const [jobs, setJobs] = useState<ScanJob[]>([]);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [showJobsPanel, setShowJobsPanel] = useState(false);
-  const [scheduleFor, setScheduleFor] = useState<GEOPrompt | null>(null); // popover target
   const appliedJobIds = useRef<Set<string>>(new Set());
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3000); }
 
-  /* ── Initial fetch: jobs + schedules ── */
+  /* ── Initial fetch: jobs ── */
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const token = await bearer();
-      const [jr, sr] = await Promise.all([
-        fetch(`/api/geo/scan/jobs?company=${slug}&limit=100`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`/api/geo/schedules?company=${slug}`, { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
+      const jr = await fetch(`/api/geo/scan/jobs?company=${slug}&limit=100`, { headers: { Authorization: `Bearer ${token}` } });
       if (cancelled) return;
       if (jr.ok) { const j = await jr.json(); setJobs(j.rows || []); }
-      if (sr.ok) { const j = await sr.json(); setSchedules(j.rows || []); }
     })();
     return () => { cancelled = true; };
   }, [slug]);
 
-  /* ── Realtime: jobs + schedules ── */
+  /* ── Realtime: jobs ── */
   useEffect(() => {
     const chJobs = supabase.channel(`geo_scan_jobs:${slug}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "geo_scan_jobs", filter: `company=eq.${slug}` }, (payload) => {
@@ -116,19 +94,7 @@ export default function PromptMonitorPage() {
         });
       }).subscribe();
 
-    const chSchedules = supabase.channel(`geo_scan_schedules:${slug}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "geo_scan_schedules", filter: `company=eq.${slug}` }, (payload) => {
-        const row = (payload.new ?? payload.old) as Schedule | null;
-        if (!row) return;
-        setSchedules((prev) => {
-          if (payload.eventType === "DELETE") return prev.filter((x) => x.id !== row.id);
-          const idx = prev.findIndex((x) => x.id === row.id);
-          if (idx === -1) return [row, ...prev];
-          const next = prev.slice(); next[idx] = row; return next;
-        });
-      }).subscribe();
-
-    return () => { supabase.removeChannel(chJobs); supabase.removeChannel(chSchedules); };
+    return () => { supabase.removeChannel(chJobs); };
   }, [slug]);
 
   /* ── Applica risultati scan al project quando i job passano a done ── */
@@ -286,26 +252,6 @@ export default function PromptMonitorPage() {
     setSelectedIds(new Set());
   }
 
-  /* ── Schedule mutations ── */
-  async function saveSchedule(input: Partial<Schedule> & { prompt_id: string; llm: string; cadence: Cadence; hour: number; minute: number; enabled: boolean }) {
-    const token = await bearer();
-    const res = await fetch("/api/geo/schedules", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ company: slug, ...input }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) { showToast(j.error || "Errore schedule"); return; }
-    showToast("Schedule salvata");
-  }
-
-  async function deleteSchedule(id: string) {
-    const token = await bearer();
-    const res = await fetch(`/api/geo/schedules?id=${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) { const j = await res.json().catch(() => ({})); showToast(j.error || "Errore"); return; }
-    showToast("Schedule eliminata");
-  }
-
   // Find the response overlay data
   const responseData = useMemo(() => {
     if (!viewResponse) return null;
@@ -327,9 +273,6 @@ export default function PromptMonitorPage() {
 
   function activeJobFor(promptId: string, llm: string): ScanJob | null {
     return jobs.find((j) => j.prompt_id === promptId && j.llm === llm && (j.status === "queued" || j.status === "running")) ?? null;
-  }
-  function schedulesFor(promptId: string): Schedule[] {
-    return schedules.filter((s) => s.prompt_id === promptId);
   }
 
   // Segnala errori dei job appena falliti (una volta sola)
@@ -460,8 +403,6 @@ export default function PromptMonitorPage() {
                   scanLlm={scanLlm}
                   activeJob={activeJobFor(p.id, scanLlm)}
                   onScan={() => enqueueScans([p.id])}
-                  schedules={schedulesFor(p.id)}
-                  onOpenSchedule={() => setScheduleFor(p)}
                   onDelete={() => confirmDel === p.id ? handleDelete(p.id) : setConfirmDel(p.id)}
                   confirmingDelete={confirmDel === p.id}
                   onCancelDelete={() => setConfirmDel(null)}
@@ -475,18 +416,6 @@ export default function PromptMonitorPage() {
           <div className="geo-empty">Nessun prompt. Aggiungine uno o usa il Prompt Generator.</div>
         )}
       </div>
-
-      {/* Schedule popover */}
-      {scheduleFor && (
-        <SchedulePopover
-          prompt={scheduleFor}
-          schedules={schedulesFor(scheduleFor.id)}
-          defaultLlm={scanLlm}
-          onClose={() => setScheduleFor(null)}
-          onSave={saveSchedule}
-          onDelete={deleteSchedule}
-        />
-      )}
 
       {/* Jobs panel */}
       {showJobsPanel && (
@@ -531,19 +460,17 @@ export default function PromptMonitorPage() {
 /* ── Prompt Row ── */
 
 function PromptRow({ prompt: p, selected, onToggleSelect, expanded, onToggleExpand,
-  mentionRate, avgPosition, sentimentAvg, scanLlm, activeJob, onScan, schedules, onOpenSchedule,
+  mentionRate, avgPosition, sentimentAvg, scanLlm, activeJob, onScan,
   onDelete, confirmingDelete, onCancelDelete, onViewResponse,
 }: {
   prompt: GEOPrompt; selected: boolean; onToggleSelect: () => void;
   expanded: boolean; onToggleExpand: () => void;
   mentionRate: number; avgPosition: number | null; sentimentAvg: number;
   scanLlm: string; activeJob: ScanJob | null; onScan: () => void;
-  schedules: Schedule[]; onOpenSchedule: () => void;
   onDelete: () => void; confirmingDelete: boolean; onCancelDelete: () => void;
   onViewResponse: (scanId: string) => void;
 }) {
   const sentColor = sentimentAvg > 0.3 ? "grn" : sentimentAvg < -0.3 ? "red" : "org";
-  const hasSchedule = schedules.length > 0;
 
   return (
     <>
@@ -602,14 +529,6 @@ function PromptRow({ prompt: p, selected, onToggleSelect, expanded, onToggleExpa
             title={activeJob ? `In ${activeJob.status === "running" ? "esecuzione" : "coda"} · ${activeJob.llm}` : `Scan con ${scanLlm} (in background)`}
           >
             {activeJob ? (activeJob.status === "running" ? "\u25D0" : "\u23F3") : "\u25B6"}
-          </button>
-          <button
-            className="sc-scan-btn"
-            onClick={onOpenSchedule}
-            title={hasSchedule ? `${schedules.length} schedule attive` : "Aggiungi schedule ricorrente"}
-            style={hasSchedule ? { color: "var(--accent, #4f8cff)" } : undefined}
-          >
-            {"\u21BB"}
           </button>
           {confirmingDelete ? (
             <span className="fws-confirm">
@@ -711,135 +630,6 @@ function LlmBadge({ llm, status, title }: { llm: string; status: "none" | "yes" 
     >
       {cfg.glyph}
     </span>
-  );
-}
-
-/* ── Schedule Popover ── */
-
-const CADENCE_LABEL: Record<Cadence, string> = { daily: "Ogni giorno", weekly: "Settimanale", monthly: "Mensile" };
-
-function scheduleSummary(s: Schedule): string {
-  const hh = String(s.hour).padStart(2, "0");
-  const mm = String(s.minute).padStart(2, "0");
-  if (s.cadence === "daily") return `Ogni giorno alle ${hh}:${mm}`;
-  if (s.cadence === "weekly") return `Ogni ${DOW_LABELS[s.dow ?? 1]}. alle ${hh}:${mm}`;
-  return `Il ${s.day_of_month ?? 1} del mese alle ${hh}:${mm}`;
-}
-
-function SchedulePopover({
-  prompt, schedules, defaultLlm, onClose, onSave, onDelete,
-}: {
-  prompt: GEOPrompt;
-  schedules: Schedule[];
-  defaultLlm: string;
-  onClose: () => void;
-  onSave: (input: Partial<Schedule> & { prompt_id: string; llm: string; cadence: Cadence; hour: number; minute: number; enabled: boolean }) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-}) {
-  const [llm, setLlm] = useState<string>(defaultLlm);
-  const [cadence, setCadence] = useState<Cadence>("weekly");
-  const [dow, setDow] = useState<number>(1);
-  const [dayOfMonth, setDayOfMonth] = useState<number>(1);
-  const [hour, setHour] = useState<number>(9);
-  const [minute, setMinute] = useState<number>(0);
-  const [saving, setSaving] = useState(false);
-
-  async function submit() {
-    setSaving(true);
-    await onSave({
-      prompt_id: prompt.id,
-      llm,
-      cadence,
-      dow: cadence === "weekly" ? dow : undefined,
-      day_of_month: cadence === "monthly" ? dayOfMonth : undefined,
-      hour, minute, enabled: true,
-    });
-    setSaving(false);
-    onClose();
-  }
-
-  return (
-    <div className="sc-qa-overlay" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", border: "1px solid var(--bd)", borderRadius: 10, padding: 20, width: 560, maxWidth: "92vw", color: "var(--fg)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>Schedule scan ricorrente</div>
-            <div style={{ fontSize: 12, color: "var(--fg3)", marginTop: 4 }}>{prompt.text}</div>
-          </div>
-          <button className="sc-sb-close" onClick={onClose}>{"\u2715"}</button>
-        </div>
-
-        {/* Lista esistenti */}
-        {schedules.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Attive ({schedules.length})</div>
-            <div style={{ display: "grid", gap: 6 }}>
-              {schedules.map((s) => (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--cd, var(--bg))", border: "1px solid var(--bd)", borderRadius: 6 }}>
-                  <div style={{ fontSize: 12 }}>
-                    <strong>{s.llm}</strong> · {scheduleSummary(s)}
-                    <span style={{ marginLeft: 8, fontSize: 11, color: "var(--fg3)" }}>
-                      prossimo: {new Date(s.next_run_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                      {s.last_run_at && ` · ultimo: ${new Date(s.last_run_at).toLocaleDateString("it-IT")}`}
-                    </span>
-                  </div>
-                  <button onClick={() => onDelete(s.id)} style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 13 }} title="Elimina">✕</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Form nuova */}
-        <div style={{ display: "grid", gap: 10, padding: 12, background: "var(--cd, var(--bg))", border: "1px solid var(--bd)", borderRadius: 6 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg3)", textTransform: "uppercase", letterSpacing: 0.5 }}>Nuova schedule</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <label style={{ display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--fg3)" }}>LLM</span>
-              <select value={llm} onChange={(e) => setLlm(e.target.value)} className="geo-select">
-                {LLM_LIST.map((l) => <option key={l} value={l}>{llmLabel(l)}</option>)}
-              </select>
-            </label>
-            <label style={{ display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--fg3)" }}>Cadenza</span>
-              <select value={cadence} onChange={(e) => setCadence(e.target.value as Cadence)} className="geo-select">
-                {(Object.keys(CADENCE_LABEL) as Cadence[]).map((c) => <option key={c} value={c}>{CADENCE_LABEL[c]}</option>)}
-              </select>
-            </label>
-          </div>
-          {cadence === "weekly" && (
-            <label style={{ display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--fg3)" }}>Giorno della settimana</span>
-              <div style={{ display: "flex", gap: 4 }}>
-                {DOW_LABELS.map((lbl, i) => (
-                  <button key={i} onClick={() => setDow(i)} style={{ flex: 1, padding: "6px 8px", border: "1px solid var(--bd)", background: dow === i ? "var(--accent, #4f8cff)" : "var(--bg)", color: dow === i ? "#fff" : "var(--fg2)", borderRadius: 4, cursor: "pointer", fontSize: 12 }}>{lbl}</button>
-                ))}
-              </div>
-            </label>
-          )}
-          {cadence === "monthly" && (
-            <label style={{ display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--fg3)" }}>Giorno del mese (1-28)</span>
-              <input type="number" min={1} max={28} value={dayOfMonth} onChange={(e) => setDayOfMonth(Math.min(28, Math.max(1, Number(e.target.value))))} className="geo-select" style={{ width: 80 }} />
-            </label>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <label style={{ display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--fg3)" }}>Ora (UTC)</span>
-              <input type="number" min={0} max={23} value={hour} onChange={(e) => setHour(Number(e.target.value))} className="geo-select" />
-            </label>
-            <label style={{ display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--fg3)" }}>Minuto</span>
-              <input type="number" min={0} max={59} value={minute} onChange={(e) => setMinute(Number(e.target.value))} className="geo-select" />
-            </label>
-          </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-            <button className="geo-btn" onClick={onClose}>Annulla</button>
-            <button className="geo-btn geo-btn-accent" onClick={submit} disabled={saving}>{saving ? "Salvo…" : "Aggiungi schedule"}</button>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
