@@ -1,17 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import { useYear } from "@/components/YearProvider";
+import { supabase } from "@/lib/supabase";
 import {
-  getEeMockMetrics, initEeValues, eeRecalc, eeIsPercent,
+  getEeMockMetrics, eeRecalc,
   EE_INVERTED, type EeMetric,
 } from "@/lib/economic-engine";
 
-const YEARS = [2024, 2025, 2026];
+// Range multi-anno mostrato in CKM: 2 anni indietro + corrente + 3 anni avanti.
+// I dati per anno vengono dai forecast salvati su Supabase (app_state, key=eeForecast, year=Y).
+// Anni senza forecast mostrano "-".
+const YEARS = [2024, 2025, 2026, 2027, 2028, 2029];
 
 /* Calc keys shown in picker */
 const CALC_KEYS = [
@@ -21,29 +25,6 @@ const CALC_KEYS = [
   "TOTALE VENDITE", "VALORE DELLA PRODUZIONE", "TOTALE COSTI",
   "MARGINE LORDO (NO BANDI)", "VALORE AZIENDA", "CAPACITY NECESSARIA",
 ];
-
-/* Build multi-year forecasts from mock data with per-year jitter */
-function buildForecasts() {
-  const metrics = getEeMockMetrics();
-  const forecasts: Record<number, { input: Record<string, number>; calc: Record<string, number> }> = {};
-
-  YEARS.forEach((y, yi) => {
-    const tweaked: EeMetric[] = metrics.map((m) => {
-      if (m.tipologia === "CALCOLATO") return m;
-      const base = m.anni[2026] ?? 0;
-      // Scale down for older years
-      const factor = 1 - (YEARS.length - 1 - yi) * 0.12;
-      return { ...m, anni: { ...m.anni, [y]: typeof base === "number" ? base * factor : base } };
-    });
-
-    const { values } = initEeValues(tweaked, y);
-    const { calc } = eeRecalc(values);
-
-    forecasts[y] = { input: { ...values }, calc };
-  });
-
-  return { forecasts, metrics };
-}
 
 /* Catalog for picker */
 interface CatalogEntry { key: string; label: string; fn: string }
@@ -111,18 +92,75 @@ function Sparkline({ vals }: { vals: (number | null)[] }) {
   );
 }
 
+async function bearer(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token || "";
+}
+
 export default function CkmPage() {
   const params = useParams();
   const company = getCompany(params.company as string);
   const { year } = useYear();
+  const slug = params.company as string;
 
-  const { forecasts, metrics } = useMemo(buildForecasts, []);
+  const metrics = useMemo(() => getEeMockMetrics(), []);
   const catalog = useMemo(() => buildCatalog(metrics), [metrics]);
 
-  const slug = params.company as string;
   const [selected, setSelected] = useLocalState<string[]>(`themap:${slug}:ckmSelected`, () => [], undefined, year);
   const [pickerOpen, setPickerOpen] = useLocalState<boolean>(`themap:${slug}:ckmPickerOpen`, () => true, undefined, year);
   const [notes, setNotes] = useLocalState<Record<string, string>>(`themap:${slug}:ckmNotes`, () => ({}), undefined, year);
+
+  // Fetch forecast per tutti gli anni da Supabase
+  const [byYear, setByYear] = useState<Record<string, Record<string, number>>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = await bearer();
+      const res = await fetch(`/api/economic-engine/ckm?company=${slug}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (cancelled) return;
+      if (res.ok) {
+        const j = await res.json();
+        setByYear(j.byYear || {});
+      }
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  // Realtime: quando cambia un forecast su un anno, aggiorna la mappa
+  useEffect(() => {
+    const ch = supabase.channel(`ckm_eeForecast:${slug}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "app_state", filter: `company=eq.${slug}` }, (payload) => {
+        const row = (payload.new ?? payload.old) as { key?: string; year?: number; data?: unknown } | null;
+        if (!row || row.key !== "eeForecast" || row.year == null) return;
+        setByYear((prev) => {
+          if (payload.eventType === "DELETE") {
+            const next = { ...prev }; delete next[String(row.year)]; return next;
+          }
+          if (row.data && typeof row.data === "object") {
+            return { ...prev, [String(row.year)]: row.data as Record<string, number> };
+          }
+          return prev;
+        });
+      }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [slug]);
+
+  // Calcola input + calc per ogni anno con dati reali (o vuoto se manca)
+  const forecasts = useMemo(() => {
+    const out: Record<number, { input: Record<string, number>; calc: Record<string, number> } | null> = {};
+    YEARS.forEach((y) => {
+      const input = byYear[String(y)];
+      if (!input) { out[y] = null; return; }
+      const { calc } = eeRecalc(input);
+      out[y] = { input, calc };
+    });
+    return out;
+  }, [byYear]);
 
   function toggleMetric(key: string) {
     setSelected((prev) =>
@@ -134,14 +172,16 @@ export default function CkmPage() {
     setSelected((prev) => prev.filter((k) => k !== key));
   }
 
-  function getVal(key: string, year: number): number | null {
-    const fc = forecasts[year];
+  function getVal(key: string, y: number): number | null {
+    const fc = forecasts[y];
     if (!fc) return null;
     const isCalc = key.startsWith("calc::");
     const name = isCalc ? key.replace("calc::", "") : key;
     if (isCalc) return fc.calc[name] ?? null;
     return fc.input[name] ?? null;
   }
+
+  const hasAnyYearData = Object.values(forecasts).some((f) => f != null);
 
   return (
     <div>
@@ -158,6 +198,12 @@ export default function CkmPage() {
           {" "}Cycle Key Metrics <span className="ckm-subtitle">{company?.name || params.company}</span>
         </div>
       </div>
+
+      {!loading && !hasAnyYearData && (
+        <div style={{ padding: "12px 16px", background: "var(--cd, var(--bg))", border: "1px solid var(--bd)", borderRadius: 6, marginBottom: 16, fontSize: 12, color: "var(--fg3)" }}>
+          Nessun forecast trovato per {YEARS[0]}–{YEARS[YEARS.length - 1]}. Compila un forecast dalla tab <Link href={`/${slug}/economic-engine/forecast`} style={{ color: "var(--accent)" }}>Forecast</Link> per popolare le metriche.
+        </div>
+      )}
 
       {/* Picker */}
       <div className="ckm-picker">
@@ -224,7 +270,11 @@ export default function CkmPage() {
                       <span className="ckm-rm" onClick={() => removeMetric(key)} title="Rimuovi">&times;</span>
                     </td>
                     {vals.map((v, i) => {
-                      const prev = i > 0 ? vals[i - 1] : null;
+                      // delta rispetto al PRECEDENTE anno con valore non-null (non solo i-1)
+                      let prev: number | null = null;
+                      for (let j = i - 1; j >= 0; j--) {
+                        if (vals[j] !== null) { prev = vals[j]; break; }
+                      }
                       let delta: number | null = null;
                       if (v !== null && prev !== null && prev !== 0) {
                         delta = ((v - prev) / Math.abs(prev)) * 100;
