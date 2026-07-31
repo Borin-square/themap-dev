@@ -1,0 +1,227 @@
+import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
+import type { GEOScan, GEOSentimentData, GEOCompetitorMention, GEOCitation, GEOSentimentLabel, GEOSourceType } from "./types";
+
+const LLM_TIMEOUT_MS = 240_000;
+
+function getAnthropicClient() {
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: LLM_TIMEOUT_MS });
+}
+function getOpenAIClient() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: LLM_TIMEOUT_MS });
+}
+function getGeminiClient() {
+  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+}
+
+export function humanizeLLMError(llm: string, raw: string): string {
+  if (/429|RESOURCE_EXHAUSTED|rate.?limit|quota/i.test(raw)) return `Quota ${llm} esaurita. Riprova o usa un altro LLM.`;
+  if (/529|overload/i.test(raw)) return `${llm} sovraccarico (529). Riprova fra qualche minuto.`;
+  if (/503|UNAVAILABLE|high demand/i.test(raw)) return `${llm} in overload (503). Riprova fra qualche minuto.`;
+  if (/401|invalid.?api.?key|unauthorized/i.test(raw)) return `${llm}: API key non valida o scaduta.`;
+  if (/404|not.?found/i.test(raw) && /model/i.test(raw)) return `${llm}: modello non disponibile con questa API key.`;
+  if (/timeout|timed out|ETIMEDOUT|aborted/i.test(raw)) return `${llm}: richiesta troppo lunga (timeout). Riprova o riduci reasoning.`;
+  return raw.slice(0, 300);
+}
+
+async function askLLM(llm: string, query: string): Promise<{ text: string; error?: string }> {
+  try {
+    if (llm === "Claude") {
+      const r = await getAnthropicClient().messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4096,
+        messages: [{ role: "user", content: query }],
+      });
+      const text = r.content.find((b) => b.type === "text");
+      return { text: text ? text.text : "" };
+    }
+    if (llm === "ChatGPT") {
+      const r = await getOpenAIClient().responses.create({
+        model: "gpt-5.5",
+        tools: [{ type: "web_search" }],
+        reasoning: { effort: "medium" },
+        input: query,
+      });
+      const msg = r.output.find((b) => b.type === "message");
+      if (msg && "content" in msg) {
+        const text = msg.content.find((c: { type: string }) => c.type === "output_text");
+        return { text: text && "text" in text ? (text as { text: string }).text : "" };
+      }
+      return { text: "" };
+    }
+    if (llm === "Gemini") {
+      const ai = getGeminiClient();
+      const r = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: query,
+        config: { tools: [{ googleSearch: {} }] },
+      });
+      return { text: r.text ?? "" };
+    }
+    return { text: "", error: `LLM "${llm}" non implementato.` };
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err);
+    console.error(`[scanner/askLLM] ${llm} failed:`, raw);
+    return { text: "", error: humanizeLLMError(llm, raw) };
+  }
+}
+
+export interface ScanInput {
+  prompt: string;
+  llm: string;
+  brandName: string;
+  competitors: string[];
+  siteUrl?: string;
+}
+
+export type ScanResult = { ok: true; scan: GEOScan } | { ok: false; error: string };
+
+export async function runScan(input: ScanInput): Promise<ScanResult> {
+  const { prompt, llm, brandName, competitors, siteUrl } = input;
+
+  if (!brandName?.trim()) return { ok: false, error: "Brand name richiesto." };
+  if (!prompt?.trim()) return { ok: false, error: "Prompt richiesto." };
+  if (llm === "ChatGPT" && !process.env.OPENAI_API_KEY) return { ok: false, error: "OPENAI_API_KEY non configurata." };
+  if (llm === "Claude" && !process.env.ANTHROPIC_API_KEY) return { ok: false, error: "ANTHROPIC_API_KEY non configurata." };
+  if (llm === "Gemini" && !process.env.GEMINI_API_KEY) return { ok: false, error: "GEMINI_API_KEY non configurata." };
+
+  // Phase 1 — chiedi all'LLM
+  const askResult = await askLLM(llm, prompt);
+  if (!askResult.text) {
+    return { ok: false, error: askResult.error ? `${llm}: ${askResult.error}` : `LLM "${llm}" risposta vuota.` };
+  }
+  const rawResponse = askResult.text;
+
+  // Phase 2 — analizza con Claude
+  const analysisPrompt = `Analizza questa risposta data da ${llm} al prompt "${prompt}".
+
+BRAND DA CERCARE: "${brandName}"
+${siteUrl ? `SITO DEL BRAND: "${siteUrl}"` : ""}
+COMPETITOR DA CERCARE: ${competitors.length > 0 ? competitors.join(", ") : "non specificati"}
+
+RISPOSTA DA ANALIZZARE:
+---
+${rawResponse}
+---
+
+Rispondi ESCLUSIVAMENTE con un JSON valido (nessun testo prima o dopo):
+{
+  "brandMentioned": true/false,
+  "brandPosition": <posizione numerica nella lista se presente, null se non in lista>,
+  "brandContext": "<frase esatta in cui il brand viene menzionato, o null>",
+  "brandAttributes": ["<aggettivi o attributi usati per descrivere il brand>"],
+  "sentiment": {
+    "score": <da -1.0 a 1.0>,
+    "label": "negativo" | "neutro" | "positivo",
+    "phrases": ["<frasi chiave sul brand>"],
+    "strengths": ["<punti di forza citati>"],
+    "weaknesses": ["<punti deboli citati>"],
+    "alignmentScore": <0-100, quanto la descrizione e' coerente con un posizionamento premium>
+  },
+  "competitorMentions": [
+    {
+      "name": "<nome competitor>",
+      "position": <posizione in lista o null>,
+      "attributes": ["<attributi associati>"],
+      "sentiment": "negativo" | "neutro" | "positivo",
+      "strengths": ["<punti di forza>"],
+      "weaknesses": ["<debolezze o spazi scoperti>"]
+    }
+  ],
+  "citations": [
+    {
+      "url": "<URL citato>",
+      "title": "<titolo della pagina se menzionato>",
+      "domain": "<dominio>",
+      "type": "owned" | "competitor" | "directory" | "media" | "blog" | "marketplace" | "forum" | "review" | "social" | "other",
+      "brandMentioned": true/false,
+      "competitorMentioned": "<nome competitor o null>",
+      "authority": "low" | "medium" | "high",
+      "controllable": true/false
+    }
+  ],
+  "confidence": "low" | "medium" | "high",
+  "reasoning": "<spiegazione sintetica dei risultati>"
+}
+
+Nota:
+- Cerca il brand "${brandName}" anche con varianti del nome
+- Per i competitor, cerca solo quelli nella lista fornita piu' eventuali altri menzionati
+- Per le citazioni, estrai tutti gli URL o fonti menzionate nella risposta
+- ${siteUrl ? `Il dominio "${(() => { try { return new URL(siteUrl).hostname; } catch { return siteUrl.replace(/^https?:\/\//, "").split("/")[0]; } })()}" e' "owned"` : ""}
+- Se il brand non e' menzionato, brandContext e brandAttributes possono essere vuoti/null
+- Sii accurato nel sentiment: positivo solo se ci sono elogi chiari`;
+
+  let analysisText: string;
+  try {
+    const analysis = await getAnthropicClient().messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      messages: [{ role: "user", content: analysisPrompt }],
+    });
+    analysisText = analysis.content.find((b) => b.type === "text")?.text || "{}";
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: `Analisi Claude: ${humanizeLLMError("Claude", raw)}` };
+  }
+
+  let parsed: {
+    brandMentioned: boolean;
+    brandPosition?: number | null;
+    brandContext?: string | null;
+    brandAttributes: string[];
+    sentiment: GEOSentimentData;
+    competitorMentions: GEOCompetitorMention[];
+    citations: GEOCitation[];
+    confidence: "low" | "medium" | "high";
+    reasoning: string;
+  };
+  try {
+    const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : analysisText);
+  } catch {
+    return { ok: false, error: "Errore nel parsing della risposta di analisi." };
+  }
+
+  const scan: GEOScan = {
+    id: crypto.randomUUID(),
+    llm,
+    scannedAt: new Date().toISOString(),
+    rawResponse,
+    brandMentioned: parsed.brandMentioned,
+    brandPosition: parsed.brandPosition ?? undefined,
+    brandContext: parsed.brandContext ?? undefined,
+    brandAttributes: parsed.brandAttributes || [],
+    sentiment: {
+      score: parsed.sentiment?.score ?? 0,
+      label: (parsed.sentiment?.label as GEOSentimentLabel) || "neutro",
+      phrases: parsed.sentiment?.phrases || [],
+      strengths: parsed.sentiment?.strengths || [],
+      weaknesses: parsed.sentiment?.weaknesses || [],
+      alignmentScore: parsed.sentiment?.alignmentScore ?? 0,
+    },
+    competitorMentions: (parsed.competitorMentions || []).map((c) => ({
+      name: c.name,
+      position: c.position ?? undefined,
+      attributes: c.attributes || [],
+      sentiment: (c.sentiment as GEOSentimentLabel) || "neutro",
+      strengths: c.strengths || [],
+      weaknesses: c.weaknesses || [],
+    })),
+    citations: (parsed.citations || []).map((c) => ({
+      url: c.url,
+      title: c.title,
+      domain: c.domain,
+      type: (c.type as GEOSourceType) || "other",
+      brandMentioned: c.brandMentioned ?? false,
+      competitorMentioned: c.competitorMentioned ?? undefined,
+      authority: c.authority || "low",
+      controllable: c.controllable ?? false,
+    })),
+    confidence: parsed.confidence || "low",
+    reasoning: parsed.reasoning || "",
+  };
+
+  return { ok: true, scan };
+}
