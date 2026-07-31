@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, Fragment } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useYear } from "@/components/YearProvider";
@@ -374,7 +374,7 @@ function BhagCard({ objective, onEdit, onDelete, confirmDel, cancelDel, confirmD
       </div>
       <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.3, marginBottom: 6 }}>{objective.title}</div>
       {objective.description && (
-        <div style={{ fontSize: 13, color: "var(--fg2)", lineHeight: 1.5 }}>{objective.description}</div>
+        <div style={{ fontSize: 13, color: "var(--fg2)", lineHeight: 1.5 }}><RichText text={objective.description} /></div>
       )}
       {objective.owner && (
         <div style={{ fontSize: 11, color: "var(--fg3)", marginTop: 10 }}>Owner: {objective.owner}</div>
@@ -563,8 +563,12 @@ function ObjectiveForm({ value, allObjectives, onCancel, onSave }: {
       </label>
 
       <label style={{ ...fld, gridColumn: "1 / -1" }}>
-        <span style={lbl}>Descrizione</span>
-        <textarea value={form.description || ""} onChange={(e) => set("description", e.target.value)} rows={2} style={inp} />
+        <span style={lbl}>Descrizione{isBhag && " · markdown: **grassetto**, riga vuota = nuovo paragrafo"}</span>
+        {isBhag ? (
+          <RichTextInput value={form.description || ""} onChange={(v) => set("description", v)} />
+        ) : (
+          <textarea value={form.description || ""} onChange={(e) => set("description", e.target.value)} rows={2} style={inp} />
+        )}
       </label>
 
       <label style={fld}>
@@ -655,3 +659,99 @@ const empty: React.CSSProperties = { padding: 30, textAlign: "center", color: "v
 const fld: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4 };
 const lbl: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: "var(--fg3)", textTransform: "uppercase", letterSpacing: 0.5 };
 const inp: React.CSSProperties = { fontSize: 12, padding: "6px 8px", borderRadius: 4, border: "1px solid var(--bd)", background: "var(--bg)", color: "var(--fg)", fontFamily: "inherit" };
+
+/* ═══════════════════════════════════════════
+   RICH TEXT (markdown minimo: **bold** + paragrafi)
+   ═══════════════════════════════════════════ */
+
+/** Textarea + toolbar minima. Il click su B wrappa la selezione con **...** */
+function RichTextInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  function toggleBold() {
+    const el = ref.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const sel = value.slice(start, end);
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    // Se la selezione è già circondata da **...**, la rimuovi.
+    if (sel.length >= 4 && sel.startsWith("**") && sel.endsWith("**")) {
+      const stripped = sel.slice(2, -2);
+      onChange(before + stripped + after);
+      requestAnimationFrame(() => { el.focus(); el.setSelectionRange(start, start + stripped.length); });
+      return;
+    }
+    const wrapped = `**${sel || "testo"}**`;
+    onChange(before + wrapped + after);
+    requestAnimationFrame(() => {
+      el.focus();
+      if (sel) el.setSelectionRange(start, start + wrapped.length);
+      else el.setSelectionRange(start + 2, start + wrapped.length - 2);
+    });
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") { e.preventDefault(); toggleBold(); }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button
+          type="button"
+          onClick={toggleBold}
+          title="Grassetto (⌘/Ctrl + B)"
+          style={{ fontSize: 11, fontWeight: 800, width: 26, height: 24, borderRadius: 4, border: "1px solid var(--bd)", background: "var(--bg)", color: "var(--fg2)", cursor: "pointer" }}
+        >B</button>
+      </div>
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        rows={6}
+        style={{ ...inp, resize: "vertical", lineHeight: 1.5 }}
+      />
+    </div>
+  );
+}
+
+/** Rende il testo con supporto per **grassetto**, righe (\n = <br>) e paragrafi (\n\n = <p>). */
+function RichText({ text }: { text: string }) {
+  const paragraphs = text.replace(/\r\n?/g, "\n").split(/\n{2,}/);
+  return (
+    <>
+      {paragraphs.map((para, pi) => {
+        const lines = para.split("\n");
+        return (
+          <p key={pi} style={{ margin: pi === 0 ? "0 0 0.6em" : "0.6em 0" }}>
+            {lines.map((line, li) => (
+              <Fragment key={li}>
+                {renderInline(line)}
+                {li < lines.length - 1 && <br />}
+              </Fragment>
+            ))}
+          </p>
+        );
+      })}
+    </>
+  );
+}
+
+/** Sostituisce **bold** con <strong>. Non gestisce escape o italic (fuori scope). */
+function renderInline(line: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let key = 0;
+  while ((m = re.exec(line)) !== null) {
+    if (m.index > last) parts.push(line.slice(last, m.index));
+    parts.push(<strong key={`b${key++}`}>{m[1]}</strong>);
+    last = m.index + m[0].length;
+  }
+  if (last < line.length) parts.push(line.slice(last));
+  return parts;
+}
