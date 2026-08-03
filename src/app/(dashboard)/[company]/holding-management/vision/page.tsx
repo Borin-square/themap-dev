@@ -134,29 +134,36 @@ export default function VisionPage() {
           Nessuna presentazione. Carica il primo PDF per iniziare.
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
           {items.map((p) => (
             <div key={p.id} className="cd" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
               <div
                 onClick={() => setViewer(p)}
                 style={{
-                  height: 140,
-                  background: "var(--bg2)",
+                  position: "relative",
+                  aspectRatio: "16 / 9",
+                  background: "#fff",
                   border: "1px solid var(--bd)",
                   borderRadius: 6,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
                   cursor: "pointer",
-                  color: "var(--fg3)",
-                  fontSize: 12,
+                  overflow: "hidden",
                 }}
                 title="Apri fullscreen"
               >
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 34, opacity: 0.4 }}>{"\uD83D\uDCC4"}</div>
-                  <div style={{ marginTop: 4 }}>Apri</div>
-                </div>
+                <iframe
+                  src={`${p.file_url}#page=1&view=Fit&toolbar=0&navpanes=0&scrollbar=0`}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    border: "none",
+                    pointerEvents: "none",
+                    background: "#fff",
+                  }}
+                  title={p.title}
+                />
+                {/* Overlay invisibile: cattura il click e garantisce che il cursore
+                    resti "pointer" anche sopra il viewer PDF del browser. */}
+                <div style={{ position: "absolute", inset: 0, cursor: "pointer" }} />
               </div>
 
               {editing === p.id ? (
