@@ -83,6 +83,7 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
       // Rituals-organization) sono state rimosse dal nav — le pagine restano
       // raggiungibili via URL diretto se la feature è abilitata.
       { id: `${c.slug}-hm-vision`,        label: "Vision",       featureKey: "holding-management.vision",        href: `/${c.slug}/holding-management/vision` },
+      { id: `${c.slug}-hm-strategies`,    label: "Strategie sviluppo", featureKey: "holding-management.strategies", href: `/${c.slug}/holding-management/strategies` },
       { id: `${c.slug}-hm-objectives`,    label: "Obiettivi",    featureKey: "holding-management.objectives",    href: `/${c.slug}/holding-management/objectives` },
       { id: `${c.slug}-hm-overview`,      label: "Overview",     featureKey: "holding-management.overview",      href: `/${c.slug}/holding-management/overview` },
       { id: `${c.slug}-hm-multiyear`,     label: "Multiyear",    featureKey: "holding-management.multiyear",     href: `/${c.slug}/holding-management/multiyear` },
