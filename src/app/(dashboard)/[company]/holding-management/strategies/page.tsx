@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { COMPANIES, type Company } from "@/lib/companies";
+import { fetchCompanies, type Company } from "@/lib/companies";
 
 interface Strategy {
   id: string;
@@ -18,10 +18,6 @@ interface Strategy {
 }
 
 interface OwnershipRow { holding_slug: string; operative_slug: string }
-
-function companyBySlug(slug: string): Company | undefined {
-  return COMPANIES.find((c) => c.slug === slug);
-}
 
 function fmtItDate(iso: string): string {
   const d = new Date(iso);
@@ -42,6 +38,7 @@ export default function StrategiesPage() {
 
   const [items, setItems] = useState<Strategy[]>([]);
   const [operatives, setOperatives] = useState<Company[]>([]);
+  const [companiesMap, setCompaniesMap] = useState<Map<string, Company>>(new Map());
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,14 +53,17 @@ export default function StrategiesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const token = await bearer();
-    const [strRes, ownRes] = await Promise.all([
+    const [strRes, ownRes, companies] = await Promise.all([
       fetch(`/api/holding-management/strategies?holding=${encodeURIComponent(holdingSlug)}`, {
         headers: { Authorization: `Bearer ${token}` },
       }),
       fetch(`/api/holding-management/ownership?holding=${encodeURIComponent(holdingSlug)}`, {
         headers: { Authorization: `Bearer ${token}` },
       }),
+      fetchCompanies(),
     ]);
+    const cMap = new Map(companies.map((c) => [c.slug, c] as const));
+    setCompaniesMap(cMap);
     if (strRes.ok) {
       const j = await strRes.json();
       setItems(j.rows || []);
@@ -73,7 +73,7 @@ export default function StrategiesPage() {
       const ownJson = await ownRes.json();
       const slugs = Array.from(new Set(((ownJson.rows || []) as OwnershipRow[]).map((r) => r.operative_slug)));
       ops = slugs
-        .map((s) => companyBySlug(s))
+        .map((s) => cMap.get(s))
         .filter((c): c is Company => !!c)
         .sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -143,7 +143,7 @@ export default function StrategiesPage() {
     for (const op of operatives) map.set(op.slug, op);
     for (const it of items) {
       if (map.has(it.operative_slug)) continue;
-      const c = companyBySlug(it.operative_slug);
+      const c = companiesMap.get(it.operative_slug);
       if (c) map.set(c.slug, c);
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -245,7 +245,7 @@ export default function StrategiesPage() {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
           {filtered.map((s) => {
-            const op = companyBySlug(s.operative_slug);
+            const op = companiesMap.get(s.operative_slug);
             return (
               <div key={s.id} className="cd" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, borderLeft: `4px solid ${op?.color || "var(--bd)"}` }}>
                 <div
@@ -340,7 +340,7 @@ export default function StrategiesPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ fontWeight: 600 }}>{viewer.title}</div>
               {(() => {
-                const op = companyBySlug(viewer.operative_slug);
+                const op = companiesMap.get(viewer.operative_slug);
                 return op && (
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: op.color }} />
