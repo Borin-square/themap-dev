@@ -85,7 +85,28 @@ body {
 /* Animation */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes themap-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-.page-enter { animation: fadeIn .3s ease; }
+
+/* Stagger entrata pagina: i figli diretti del content entrano in sequenza,
+   con delay crescente (60ms) per un effetto "layers-in" elegante.
+   Curva "gentle spring-out" (cubic-bezier 0.22, 1, 0.36, 1). */
+@keyframes staggerIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.page-enter > * {
+  opacity: 0;
+  animation: staggerIn .38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: opacity, transform;
+}
+.page-enter > *:nth-child(1) { animation-delay: 0ms; }
+.page-enter > *:nth-child(2) { animation-delay: 60ms; }
+.page-enter > *:nth-child(3) { animation-delay: 120ms; }
+.page-enter > *:nth-child(4) { animation-delay: 180ms; }
+.page-enter > *:nth-child(5) { animation-delay: 240ms; }
+.page-enter > *:nth-child(6) { animation-delay: 300ms; }
+.page-enter > *:nth-child(n+7) { animation-delay: 340ms; }
+
+/* Rispetta prefers-reduced-motion (accessibilita'). */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter > * { animation: none; opacity: 1; }
+}
 
 /* Cards */
 .cd { background: var(--bg2); border: 1px solid var(--bd); border-radius: 12px; padding: 20px; transition: transform .2s, box-shadow .2s; }
