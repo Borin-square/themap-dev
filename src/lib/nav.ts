@@ -79,13 +79,14 @@ export function buildOperativeNav(companies: Company[]): NavItem[] {
       // Tab dirette sotto la company (senza gruppo contenitore Organization/Holding
       // Management). Ordine richiesto: VISION → OBIETTIVI → OVERVIEW → MULTIYEAR
       // → OPPORTUNITÀ → RITUALS → WORKLOAD → TASK → PEOPLE.
-      // Le voci non incluse (Organigramma, Tools, MCP, Flywheels, Alerts,
-      // Rituals-organization) sono state rimosse dal nav — le pagine restano
-      // raggiungibili via URL diretto se la feature è abilitata.
+      // Le voci non incluse (Organigramma, Tools, MCP, Flywheels, Rituals-organization)
+      // sono state rimosse dal nav — le pagine restano raggiungibili via URL
+      // diretto se la feature è abilitata.
       { id: `${c.slug}-hm-vision`,        label: "Vision",       featureKey: "holding-management.vision",        href: `/${c.slug}/holding-management/vision` },
       { id: `${c.slug}-hm-strategies`,    label: "Strategie sviluppo", featureKey: "holding-management.strategies", href: `/${c.slug}/holding-management/strategies` },
       { id: `${c.slug}-hm-objectives`,    label: "Obiettivi",    featureKey: "holding-management.objectives",    href: `/${c.slug}/holding-management/objectives` },
       { id: `${c.slug}-hm-overview`,      label: "Overview",     featureKey: "holding-management.overview",      href: `/${c.slug}/holding-management/overview` },
+      { id: `${c.slug}-hm-alerts`,        label: "Alerts",       featureKey: "holding-management.alerts",        href: `/${c.slug}/holding-management/alerts` },
       { id: `${c.slug}-hm-multiyear`,     label: "Multiyear",    featureKey: "holding-management.multiyear",     href: `/${c.slug}/holding-management/multiyear` },
       { id: `${c.slug}-hm-opportunities`, label: "Opportunità",  featureKey: "holding-management.opportunities", href: `/${c.slug}/holding-management/opportunities` },
       { id: `${c.slug}-hm-rituals`,       label: "Rituals",      featureKey: "holding-management.rituals",       href: `/${c.slug}/holding-management/rituals` },

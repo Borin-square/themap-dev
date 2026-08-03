@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useYear } from "@/components/YearProvider";
 import { FW_FUNCS, fwPerLabel, fwSegColor } from "@/lib/flywheel";
@@ -25,6 +26,8 @@ interface Alert {
 const PER_OPTIONS = ["q1", "q2", "q3", "q4", "h1", "h2", "ytd", "year"] as const;
 
 export default function AlertsPage() {
+  const params = useParams();
+  const holdingSlug = params.company as string;
   const { year } = useYear();
   const [per, setPer] = useState<string>("ytd");
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -40,7 +43,7 @@ export default function AlertsPage() {
       setLoading(true);
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token || "";
-      const res = await fetch(`/api/holding-management/alerts?year=${year}&per=${per}`, {
+      const res = await fetch(`/api/holding-management/alerts?holding=${holdingSlug}&year=${year}&per=${per}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (cancelled) return;
@@ -56,7 +59,7 @@ export default function AlertsPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [year, per]);
+  }, [year, per, holdingSlug]);
 
   const operativeOptions = useMemo(() => {
     const seen = new Map<string, { slug: string; name: string; color: string }>();

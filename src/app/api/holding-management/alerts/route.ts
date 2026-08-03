@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
+import { guardFeature } from "@/lib/api-feature-guard";
 import { fwGR, fwCR, fwDV, FW_FUNCS, type FwData, type FwConfig, type FwGoalData, type FwSubgoalData } from "@/lib/flywheel";
 import { dataVersion } from "@/lib/square-marketing-data";
 
@@ -42,6 +43,11 @@ const CRITICAL_THRESHOLD = 0.4;
 
 export async function GET(req: NextRequest) {
   if (!(await authOk(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const holding = req.nextUrl.searchParams.get("holding");
+  if (!holding) return NextResponse.json({ error: "holding richiesto" }, { status: 400 });
+  const guard = await guardFeature(holding, "holding-management.alerts");
+  if (guard) return guard;
 
   const yearParam = req.nextUrl.searchParams.get("year");
   const per = req.nextUrl.searchParams.get("per") || "ytd";

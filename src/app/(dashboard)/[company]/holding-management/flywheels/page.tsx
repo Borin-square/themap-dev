@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useYear } from "@/components/YearProvider";
 import { FlywheelSVG } from "@/components/FlywheelSVG";
@@ -24,6 +25,8 @@ const PER_OPTIONS = ["q1", "q2", "q3", "q4", "h1", "h2", "ytd", "year"] as const
 const fmtPct = (n: number | null) => (n == null ? "—" : `${(n * 100).toFixed(0)}%`);
 
 export default function FlywheelsPage() {
+  const params = useParams();
+  const holdingSlug = params.company as string;
   const { year } = useYear();
   const [per, setPer] = useState<string>("ytd");
   const [operatives, setOperatives] = useState<OperativeFlywheel[]>([]);
@@ -36,7 +39,7 @@ export default function FlywheelsPage() {
       setLoading(true);
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token || "";
-      const res = await fetch(`/api/holding-management/flywheels?year=${year}&per=${per}`, {
+      const res = await fetch(`/api/holding-management/flywheels?holding=${holdingSlug}&year=${year}&per=${per}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (cancelled) return;
@@ -52,7 +55,7 @@ export default function FlywheelsPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [year, per]);
+  }, [year, per, holdingSlug]);
 
   return (
     <div>

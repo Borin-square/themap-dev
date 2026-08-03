@@ -47,7 +47,7 @@ export default function MultiyearPage() {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token || "";
       const [myRes, ownRes] = await Promise.all([
-        fetch(`/api/holding-management/multiyear`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/holding-management/multiyear?holding=${holdingSlug}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/holding-management/ownership?holding=${holdingSlug}`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       if (cancelled) return;

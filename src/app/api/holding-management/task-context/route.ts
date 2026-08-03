@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { authUser } from "@/lib/api-auth";
+import { guardFeature } from "@/lib/api-feature-guard";
 import { dataVersion } from "@/lib/square-marketing-data";
 import type { FwData, FwGoalData } from "@/lib/flywheel";
 import type { Persona } from "@/lib/people";
@@ -24,6 +25,11 @@ export interface GoalRef { fn: string; goal: string; sub?: string; owner?: strin
 export async function GET(req: NextRequest) {
   const user = await authUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const holding = req.nextUrl.searchParams.get("holding");
+  if (!holding) return NextResponse.json({ error: "holding richiesto" }, { status: 400 });
+  const guard = await guardFeature(holding, "holding-management.tasks");
+  if (guard) return guard;
 
   const yearParam = req.nextUrl.searchParams.get("year");
   const year = yearParam ? parseInt(yearParam, 10) : 2026;

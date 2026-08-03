@@ -131,7 +131,7 @@ export default function TasksPage() {
       setLoading(true);
       const token = await bearer();
       const [ctxRes, projRes, taskRes] = await Promise.all([
-        fetch(`/api/holding-management/task-context?year=${year}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/holding-management/task-context?holding=${holdingSlug}&year=${year}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/holding-management/projects?holding=${holdingSlug}&year=${year}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/holding-management/tasks?holding=${holdingSlug}&year=${year}`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);

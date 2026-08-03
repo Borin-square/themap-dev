@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { authUser } from "@/lib/api-auth";
+import { guardFeature } from "@/lib/api-feature-guard";
+
+const FEATURE = "holding-management.objectives";
 
 export async function GET(req: NextRequest) {
   const user = await authUser(req);
@@ -8,6 +11,8 @@ export async function GET(req: NextRequest) {
 
   const holding = req.nextUrl.searchParams.get("holding");
   if (!holding) return NextResponse.json({ error: "holding richiesto" }, { status: 400 });
+  const guard = await guardFeature(holding, FEATURE);
+  if (guard) return guard;
   const yearParam = req.nextUrl.searchParams.get("year"); // opzionale: filtra march sull'anno
 
   const svc = createServiceClient();
@@ -45,6 +50,8 @@ export async function POST(req: NextRequest) {
   if (!holding_slug || !kind || !title) {
     return NextResponse.json({ error: "holding_slug, kind, title richiesti" }, { status: 400 });
   }
+  const guard = await guardFeature(holding_slug, FEATURE);
+  if (guard) return guard;
   if (!["bhag", "medium", "march"].includes(kind)) {
     return NextResponse.json({ error: "kind non valido" }, { status: 400 });
   }
@@ -87,6 +94,12 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "id richiesto" }, { status: 400 });
 
   const svc = createServiceClient();
+  // Recupera l'holding dal record per verificare la feature.
+  const { data: row } = await svc.from("hm_objectives").select("holding_slug").eq("id", id).maybeSingle();
+  if (row?.holding_slug) {
+    const guard = await guardFeature(row.holding_slug, FEATURE);
+    if (guard) return guard;
+  }
   const { error } = await svc.from("hm_objectives").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

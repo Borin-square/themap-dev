@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
+import { guardFeature } from "@/lib/api-feature-guard";
 import { fwMom, type FwData, type FwConfig } from "@/lib/flywheel";
 import { eeRecalc } from "@/lib/economic-engine";
 import { dataVersion } from "@/lib/square-marketing-data";
@@ -41,6 +42,11 @@ const YEAR_MAX = 2029;
 
 export async function GET(req: NextRequest) {
   if (!(await authOk(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const holding = req.nextUrl.searchParams.get("holding");
+  if (!holding) return NextResponse.json({ error: "holding richiesto" }, { status: 400 });
+  const guard = await guardFeature(holding, "holding-management.multiyear");
+  if (guard) return guard;
 
   const svc = createServiceClient();
 

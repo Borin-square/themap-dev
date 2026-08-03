@@ -71,7 +71,7 @@ export default function OverviewPage() {
       setLoading(true);
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token || "";
-      const res = await fetch(`/api/holding-management/overview?year=${year}`, {
+      const res = await fetch(`/api/holding-management/overview?holding=${holdingSlug}&year=${year}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {

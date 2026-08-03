@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { authUser } from "@/lib/api-auth";
+import { guardFeature } from "@/lib/api-feature-guard";
+
+const FEATURE = "holding-management.tasks";
 
 export async function GET(req: NextRequest) {
   const user = await authUser(req);
@@ -9,6 +12,8 @@ export async function GET(req: NextRequest) {
   const holding = req.nextUrl.searchParams.get("holding");
   const yearParam = req.nextUrl.searchParams.get("year");
   if (!holding) return NextResponse.json({ error: "holding richiesto" }, { status: 400 });
+  const guard = await guardFeature(holding, FEATURE);
+  if (guard) return guard;
   const year = yearParam ? parseInt(yearParam, 10) : 2026;
 
   const svc = createServiceClient();
@@ -32,6 +37,8 @@ export async function POST(req: NextRequest) {
   if (!holding_slug || !operative_slug || !title) {
     return NextResponse.json({ error: "holding_slug, operative_slug, title richiesti" }, { status: 400 });
   }
+  const guard = await guardFeature(holding_slug, FEATURE);
+  if (guard) return guard;
 
   const payload: Record<string, unknown> = {
     holding_slug,
@@ -65,6 +72,11 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "id richiesto" }, { status: 400 });
 
   const svc = createServiceClient();
+  const { data: row } = await svc.from("hm_projects").select("holding_slug").eq("id", id).maybeSingle();
+  if (row?.holding_slug) {
+    const guard = await guardFeature(row.holding_slug, FEATURE);
+    if (guard) return guard;
+  }
   const { error } = await svc.from("hm_projects").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

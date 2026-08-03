@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
+import { guardFeature } from "@/lib/api-feature-guard";
 
+const FEATURE = "holding-management.vision";
 const BUCKET = "brand-assets";
 const MAX_MB = 25;
 
@@ -27,6 +29,8 @@ export async function GET(req: NextRequest) {
 
   const company = req.nextUrl.searchParams.get("company");
   if (!company) return NextResponse.json({ error: "company richiesta" }, { status: 400 });
+  const guardGet = await guardFeature(company, FEATURE);
+  if (guardGet) return guardGet;
 
   const svc = createServiceClient();
   const { data, error } = await svc
@@ -49,6 +53,8 @@ export async function POST(req: NextRequest) {
   const title = ((form.get("title") as string | null) || "").trim();
 
   if (!file || !company) return NextResponse.json({ error: "file e company richiesti" }, { status: 400 });
+  const guardPost = await guardFeature(company, FEATURE);
+  if (guardPost) return guardPost;
   if (file.type !== "application/pdf") return NextResponse.json({ error: "Solo PDF" }, { status: 400 });
   if (file.size > MAX_MB * 1024 * 1024) return NextResponse.json({ error: `File troppo grande (max ${MAX_MB}MB)` }, { status: 400 });
 
@@ -85,6 +91,11 @@ export async function PATCH(req: NextRequest) {
   if (!id || !title?.trim()) return NextResponse.json({ error: "id e title richiesti" }, { status: 400 });
 
   const svc = createServiceClient();
+  const { data: existing } = await svc.from("hm_presentations").select("company_slug").eq("id", id).maybeSingle();
+  if (existing?.company_slug) {
+    const guardPatch = await guardFeature(existing.company_slug, FEATURE);
+    if (guardPatch) return guardPatch;
+  }
   const { data, error } = await svc
     .from("hm_presentations")
     .update({ title: title.trim(), updated_at: new Date().toISOString() })
@@ -104,7 +115,11 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "id richiesto" }, { status: 400 });
 
   const svc = createServiceClient();
-  const { data: row } = await svc.from("hm_presentations").select("file_path").eq("id", id).single();
+  const { data: row } = await svc.from("hm_presentations").select("file_path, company_slug").eq("id", id).single();
+  if (row?.company_slug) {
+    const guardDel = await guardFeature(row.company_slug, FEATURE);
+    if (guardDel) return guardDel;
+  }
   if (row?.file_path) {
     await svc.storage.from(BUCKET).remove([row.file_path]);
   }

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
+import { guardFeature } from "@/lib/api-feature-guard";
 
+const FEATURE = "holding-management.strategies";
 const BUCKET = "brand-assets";
 const MAX_MB = 25;
 
@@ -26,6 +28,8 @@ export async function GET(req: NextRequest) {
   const holding = req.nextUrl.searchParams.get("holding");
   const operative = req.nextUrl.searchParams.get("operative"); // optional
   if (!holding) return NextResponse.json({ error: "holding richiesto" }, { status: 400 });
+  const guard = await guardFeature(holding, FEATURE);
+  if (guard) return guard;
 
   const svc = createServiceClient();
   let q = svc
@@ -54,6 +58,8 @@ export async function POST(req: NextRequest) {
   if (!file || !holding || !operative) {
     return NextResponse.json({ error: "file, holding, operative richiesti" }, { status: 400 });
   }
+  const guardPost = await guardFeature(holding, FEATURE);
+  if (guardPost) return guardPost;
   if (file.type !== "application/pdf") return NextResponse.json({ error: "Solo PDF" }, { status: 400 });
   if (file.size > MAX_MB * 1024 * 1024) return NextResponse.json({ error: `File troppo grande (max ${MAX_MB}MB)` }, { status: 400 });
 
@@ -97,6 +103,11 @@ export async function PATCH(req: NextRequest) {
   if (!id || !title?.trim()) return NextResponse.json({ error: "id e title richiesti" }, { status: 400 });
 
   const svc = createServiceClient();
+  const { data: existing } = await svc.from("hm_strategies").select("holding_slug").eq("id", id).maybeSingle();
+  if (existing?.holding_slug) {
+    const guardPatch = await guardFeature(existing.holding_slug, FEATURE);
+    if (guardPatch) return guardPatch;
+  }
   const { data, error } = await svc
     .from("hm_strategies")
     .update({ title: title.trim(), updated_at: new Date().toISOString() })
@@ -116,7 +127,11 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "id richiesto" }, { status: 400 });
 
   const svc = createServiceClient();
-  const { data: row } = await svc.from("hm_strategies").select("file_path").eq("id", id).single();
+  const { data: row } = await svc.from("hm_strategies").select("file_path, holding_slug").eq("id", id).single();
+  if (row?.holding_slug) {
+    const guardDel = await guardFeature(row.holding_slug, FEATURE);
+    if (guardDel) return guardDel;
+  }
   if (row?.file_path) {
     await svc.storage.from(BUCKET).remove([row.file_path]);
   }
