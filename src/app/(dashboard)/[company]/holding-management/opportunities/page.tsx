@@ -463,8 +463,11 @@ export default function OpportunitiesPage() {
   }
 
   async function deleteAttachment(id: string) {
+    if (!confirm("Eliminare questo PDF?")) return;
     const r = await callAction({ action: "attachment_delete", attachment_id: id });
-    if (!r.ok) showMsg(r.err || "Errore", false);
+    if (!r.ok) { showMsg(r.err || "Errore", false); return; }
+    setAttachments((prev) => prev.filter((x) => x.id !== id));
+    showMsg("PDF eliminato");
   }
 
   /* ── Render ── */
