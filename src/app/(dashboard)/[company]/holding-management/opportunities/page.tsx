@@ -448,20 +448,18 @@ export default function OpportunitiesPage() {
   }
 
   async function uploadPdf(oppId: string, file: File) {
-    const path = `${holdingSlug}/${oppId}/${Date.now()}-${file.name}`;
-    const up = await supabase.storage.from("hm-opportunities").upload(path, file, { upsert: false });
-    if (up.error) { showMsg(`Upload fallito: ${up.error.message}`, false); return; }
-    const { data } = supabase.storage.from("hm-opportunities").getPublicUrl(path);
-    const r = await callAction({
-      action: "attachment_add",
-      opportunity_id: oppId,
-      file_name: file.name,
-      storage_path: path,
-      public_url: data.publicUrl,
-      size_bytes: file.size,
+    const token = await bearer();
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("opportunity_id", oppId);
+    const res = await fetch(`/api/holding-management/opportunities/upload`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
     });
-    if (!r.ok) showMsg(r.err || "Errore metadata", false);
-    else showMsg("PDF caricato");
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) { showMsg(`Upload fallito: ${j.error || "errore"}`, false); return; }
+    showMsg("PDF caricato");
   }
 
   async function deleteAttachment(id: string) {
