@@ -243,6 +243,9 @@ export default function OpportunitiesPage() {
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [confirmDlg, setConfirmDlg] = useState<{
+    title: string; body: string; okLabel?: string; danger?: boolean; onOk: () => void;
+  } | null>(null);
 
   function showMsg(text: string, ok: boolean = true) {
     setMsg({ text, ok });
@@ -463,11 +466,19 @@ export default function OpportunitiesPage() {
   }
 
   async function deleteAttachment(id: string) {
-    if (!confirm("Eliminare questo PDF?")) return;
-    const r = await callAction({ action: "attachment_delete", attachment_id: id });
-    if (!r.ok) { showMsg(r.err || "Errore", false); return; }
-    setAttachments((prev) => prev.filter((x) => x.id !== id));
-    showMsg("PDF eliminato");
+    const att = attachments.find((a) => a.id === id);
+    setConfirmDlg({
+      title: "Elimina PDF",
+      body: att ? `Vuoi eliminare "${att.file_name}"?` : "Eliminare questo PDF?",
+      okLabel: "Elimina",
+      danger: true,
+      onOk: async () => {
+        const r = await callAction({ action: "attachment_delete", attachment_id: id });
+        if (!r.ok) { showMsg(r.err || "Errore", false); return; }
+        setAttachments((prev) => prev.filter((x) => x.id !== id));
+        showMsg("PDF eliminato");
+      },
+    });
   }
 
   /* ── Render ── */
@@ -557,6 +568,16 @@ export default function OpportunitiesPage() {
       )}
 
       {showNew && <NewOpportunityDialog onCancel={() => setShowNew(false)} onCreate={createOpportunity} />}
+      {confirmDlg && (
+        <ConfirmDialog
+          title={confirmDlg.title}
+          body={confirmDlg.body}
+          okLabel={confirmDlg.okLabel}
+          danger={confirmDlg.danger}
+          onCancel={() => setConfirmDlg(null)}
+          onOk={async () => { const fn = confirmDlg.onOk; setConfirmDlg(null); await fn(); }}
+        />
+      )}
     </div>
   );
 }
@@ -1104,6 +1125,28 @@ function NewOpportunityDialog({ onCancel, onCreate }: { onCancel: () => void; on
               style={{ ...btnPrimary, opacity: name.trim() ? 1 : 0.5, cursor: name.trim() ? "pointer" : "not-allowed" }}
             >Crea</button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDialog({ title, body, okLabel = "Conferma", danger = false, onCancel, onOk }: {
+  title: string; body: string; okLabel?: string; danger?: boolean;
+  onCancel: () => void; onOk: () => void;
+}) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600 }} onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", border: "1px solid var(--bd)", borderRadius: 10, padding: 24, width: 420, maxWidth: "90vw" }}>
+        <h3 style={{ margin: "0 0 10px", fontSize: 16 }}>{title}</h3>
+        <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--fg2)", lineHeight: 1.5 }}>{body}</p>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button onClick={onCancel} style={btnSecondary}>Annulla</button>
+          <button
+            onClick={onOk}
+            style={{ ...btnPrimary, background: danger ? "#ef4444" : "var(--accent)" }}
+            autoFocus
+          >{okLabel}</button>
         </div>
       </div>
     </div>
