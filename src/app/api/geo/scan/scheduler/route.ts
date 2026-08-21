@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { computeNextRun, type Cadence } from "@/lib/geo/schedule";
 
@@ -64,11 +64,13 @@ export async function POST(req: NextRequest) {
   // Sveglia il worker
   if (enqueued.length > 0) {
     const workerUrl = new URL("/api/geo/scan/worker", req.nextUrl.origin).toString();
-    fetch(workerUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(secret ? { Authorization: `Bearer ${secret}` } : {}) },
-      body: JSON.stringify({ triggered_by: "scheduler" }),
-    }).catch((e) => console.error("[scheduler] worker fire failed:", e));
+    after(async () => {
+      await fetch(workerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(secret ? { Authorization: `Bearer ${secret}` } : {}) },
+        body: JSON.stringify({ triggered_by: "scheduler" }),
+      }).catch((e) => console.error("[scheduler] worker fire failed:", e));
+    });
   }
 
   return NextResponse.json({ ok: true, enqueued: enqueued.length, job_ids: enqueued });

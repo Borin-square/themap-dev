@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { authUser } from "@/lib/api-auth";
 
@@ -47,20 +47,24 @@ export async function POST(req: NextRequest) {
   const { data, error } = await svc.from("geo_scan_jobs").insert(rows).select();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Fire-and-forget al worker: max 3 invocation parallele (concurrency cap lato client)
+  // Sveglia il worker dopo la response (after() sopravvive su serverless via waitUntil).
   const workerUrl = new URL("/api/geo/scan/worker", req.nextUrl.origin).toString();
   const cronSecret = process.env.CRON_SECRET;
   const parallel = Math.min(3, rows.length);
-  for (let i = 0; i < parallel; i++) {
-    fetch(workerUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {}),
-      },
-      body: JSON.stringify({ triggered_by: "enqueue" }),
-    }).catch((e) => console.error("[enqueue] worker fire failed:", e));
-  }
+  after(async () => {
+    await Promise.all(
+      Array.from({ length: parallel }, () =>
+        fetch(workerUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {}),
+          },
+          body: JSON.stringify({ triggered_by: "enqueue" }),
+        }).catch((e) => console.error("[enqueue] worker fire failed:", e)),
+      ),
+    );
+  });
 
   return NextResponse.json({ jobs: data });
 }
