@@ -121,6 +121,26 @@ function sumPeriod(months: (number | null)[] | undefined, idx: number[]): { sum:
   return { sum, count };
 }
 
+// Somma appaiata: include un mese solo se real[i] e forecast[i] sono entrambi presenti.
+// Evita il bias per cui un forecast di 3 mesi viene confrontato con un real di 1 mese.
+function pairedSum(
+  real: (number | null)[] | undefined,
+  forecast: (number | null)[] | undefined,
+  idx: number[],
+): { rS: number; fS: number; count: number } {
+  if (!real || !forecast) return { rS: 0, fS: 0, count: 0 };
+  let rS = 0, fS = 0, count = 0;
+  for (const i of idx) {
+    const rv = real[i], fv = forecast[i];
+    if (rv === null || rv === undefined || isNaN(rv)) continue;
+    if (fv === null || fv === undefined || isNaN(fv)) continue;
+    rS += rv;
+    fS += fv;
+    count++;
+  }
+  return { rS, fS, count };
+}
+
 export function fwCR(
   item: FwSubgoalData | undefined,
   per: string,
@@ -157,26 +177,23 @@ export function fwCR(
   }
 
   if (mode === "PARTENZA" && start != null) {
-    const r = sumPeriod(item.real, idx);
-    const f = sumPeriod(item.forecast, idx);
-    if (r.count === 0 || f.count === 0) return null;
-    const gap = start - f.sum / f.count;
+    const p = pairedSum(item.real, item.forecast, idx);
+    if (p.count === 0) return null;
+    const gap = start - p.fS / p.count;
     if (gap === 0) return null;
-    return (start - r.sum / r.count) / gap;
+    return (start - p.rS / p.count) / gap;
   }
 
   if (mode === "INVERSO") {
-    const r = sumPeriod(item.real, idx);
-    const f = sumPeriod(item.forecast, idx);
-    if (!r.count || r.sum === 0) return null;
-    return f.sum / r.sum;
+    const p = pairedSum(item.real, item.forecast, idx);
+    if (!p.count || p.rS === 0) return null;
+    return p.fS / p.rS;
   }
 
   // STANDARD
-  const r = sumPeriod(item.real, idx);
-  const f = sumPeriod(item.forecast, idx);
-  if (!r.count || f.sum === 0) return null;
-  return r.sum / f.sum;
+  const p = pairedSum(item.real, item.forecast, idx);
+  if (!p.count || p.fS === 0) return null;
+  return p.rS / p.fS;
 }
 
 export function fwGR(gObj: FwGoalData, per: string, cfg: FwConfigEntry): number | null {
@@ -192,11 +209,8 @@ export function fwGR(gObj: FwGoalData, per: string, cfg: FwConfigEntry): number 
     for (const sn of subs) {
       const sub = gObj.subgoals[sn];
       if (!sub?.real || !sub?.forecast) continue;
-      for (const i of idx) {
-        const rv = sub.real[i], fv = sub.forecast[i];
-        if (rv !== null && rv !== undefined && !isNaN(rv)) { rS += rv; hR = true; }
-        if (fv !== null && fv !== undefined && !isNaN(fv)) fS += fv;
-      }
+      const p = pairedSum(sub.real, sub.forecast, idx);
+      if (p.count > 0) { rS += p.rS; fS += p.fS; hR = true; }
     }
     if (!hR) return null;
     if (cfg.mode === "INVERSO") return rS === 0 ? null : fS / rS;
@@ -243,11 +257,8 @@ export function fwMom(data: FwData, per: string, config: FwConfig): number | nul
         let rS = 0, fS = 0, hR = false;
         for (const s of src) {
           if (!s.real || !s.forecast) continue;
-          for (const i of idx) {
-            const rv = s.real[i], fv = s.forecast[i];
-            if (rv !== null && rv !== undefined && !isNaN(rv)) { rS += rv; hR = true; }
-            if (fv !== null && fv !== undefined && !isNaN(fv)) fS += fv;
-          }
+          const p = pairedSum(s.real, s.forecast, idx);
+          if (p.count > 0) { rS += p.rS; fS += p.fS; hR = true; }
         }
         if (hR && fS !== 0) {
           if (cfg.mode === "INVERSO") { tR += fS; tF += rS; }
@@ -289,7 +300,7 @@ export function fwSMR(
     if (!real) return null;
     const v = real[idx];
     if (v === null || v === undefined || isNaN(v)) return null;
-    return v > 0 ? 1 : v === 0 ? 0.85 : 0.5;
+    return v >= 0 ? 1 : 0.5;
   }
   if (mode === "PARTENZA" && start != null) {
     if (!real || !fc) return null;
