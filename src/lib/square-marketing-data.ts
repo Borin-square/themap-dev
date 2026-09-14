@@ -173,7 +173,7 @@ export function getSquareFwData(): { data: FwData; config: FwConfig } {
     "VENDITA MEDIA": { mode: "STANDARD" },
     "TOTALE VENDITE": { mode: "STANDARD" },
     "DELTA RICORRENTE": { mode: "LIMITI", limInf: -300.0, limSup: 300.0 },
-    "ORE SU ORE": { mode: "INVERSO", limInf: 1.05, limSup: 1.0 },
+    "ORE SU ORE": { mode: "LIMITI", limInf: 1.05, limSup: 1.0 },
     "ADVOCACY": { mode: "STANDARD" },
     "FATTURATO": { mode: "STANDARD" },
     "M.O.L.": { mode: "STANDARD" },
