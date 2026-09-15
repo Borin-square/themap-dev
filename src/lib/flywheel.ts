@@ -42,6 +42,52 @@ export const FW_SEGS: FwSegment[] = [
 export const FW_FUNCS = ["MARKETING", "SALES", "OPERATION", "DIREZIONE", "AMMINISTRAZIONE"];
 export const FW_MODES: FwConfigEntry["mode"][] = ["STANDARD", "POSITIVO", "LIMITI", "PARTENZA", "INVERSO"];
 
+// Metadati modalità: etichetta umana, descrizione comportamento, campi richiesti.
+// Usati dal Setup per validare la config e da qualsiasi UI che spieghi la modalità.
+export interface FwModeMeta {
+  value: FwConfigEntry["mode"];
+  label: string;
+  description: string;
+  requires: ("limInf" | "limSup" | "start")[];
+}
+
+export const FW_MODE_META: FwModeMeta[] = [
+  {
+    value: "STANDARD",
+    label: "Real vs forecast (piu alto = meglio)",
+    description: "Ratio real/forecast. Verde >=100%, giallo 70-99%, rosso <70%.",
+    requires: [],
+  },
+  {
+    value: "INVERSO",
+    label: "Real vs forecast (piu basso = meglio)",
+    description: "Ratio forecast/real (per costi, ore, DSO). Verde >=100%, giallo 70-99%, rosso <70%.",
+    requires: [],
+  },
+  {
+    value: "POSITIVO",
+    label: "Acceso/spento su zero",
+    description: "Verde se somma >= 0, rosso se < 0. Nessuna zona gialla.",
+    requires: [],
+  },
+  {
+    value: "LIMITI",
+    label: "Deve stare in una banda",
+    description: "Verde in banda alta (>= limite superiore), giallo in banda media, rosso fuori. Se limite inf > sup, banda invertita.",
+    requires: ["limInf", "limSup"],
+  },
+  {
+    value: "PARTENZA",
+    label: "Chiusura gap da partenza",
+    description: "% di gap chiuso rispetto al valore di partenza. Verde a target (>=100%).",
+    requires: ["start"],
+  },
+];
+
+export function fwModeMeta(mode: string): FwModeMeta | undefined {
+  return FW_MODE_META.find((m) => m.value === mode);
+}
+
 export const FW_IR = 195, FW_OR = 270, FW_MR = 232, FW_SR = 315, FW_LR = 350;
 export const FW_GAP = 10, FW_SEG_ANGLE = (360 - 30) / 3, FW_PAD = 14;
 export const FW_GDR = 16, FW_SDR = 10;

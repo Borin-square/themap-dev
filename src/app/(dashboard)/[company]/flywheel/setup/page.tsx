@@ -9,10 +9,9 @@ import { useYear } from "@/components/YearProvider";
 import { dataVersion } from "@/lib/square-marketing-data";
 import {
   FW_FUNCS, FW_MN, getMockDataForCompany, fwSegColor, fwSortedGoals,
+  FW_MODE_META, fwModeMeta, fwGR, fwPalletText, fwSCl,
   type FwData, type FwConfig, type FwConfigEntry, type FwGoalData,
 } from "@/lib/flywheel";
-
-const MODES = ["STANDARD", "POSITIVO", "LIMITI", "PARTENZA", "INVERSO"] as const;
 
 export default function FlywheelSetupPage() {
   const params = useParams();
@@ -98,14 +97,37 @@ export default function FlywheelSetupPage() {
   function closeGoalForm() { setGoalForm(null); }
 
   function saveGoalForm() {
-    if (!gfName.trim()) return;
+    if (!gfName.trim()) {
+      showToast("Nome goal obbligatorio", true);
+      return;
+    }
+    const meta = fwModeMeta(gfMode);
+    if (!meta) {
+      showToast(`Modalita' sconosciuta: ${gfMode}`, true);
+      return;
+    }
+
+    // Validazione: campi obbligatori per la modalita' scelta.
+    const missing: string[] = [];
+    if (meta.requires.includes("limInf") && (gfLimInf === "" || isNaN(parseFloat(gfLimInf)))) missing.push("Limite inferiore");
+    if (meta.requires.includes("limSup") && (gfLimSup === "" || isNaN(parseFloat(gfLimSup)))) missing.push("Limite superiore");
+    if (meta.requires.includes("start") && (gfStart === "" || isNaN(parseFloat(gfStart)))) missing.push("Valore partenza");
+    if (missing.length > 0) {
+      showToast(`Campi obbligatori mancanti: ${missing.join(", ")}`, true);
+      return;
+    }
+
     const name = gfName.trim();
     const owner = gfOwner.trim();
-    const limInf = gfLimInf ? parseFloat(gfLimInf) : null;
-    const limSup = gfLimSup ? parseFloat(gfLimSup) : null;
-    const start = gfStart ? parseFloat(gfStart) : null;
-
     const decimals = gfDecimals === "" ? undefined : parseInt(gfDecimals, 10);
+
+    // Config pulita: scriviamo solo i campi effettivamente usati dalla modalita'.
+    // Cosi' un cambio da INVERSO/STANDARD/POSITIVO a nuova modalita' non trascina
+    // parametri stantii che avrebbero un significato non voluto.
+    const cleanCfg: FwConfigEntry = { mode: gfMode as FwConfigEntry["mode"] };
+    if (meta.requires.includes("limInf")) cleanCfg.limInf = parseFloat(gfLimInf);
+    if (meta.requires.includes("limSup")) cleanCfg.limSup = parseFloat(gfLimSup);
+    if (meta.requires.includes("start")) cleanCfg.start = parseFloat(gfStart);
 
     if (goalForm?.editName) {
       // Update
@@ -136,7 +158,7 @@ export default function FlywheelSetupPage() {
       setConfig((prev) => {
         const c = { ...prev };
         if (oldName !== name) delete c[oldName];
-        c[name] = { mode: gfMode as FwConfigEntry["mode"], limInf, limSup, start };
+        c[name] = cleanCfg;
         return c;
       });
       showToast("Goal aggiornato");
@@ -154,7 +176,7 @@ export default function FlywheelSetupPage() {
       });
       setConfig((prev) => ({
         ...prev,
-        [name]: { mode: gfMode as FwConfigEntry["mode"], limInf, limSup, start },
+        [name]: cleanCfg,
       }));
       showToast("Goal creato");
     }
@@ -312,6 +334,7 @@ export default function FlywheelSetupPage() {
                   gfStart={gfStart} setGfStart={setGfStart}
                   onSave={saveGoalForm} onCancel={closeGoalForm}
                   isEdit={false}
+                  existingGoal={null}
                 />
               )}
 
@@ -342,6 +365,7 @@ export default function FlywheelSetupPage() {
                             gfStart={gfStart} setGfStart={setGfStart}
                             onSave={saveGoalForm} onCancel={closeGoalForm}
                             isEdit={true}
+                            existingGoal={g}
                           />
                         </div>
                       ) : (
@@ -466,7 +490,7 @@ function GoalInlineForm({
   gfDecimals, setGfDecimals,
   gfLimInf, setGfLimInf, gfLimSup, setGfLimSup,
   gfStart, setGfStart,
-  onSave, onCancel, isEdit,
+  onSave, onCancel, isEdit, existingGoal,
 }: {
   gfName: string; setGfName: (v: string) => void;
   gfFunc: string; setGfFunc: (v: string) => void;
@@ -478,7 +502,37 @@ function GoalInlineForm({
   gfLimSup: string; setGfLimSup: (v: string) => void;
   gfStart: string; setGfStart: (v: string) => void;
   onSave: () => void; onCancel: () => void; isEdit: boolean;
+  existingGoal: FwGoalData | null;
 }) {
+  const meta = fwModeMeta(gfMode);
+  const needsLim = meta?.requires.includes("limInf") || meta?.requires.includes("limSup");
+  const needsStart = meta?.requires.includes("start");
+
+  // Preview: costruisce una config tentativa dai valori del form e mostra
+  // come apparirebbe il pallino del goal. Attivo solo in edit (serve un goal
+  // esistente con dei dati) e con YTD (usa i mesi consuntivati).
+  let previewText = "\u2014";
+  let previewColor: "green" | "yellow" | "red" | "grey" = "grey";
+  if (isEdit && existingGoal) {
+    const tentativeCfg: FwConfigEntry = { mode: gfMode as FwConfigEntry["mode"] };
+    if (meta?.requires.includes("limInf") && gfLimInf !== "" && !isNaN(parseFloat(gfLimInf))) tentativeCfg.limInf = parseFloat(gfLimInf);
+    if (meta?.requires.includes("limSup") && gfLimSup !== "" && !isNaN(parseFloat(gfLimSup))) tentativeCfg.limSup = parseFloat(gfLimSup);
+    if (meta?.requires.includes("start") && gfStart !== "" && !isNaN(parseFloat(gfStart))) tentativeCfg.start = parseFloat(gfStart);
+    const tentativeGoal: FwGoalData = {
+      ...existingGoal,
+      isPercent: gfFlags === "%",
+      isCurrency: gfFlags === "\u20AC",
+      subgoals: Object.fromEntries(
+        Object.entries(existingGoal.subgoals).map(([sn, sg]) => [sn, { ...sg, isPercent: gfFlags === "%", isCurrency: gfFlags === "\u20AC" }]),
+      ),
+    };
+    const ratio = fwGR(tentativeGoal, "ytd", tentativeCfg);
+    previewText = fwPalletText(tentativeGoal, "ytd", tentativeCfg, ratio);
+    previewColor = fwSCl(ratio);
+  }
+
+  const colorMap: Record<string, string> = { green: "#22c55e", yellow: "#eab308", red: "#ef4444", grey: "#4b5563" };
+
   return (
     <div className="fws-goal-inline-form">
       <div className="fws-gif-row">
@@ -489,8 +543,10 @@ function GoalInlineForm({
         <input className="fws-inline-input" placeholder="Owner" value={gfOwner} onChange={(e) => setGfOwner(e.target.value)} />
       </div>
       <div className="fws-gif-row">
-        <select className="fws-inline-select" value={gfMode} onChange={(e) => setGfMode(e.target.value)}>
-          {MODES.map((m) => <option key={m}>{m}</option>)}
+        <select className="fws-inline-select" value={gfMode} onChange={(e) => setGfMode(e.target.value)} style={{ minWidth: 260 }}>
+          {FW_MODE_META.map((m) => (
+            <option key={m.value} value={m.value}>{m.value} — {m.label}</option>
+          ))}
         </select>
         <select className="fws-inline-select" value={gfFlags} onChange={(e) => setGfFlags(e.target.value)}>
           <option value="">Nessun flag</option>
@@ -505,18 +561,33 @@ function GoalInlineForm({
           <option value="3">3 decimali</option>
           <option value="4">4 decimali</option>
         </select>
-        {gfMode === "LIMITI" && (
+        {needsLim && (
           <>
-            <input className="fws-inline-input fws-inline-num" type="number" step="any" placeholder="Lim. inf" value={gfLimInf} onChange={(e) => setGfLimInf(e.target.value)} />
-            <input className="fws-inline-input fws-inline-num" type="number" step="any" placeholder="Lim. sup" value={gfLimSup} onChange={(e) => setGfLimSup(e.target.value)} />
+            <input className="fws-inline-input fws-inline-num" type="number" step="any" placeholder="Lim. inf *" value={gfLimInf} onChange={(e) => setGfLimInf(e.target.value)} />
+            <input className="fws-inline-input fws-inline-num" type="number" step="any" placeholder="Lim. sup *" value={gfLimSup} onChange={(e) => setGfLimSup(e.target.value)} />
           </>
         )}
-        {gfMode === "PARTENZA" && (
-          <input className="fws-inline-input fws-inline-num" type="number" step="any" placeholder="Valore partenza" value={gfStart} onChange={(e) => setGfStart(e.target.value)} />
+        {needsStart && (
+          <input className="fws-inline-input fws-inline-num" type="number" step="any" placeholder="Valore partenza *" value={gfStart} onChange={(e) => setGfStart(e.target.value)} />
+        )}
+        {isEdit && existingGoal && (
+          <div title="Preview YTD col nuovo setup" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 10, color: "var(--fg3)", letterSpacing: 1 }}>YTD</span>
+            <span style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              minWidth: 34, height: 28, padding: "0 8px", borderRadius: 999,
+              background: colorMap[previewColor], color: "#fff", fontSize: 11, fontWeight: 700,
+            }}>{previewText}</span>
+          </div>
         )}
         <button className="pe-act-save" onClick={onSave}>{isEdit ? "Salva" : "Crea"}</button>
         <button className="pe-act-cancel" onClick={onCancel}>Annulla</button>
       </div>
+      {meta && (
+        <div style={{ fontSize: 11, color: "var(--fg3)", marginTop: 4, lineHeight: 1.4 }}>
+          <span style={{ color: "var(--accent)" }}>{meta.label}:</span> {meta.description}
+        </div>
+      )}
     </div>
   );
 }
