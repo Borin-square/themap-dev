@@ -12,7 +12,7 @@ import { dataVersion } from "@/lib/square-marketing-data";
 import {
   FW_SEGS, FW_IR, FW_OR, FW_MR, FW_SR, FW_LR, FW_GAP, FW_SEG_ANGLE, FW_PAD, FW_GDR, FW_SDR,
   FW_GRN, FW_YEL, FW_RED, FW_GRY, FW_MN, FW_PER, fwPerLabel,
-  fwP, fwArc, fwTA, fwSC, fwSCl, fwGR, fwMom, fwCR, fwDV, fwMDV, fwSMR,
+  fwP, fwArc, fwTA, fwSC, fwSCl, fwGR, fwMom, fwCR, fwDV, fwMDV, fwSMR, fwPalletText,
   getMockDataForCompany, fwSortedGoals,
   type FwGoalData, type FwConfigEntry, type FwData, type FwConfig,
 } from "@/lib/flywheel";
@@ -89,7 +89,7 @@ export default function FlywheelOverviewPage() {
     const gp = fwP(FW_MR, angle);
     const llp = fwP(FW_LR, angle);
     const ta = fwTA(angle);
-    const pctTxt = ratio !== null ? Math.round(ratio * 100).toString() : "\u2014";
+    const pctTxt = fwPalletText(gObj, per, cfg, ratio);
 
     const td: TipData = {
       name, parent: "", owner: gObj.owner, func: segKey,
@@ -141,7 +141,7 @@ export default function FlywheelOverviewPage() {
             mode: sCfg.mode, start: sCfg.start, limInf: sCfg.limInf, limSup: sCfg.limSup,
           };
 
-          const sPctTxt = sR !== null ? Math.round(sR * 100).toString() : "\u2014";
+          const sPctTxt = fwPalletText(gObj.subgoals[sName], per, sCfg, sR);
           return (
             <g key={sName}>
               <line x1={lx1} y1={ly1} x2={sp.x} y2={sp.y} stroke={sCl} strokeWidth="1" strokeOpacity="0.25" pointerEvents="none" />
@@ -299,7 +299,7 @@ export default function FlywheelOverviewPage() {
                   const ratio = fwGR(gObj, per, cfg);
                   const color = fwSC(ratio);
                   const sc = fwSCl(ratio);
-                  const pctTxt = ratio !== null ? Math.round(ratio * 100).toString() : "\u2014";
+                  const pctTxt = fwPalletText(gObj, per, cfg, ratio);
 
                   const td: TipData = {
                     name, parent: "", owner: gObj.owner, func: "DIREZIONE",

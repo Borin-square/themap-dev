@@ -369,6 +369,50 @@ export function fwMDV(months: (number | null)[] | undefined, idx: number, isPct:
   return fmtNum(v, decimals ?? 1);
 }
 
+// Formato compatto per il testo dentro il pallino (spazio limitato).
+function fmtCompact(val: number, isPct: boolean): string {
+  if (isPct) return Math.round(val) + "%";
+  const sign = val < 0 ? "-" : "";
+  const abs = Math.abs(val);
+  if (abs >= 1_000_000) return sign + (abs / 1_000_000).toFixed(1) + "M";
+  if (abs >= 10_000) return sign + Math.round(abs / 1000) + "k";
+  if (abs >= 1000) return sign + (abs / 1000).toFixed(1) + "k";
+  return sign + Math.round(abs);
+}
+
+// Testo mostrato dentro il pallino del flywheel.
+// STANDARD/INVERSO/PARTENZA: ratio in %, semanticamente corretto.
+// LIMITI: media reale sul periodo (coerente con la formula del ratio).
+// POSITIVO: somma reale sul periodo (coerente con la formula del ratio).
+export function fwPalletText(
+  gObj: FwGoalData | FwSubgoalData,
+  per: string,
+  cfg: FwConfigEntry,
+  ratio: number | null,
+): string {
+  if (cfg.mode !== "LIMITI" && cfg.mode !== "POSITIVO") {
+    return ratio !== null ? Math.round(ratio * 100).toString() : "\u2014";
+  }
+  const idx = FW_PER[per];
+  const items: FwSubgoalData[] = "subgoals" in gObj && Object.keys(gObj.subgoals).length > 0
+    ? Object.keys(gObj.subgoals).map((sn) => gObj.subgoals[sn])
+    : [gObj];
+  let s = 0, c = 0;
+  for (const it of items) {
+    if (!it.real) continue;
+    for (const i of idx) {
+      const v = it.real[i];
+      if (v !== null && v !== undefined && !isNaN(v)) { s += v; c++; }
+    }
+  }
+  if (c === 0) return "\u2014";
+  const isPct = items[0]?.isPercent ?? false;
+  const val = isPct
+    ? (s / c) * 100
+    : cfg.mode === "LIMITI" ? s / c : s;
+  return fmtCompact(val, isPct);
+}
+
 // === MOCK DATA ===
 
 import { getSquareFwData } from "./square-marketing-data";
