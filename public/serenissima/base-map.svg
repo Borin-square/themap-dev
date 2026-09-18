@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLACEHOLDER SOSTITUIBILE.
+  Sostituire con illustrazione atlas AI (WebP/AVIF/PNG/SVG) 1600x900 senza città né testi.
+  Path atteso: /serenissima/base-map.(webp|avif|png|svg)
+  Il renderer sceglie l'estensione presente in ordine: webp > avif > png > svg.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a6b8f"/>
+      <stop offset="100%" stop-color="#123449"/>
+    </linearGradient>
+    <linearGradient id="land" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#efe0bd"/>
+      <stop offset="100%" stop-color="#c9ad76"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sea)"/>
+  <!-- Isole indicative solo come riferimento visivo del placeholder -->
+  <ellipse cx="400" cy="600" rx="220" ry="130" fill="url(#land)" opacity="0.9"/>
+  <ellipse cx="800" cy="450" rx="180" ry="110" fill="url(#land)" opacity="0.9"/>
+  <ellipse cx="1200" cy="350" rx="240" ry="140" fill="url(#land)" opacity="0.9"/>
+  <text x="800" y="820" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#f4e8d0" opacity="0.55" letter-spacing="6">
+    PLACEHOLDER BASE MAP — SOSTITUIRE CON /public/serenissima/base-map.webp
+  </text>
+</svg>

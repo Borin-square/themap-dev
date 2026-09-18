@@ -5,23 +5,14 @@ import {
   type CompanyMap,
   type ResolvedSnapshot,
   type AggregatedRoute,
-  activityLevel,
+  type PortfolioStatus,
   confidenceClarity,
   expandabilityRadius,
   headcountToRadius,
-  revenuePerPerson,
+  effectiveRenderCoords,
   routeWidth,
 } from "@/lib/serenissima";
-import {
-  WORLD_W,
-  WORLD_H,
-  strategicToWorld,
-  islandPath,
-  generateCityBuildings,
-  generateIslets,
-  generateMountains,
-  curvedPath,
-} from "@/lib/serenissima-svg";
+import { WORLD_W, WORLD_H, curvedPath } from "@/lib/serenissima-svg";
 
 interface Props {
   companies: CompanyMap[];
@@ -35,13 +26,29 @@ interface Props {
 interface Transform { x: number; y: number; k: number }
 const IDENTITY: Transform = { x: 0, y: 0, k: 1 };
 
-const PORTFOLIO_COLORS: Record<string, { fill: string; stroke: string }> = {
+// Path degli asset. L'utente può salvare la base map come .webp/.png/.svg —
+// il renderer tenta gli formati in ordine e usa il primo disponibile.
+const BASE_MAP_CANDIDATES = [
+  "/serenissima/base-map.webp",
+  "/serenissima/base-map.avif",
+  "/serenissima/base-map.png",
+  "/serenissima/base-map.jpg",
+  "/serenissima/base-map.svg",
+];
+const cityAssetUrl = (variant: string) => `/serenissima/cities/${variant}.svg`;
+
+const PORTFOLIO_COLORS: Record<PortfolioStatus, { fill: string; stroke: string }> = {
   portfolio:  { fill: "#c8a24b", stroke: "#8a6a20" },
   evaluating: { fill: "#7a94a8", stroke: "#3d5568" },
   incubating: { fill: "#b56a4a", stroke: "#7a3a1e" },
   exited:     { fill: "#8b7a6b", stroke: "#4a3e34" },
   archived:   { fill: "#6b6b6b", stroke: "#333" },
 };
+
+/** Traduzione coord normalizzata (0..1) → coord world (viewport dell'illustration). */
+function normToWorld(nx: number, ny: number): { x: number; y: number } {
+  return { x: nx * WORLD_W, y: ny * WORLD_H };
+}
 
 export default function SerenissimaMap({
   companies, snapshots, routes, selectedSlug, onSelect, view,
@@ -50,35 +57,48 @@ export default function SerenissimaMap({
   const [transform, setTransform] = useState<Transform>(IDENTITY);
   const dragRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
   const [hoverSlug, setHoverSlug] = useState<string | null>(null);
+  const [baseMapUrl, setBaseMapUrl] = useState<string>(BASE_MAP_CANDIDATES[BASE_MAP_CANDIDATES.length - 1]);
+
+  // Prova i candidati in ordine e sceglie il primo disponibile
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      for (const url of BASE_MAP_CANDIDATES) {
+        try {
+          const res = await fetch(url, { method: "HEAD" });
+          if (res.ok) {
+            if (!cancelled) setBaseMapUrl(url);
+            return;
+          }
+        } catch { /* try next */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ============================================================
-  // Precomputa mondi / città
+  // Precomputa coord città + territori
   // ============================================================
   const geo = useMemo(() => {
-    const items = companies.map((c) => {
-      const w = strategicToWorld(c.position_x, c.position_y);
+    return companies.map((c) => {
+      const coords = effectiveRenderCoords(c);
+      const w = normToWorld(coords.x, coords.y);
       const snap = snapshots.get(c.company_slug);
       const cityR = headcountToRadius(snap?.headcount ?? null);
-      const rpp = revenuePerPerson(snap?.revenue ?? null, snap?.headcount ?? null);
-      const activity = activityLevel(rpp);
       const potentialR = expandabilityRadius(c.expandability_score, cityR);
       const potentialAlpha = confidenceClarity(c.confidence_score);
+      const variant = c.asset_variant || c.portfolio_status;
       return {
         company: c,
         snap,
-        wx: w.x, wy: w.y,
+        wx: w.x,
+        wy: w.y,
         cityR,
-        activity,
         potentialR,
         potentialAlpha,
-        buildings: generateCityBuildings(c.city_seed, w.x, w.y, cityR),
-        mountains: generateMountains(c.city_seed, w.x, w.y, cityR * 1.4),
-        islandPath: islandPath(c.city_seed, w.x, w.y, cityR * 1.6 + 18, 28),
+        assetUrl: cityAssetUrl(variant),
       };
     });
-    const exclusions = items.map((it) => ({ cx: it.wx, cy: it.wy, r: it.cityR * 1.8 + it.potentialR * 0.5 }));
-    const islets = generateIslets("serenissima-v1", WORLD_W, WORLD_H, exclusions, 40);
-    return { items, islets };
   }, [companies, snapshots]);
 
   const maxWonRevenue = useMemo(
@@ -86,7 +106,6 @@ export default function SerenissimaMap({
     [routes]
   );
 
-  // Route filtrate/subordinate: quando c'è selezione, mostra solo IN/OUT della selezionata.
   const routeVisibility = useCallback((r: AggregatedRoute): "hidden" | "active" | "muted" => {
     if (!selectedSlug) return "muted";
     if (r.source_slug === selectedSlug || r.dest_slug === selectedSlug) return "active";
@@ -107,7 +126,6 @@ export default function SerenissimaMap({
     const scaleFactor = Math.exp(delta * 0.0015);
     setTransform((t) => {
       const newK = Math.max(0.4, Math.min(6, t.k * scaleFactor));
-      // Zoom verso il puntatore
       const kk = newK / t.k;
       return {
         k: newK,
@@ -119,7 +137,6 @@ export default function SerenissimaMap({
 
   const onPointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     const target = e.target as SVGElement;
-    // Se l'utente clicca su una città, quello handler ferma la propagazione.
     if (target.closest("[data-city]")) return;
     (e.target as Element).setPointerCapture(e.pointerId);
     dragRef.current = { x: e.clientX, y: e.clientY, tx: transform.x, ty: transform.y };
@@ -139,7 +156,6 @@ export default function SerenissimaMap({
     }
   }, []);
 
-  // Prevent default on wheel to disable page scroll
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -148,10 +164,9 @@ export default function SerenissimaMap({
     return () => svg.removeEventListener("wheel", handler);
   }, []);
 
-  // Auto-zoom sulla città selezionata
   useEffect(() => {
     if (!selectedSlug) return;
-    const it = geo.items.find((i) => i.company.company_slug === selectedSlug);
+    const it = geo.find((i) => i.company.company_slug === selectedSlug);
     if (!it) return;
     const svg = svgRef.current;
     if (!svg) return;
@@ -162,7 +177,7 @@ export default function SerenissimaMap({
       x: rect.width / 2 - it.wx * targetK,
       y: rect.height / 2 - it.wy * targetK,
     });
-  }, [selectedSlug, geo.items]);
+  }, [selectedSlug, geo]);
 
   const resetView = useCallback(() => setTransform(IDENTITY), []);
 
@@ -187,52 +202,46 @@ export default function SerenissimaMap({
         aria-label="Mappa dell'ecosistema Serenissima"
       >
         <defs>
-          <radialGradient id="seaGradient" cx="50%" cy="45%" r="70%">
-            <stop offset="0%" stopColor="#2a6b8f" />
-            <stop offset="60%" stopColor="#1d4d68" />
-            <stop offset="100%" stopColor="#123449" />
-          </radialGradient>
-          <linearGradient id="landGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#efe0bd" />
-            <stop offset="100%" stopColor="#d9c393" />
-          </linearGradient>
-          <linearGradient id="landShadow" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(0,0,0,0)" />
-            <stop offset="100%" stopColor="rgba(80,50,0,0.28)" />
-          </linearGradient>
-          <pattern id="parchmentNoise" width="6" height="6" patternUnits="userSpaceOnUse">
-            <rect width="6" height="6" fill="url(#landGradient)" />
-            <circle cx="1" cy="2" r="0.4" fill="rgba(120,80,20,0.05)" />
-            <circle cx="4" cy="5" r="0.3" fill="rgba(120,80,20,0.04)" />
-          </pattern>
-          <filter id="cityShadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="1.5" stdDeviation="1.2" floodColor="#000" floodOpacity="0.35" />
-          </filter>
-          <filter id="selectGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feFlood floodColor="#f2c14e" floodOpacity="0.9" />
+          <filter id="selectGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feFlood floodColor="#f2c14e" floodOpacity="0.95" />
             <feComposite in2="blur" operator="in" />
             <feMerge>
               <feMergeNode />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          <radialGradient id="fog" cx="50%" cy="50%" r="50%">
+            <stop offset="60%" stopColor="rgba(13,17,23,0)" />
+            <stop offset="100%" stopColor="rgba(13,17,23,0.55)" />
+          </radialGradient>
+          <marker id="arrow-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 Z" fill="#c1443a" />
+          </marker>
+          <marker id="arrow-m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 Z" fill="#c1443a" opacity="0.4" />
+          </marker>
         </defs>
 
-        {/* Sea background — sempre a viewBox pieno, indipendente dal transform */}
-        <rect x="0" y="0" width={WORLD_W} height={WORLD_H} fill="url(#seaGradient)" />
+        {/* Fallback sea colour under base map (visibile solo se asset ha alpha) */}
+        <rect x="0" y="0" width={WORLD_W} height={WORLD_H} fill="#1d4d68" />
 
         <g transform={`translate(${transform.x} ${transform.y}) scale(${transform.k})`}>
-          {/* Islets decorativi */}
-          {geo.islets.map((isl) => (
-            <g key={`islet-${isl.seed}`} opacity={0.85}>
-              <path d={islandPath(isl.seed, isl.cx, isl.cy, isl.r, 14)} fill="url(#parchmentNoise)" />
-              <path d={islandPath(isl.seed, isl.cx, isl.cy, isl.r, 14)} fill="url(#landShadow)" />
-            </g>
-          ))}
+          {/* Base map illustrata (asset replaceable) */}
+          <image
+            href={baseMapUrl}
+            x="0" y="0"
+            width={WORLD_W} height={WORLD_H}
+            preserveAspectRatio="xMidYMid slice"
+          />
 
-          {/* Potential territories (dietro alle isole) */}
-          {geo.items.map((it) => it.potentialR > 0 && (
+          {/* Fog on unselected areas quando c'è selezione */}
+          {selectedSlug && (
+            <rect x="0" y="0" width={WORLD_W} height={WORLD_H} fill="url(#fog)" pointerEvents="none" />
+          )}
+
+          {/* Potential territories */}
+          {geo.map((it) => it.potentialR > 0 && (
             <circle
               key={`pot-${it.company.company_slug}`}
               cx={it.wx}
@@ -241,44 +250,17 @@ export default function SerenissimaMap({
               fill="#8f5a3a"
               opacity={selectedSlug === null || selectedSlug === it.company.company_slug ? it.potentialAlpha : it.potentialAlpha * 0.15}
               style={{ mixBlendMode: "multiply", transition: "opacity 400ms ease" }}
+              pointerEvents="none"
             />
           ))}
-
-          {/* Isole delle città */}
-          {geo.items.map((it) => {
-            const sel = selectedSlug === it.company.company_slug;
-            const dimmed = selectedSlug !== null && !sel;
-            return (
-              <g
-                key={`island-${it.company.company_slug}`}
-                opacity={dimmed ? 0.55 : 1}
-                style={{ transition: "opacity 400ms ease" }}
-              >
-                <path d={it.islandPath} fill="url(#parchmentNoise)" />
-                <path d={it.islandPath} fill="url(#landShadow)" opacity={0.6} />
-                {/* Boundary tratteggiata per portfolio_status 'evaluating' */}
-                {it.company.portfolio_status === "evaluating" && (
-                  <path
-                    d={it.islandPath}
-                    fill="none"
-                    stroke={PORTFOLIO_COLORS.evaluating.stroke}
-                    strokeWidth={1.4}
-                    strokeDasharray="4 3"
-                    opacity={0.8}
-                  />
-                )}
-              </g>
-            );
-          })}
 
           {/* Cross-sell routes */}
           {routes.map((r) => {
             const vis = routeVisibility(r);
-            const src = geo.items.find((i) => i.company.company_slug === r.source_slug);
-            const dst = geo.items.find((i) => i.company.company_slug === r.dest_slug);
+            const src = geo.find((i) => i.company.company_slug === r.source_slug);
+            const dst = geo.find((i) => i.company.company_slug === r.dest_slug);
             if (!src || !dst) return null;
             const opacity = vis === "active" ? 0.9 : vis === "muted" ? 0.18 : 0;
-            const stroke = "#c1443a";
             const w = routeWidth(r.won_revenue, maxWonRevenue);
             const isDotted = r.won_revenue <= 0 && r.open_pipeline > 0;
             return (
@@ -290,7 +272,7 @@ export default function SerenissimaMap({
                 <path
                   d={curvedPath(src.wx, src.wy, dst.wx, dst.wy, 0.22)}
                   fill="none"
-                  stroke={stroke}
+                  stroke="#c1443a"
                   strokeWidth={w}
                   strokeDasharray={isDotted ? "6 6" : undefined}
                   strokeLinecap="round"
@@ -299,23 +281,16 @@ export default function SerenissimaMap({
               </g>
             );
           })}
-          <defs>
-            <marker id="arrow-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 Z" fill="#c1443a" />
-            </marker>
-            <marker id="arrow-m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 Z" fill="#c1443a" opacity={0.4} />
-            </marker>
-          </defs>
 
-          {/* Città (buildings + mountains + emblem) */}
-          {geo.items.map((it) => {
+          {/* Città come asset illustrati + emblem procedurale */}
+          {geo.map((it) => {
             const sel = selectedSlug === it.company.company_slug;
             const hov = hoverSlug === it.company.company_slug;
             const dimmed = selectedSlug !== null && !sel;
-            const buildingAlpha = 0.85 + it.activity * 0.15;
             const pc = PORTFOLIO_COLORS[it.company.portfolio_status] || PORTFOLIO_COLORS.portfolio;
             const initial = (it.company.name || "?").trim().charAt(0).toUpperCase();
+            // Dimensione asset proporzionale al headcount (footprint).
+            const assetSize = Math.max(80, it.cityR * 3.2);
             return (
               <g
                 key={`city-${it.company.company_slug}`}
@@ -330,65 +305,33 @@ export default function SerenissimaMap({
                 style={{ cursor: "pointer", outline: "none", opacity: dimmed ? 0.5 : 1, transition: "opacity 400ms ease" }}
                 filter={sel ? "url(#selectGlow)" : undefined}
               >
-                {/* Mountains dietro ai building */}
-                {it.mountains.map((m, i) => (
-                  <path
-                    key={`m-${i}`}
-                    d={`M ${m.x - m.w / 2} ${m.y} L ${m.x} ${m.y - m.h} L ${m.x + m.w / 2} ${m.y} Z`}
-                    fill="#a89476"
-                    stroke="#6b5940"
-                    strokeWidth={0.5}
-                    opacity={0.85}
-                  />
-                ))}
-                {/* Buildings */}
-                <g filter="url(#cityShadow)">
-                  {it.buildings.map((b, i) => {
-                    const tone = 0.85 + b.tone * 0.15;
-                    const wallFill = `rgb(${240 * tone}, ${228 * tone}, ${200 * tone})`;
-                    const roofFill = it.company.color || "#c1443a";
-                    return (
-                      <g key={`b-${i}`} opacity={buildingAlpha}>
-                        <rect x={b.x - b.w / 2} y={b.y - b.h / 2} width={b.w} height={b.h} fill={wallFill} stroke="#8a7250" strokeWidth={0.4} />
-                        {b.roof === "gable" && (
-                          <path d={`M ${b.x - b.w / 2 - 1} ${b.y - b.h / 2} L ${b.x} ${b.y - b.h / 2 - b.w * 0.55} L ${b.x + b.w / 2 + 1} ${b.y - b.h / 2} Z`} fill={roofFill} stroke="#5a2620" strokeWidth={0.4} />
-                        )}
-                        {b.roof === "flat" && (
-                          <rect x={b.x - b.w / 2 - 1} y={b.y - b.h / 2 - 2} width={b.w + 2} height={2.5} fill={roofFill} stroke="#5a2620" strokeWidth={0.4} />
-                        )}
-                        {b.roof === "spire" && (
-                          <>
-                            <path d={`M ${b.x - b.w / 2 - 1} ${b.y - b.h / 2} L ${b.x} ${b.y - b.h / 2 - b.w * 0.8} L ${b.x + b.w / 2 + 1} ${b.y - b.h / 2} Z`} fill={roofFill} stroke="#5a2620" strokeWidth={0.4} />
-                            <line x1={b.x} y1={b.y - b.h / 2 - b.w * 0.8} x2={b.x} y2={b.y - b.h / 2 - b.w * 0.8 - 4} stroke="#5a2620" strokeWidth={0.6} />
-                          </>
-                        )}
-                      </g>
-                    );
-                  })}
-                </g>
+                {/* Asset illustrato della città */}
+                <image
+                  href={it.assetUrl}
+                  x={it.wx - assetSize / 2}
+                  y={it.wy - assetSize / 2}
+                  width={assetSize}
+                  height={assetSize}
+                  preserveAspectRatio="xMidYMid meet"
+                  pointerEvents="none"
+                />
 
-                {/* Emblem badge esagonale sopra la città */}
-                <g transform={`translate(${it.wx} ${it.wy - it.cityR - 24})`}>
+                {/* Hitbox invisibile per interazione affidabile */}
+                <circle cx={it.wx} cy={it.wy} r={assetSize / 2.5} fill="transparent" />
+
+                {/* Emblem badge esagonale */}
+                <g transform={`translate(${it.wx} ${it.wy - assetSize / 2 - 16})`}>
                   <path
                     d="M 0 -14 L 12 -7 L 12 7 L 0 14 L -12 7 L -12 -7 Z"
                     fill={pc.fill}
                     stroke={pc.stroke}
                     strokeWidth={1.4}
                   />
-                  <text
-                    x="0" y="0"
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fontSize="12"
-                    fontWeight={700}
-                    fill="#fff"
-                    style={{ letterSpacing: 0.5 }}
-                  >{initial}</text>
+                  <text x="0" y="0" textAnchor="middle" dominantBaseline="central" fontSize="12" fontWeight={700} fill="#fff" style={{ letterSpacing: 0.5 }}>{initial}</text>
                 </g>
 
-                {/* Tooltip nome su hover / selezione */}
                 {(hov || sel) && (
-                  <g transform={`translate(${it.wx} ${it.wy + it.cityR + 22})`}>
+                  <g transform={`translate(${it.wx} ${it.wy + assetSize / 2 + 16})`} pointerEvents="none">
                     <rect x={-60} y={-10} width={120} height={20} rx={4} fill="rgba(20,15,10,0.85)" />
                     <text x="0" y="0" textAnchor="middle" dominantBaseline="central" fontSize="10" fill="#f4e8d0" fontWeight={600} style={{ letterSpacing: 0.5 }}>
                       {it.company.name.toUpperCase()}
@@ -408,12 +351,21 @@ export default function SerenissimaMap({
               <text x={60} y={WORLD_H / 2 - 10} fontSize={14} fill="#f2c14e" fontWeight={600} style={{ letterSpacing: 3 }}>← SERVIZI</text>
               <text x={WORLD_W / 2 + 12} y={60} fontSize={14} fill="#f2c14e" fontWeight={600} style={{ letterSpacing: 3 }}>↑ COMMUNITY</text>
               <text x={WORLD_W / 2 + 12} y={WORLD_H - 46} fontSize={14} fill="#f2c14e" fontWeight={600} style={{ letterSpacing: 3 }}>↓ B2B</text>
+              {/* Punto strategico "reale" per ogni azienda (visibile solo in Strategica) */}
+              {companies.map((c) => {
+                const w = normToWorld(c.strategic_x, c.strategic_y);
+                return (
+                  <g key={`sp-${c.company_slug}`}>
+                    <circle cx={w.x} cy={w.y} r={5} fill="#f2c14e" opacity={0.9} />
+                    <text x={w.x + 8} y={w.y - 6} fontSize={10} fill="#f2c14e" fontWeight={600}>{c.name}</text>
+                  </g>
+                );
+              })}
             </g>
           )}
         </g>
       </svg>
 
-      {/* Reset button */}
       <button
         onClick={resetView}
         style={{

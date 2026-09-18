@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <g>
+    <!-- Piccolo insediamento -->
+    <rect x="110" y="140" width="24" height="30" fill="#f4e8d0" stroke="#7a3a1e" stroke-width="1.5"/>
+    <polygon points="108,140 122,124 136,140" fill="#b56a4a" stroke="#5a2620" stroke-width="1.5"/>
+    <rect x="140" y="145" width="20" height="25" fill="#f4e8d0" stroke="#7a3a1e" stroke-width="1.5"/>
+    <polygon points="138,145 150,132 162,145" fill="#b56a4a" stroke="#5a2620" stroke-width="1.5"/>
+    <!-- Tenda / infrastruttura incompleta -->
+    <path d="M 90 168 L 105 148 L 120 168 Z" fill="none" stroke="#7a3a1e" stroke-width="1.5" stroke-dasharray="2 2"/>
+  </g>
+</svg>

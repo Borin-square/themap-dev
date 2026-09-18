@@ -23,7 +23,8 @@ export async function PUT(req: NextRequest) {
   if (guard instanceof NextResponse) return guard;
   const body = await req.json();
   const {
-    company_slug, portfolio_status, position_x, position_y,
+    company_slug, portfolio_status,
+    strategic_x, strategic_y, render_x, render_y, asset_variant,
     expandability_score, confidence_score, ownership_pct,
     business_model, emblem_path, notes,
   } = body;
@@ -33,8 +34,11 @@ export async function PUT(req: NextRequest) {
   const payload = {
     company_slug,
     portfolio_status: portfolio_status ?? "portfolio",
-    position_x: clamp01(position_x),
-    position_y: clamp01(position_y),
+    strategic_x: clamp01(strategic_x),
+    strategic_y: clamp01(strategic_y),
+    render_x: nullableCoord(render_x),
+    render_y: nullableCoord(render_y),
+    asset_variant: nullableStr(asset_variant),
     expandability_score: nullableInt(expandability_score, 1, 5),
     confidence_score: nullableInt(confidence_score, 1, 5),
     ownership_pct: nullableNum(ownership_pct, 0, 100),
@@ -62,6 +66,12 @@ export async function DELETE(req: NextRequest) {
 function clamp01(v: unknown): number {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0.5;
+  return Math.max(0, Math.min(1, n));
+}
+function nullableCoord(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
   return Math.max(0, Math.min(1, n));
 }
 function nullableInt(v: unknown, min: number, max: number): number | null {

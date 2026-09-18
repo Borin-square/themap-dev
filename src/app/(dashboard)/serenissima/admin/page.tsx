@@ -9,6 +9,9 @@ import {
   fetchCompanyMaps,
   fetchSnapshotOverrides,
   fetchCrossSell,
+  fetchSettlementAnchors,
+  snapToNearestAnchor,
+  findAnchorForCoords,
   PORTFOLIO_LABELS,
   MATURITY_LABELS,
   MATURITY_ORDER,
@@ -20,9 +23,10 @@ import {
   type MaturityStage,
   type RevenueStatus,
   type CrossSellStatus,
+  type SettlementAnchor,
 } from "@/lib/serenissima";
 
-type Tab = "companies" | "snapshots" | "crosssell";
+type Tab = "companies" | "snapshots" | "crosssell" | "anchors";
 
 export default function SerenissimaAdminPage() {
   const { session } = useAuth();
@@ -46,11 +50,13 @@ export default function SerenissimaAdminPage() {
 
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid var(--bd)", paddingBottom: 0 }}>
         <TabBtn active={tab === "companies"} onClick={() => setTab("companies")} label="Aziende" />
+        <TabBtn active={tab === "anchors"} onClick={() => setTab("anchors")} label="Anchors" />
         <TabBtn active={tab === "snapshots"} onClick={() => setTab("snapshots")} label="Snapshot" />
         <TabBtn active={tab === "crosssell"} onClick={() => setTab("crosssell")} label="Cross-sell" />
       </div>
 
       {tab === "companies" && <CompaniesTab />}
+      {tab === "anchors" && <AnchorsTab />}
       {tab === "snapshots" && <SnapshotsTab />}
       {tab === "crosssell" && <CrossSellTab />}
     </div>
@@ -62,12 +68,14 @@ export default function SerenissimaAdminPage() {
 // ============================================================
 function CompaniesTab() {
   const [rows, setRows] = useState<CompanyMap[]>([]);
+  const [anchors, setAnchors] = useState<SettlementAnchor[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; ok: boolean } | null>(null);
 
   const load = useCallback(async () => {
-    const r = await fetchCompanyMaps();
+    const [r, a] = await Promise.all([fetchCompanyMaps(), fetchSettlementAnchors()]);
     setRows(r);
+    setAnchors(a);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -96,9 +104,33 @@ function CompaniesTab() {
     setRows((rs) => rs.map((r) => r.company_slug === slug ? { ...r, ...patch } : r));
   }
 
+  function snapCompany(slug: string) {
+    const row = rows.find((r) => r.company_slug === slug);
+    if (!row) return;
+    // Snap dal punto strategic al nearest anchor libero (esclude anchor già occupati dalle altre aziende).
+    const occ = new Map<string, number>();
+    for (const r of rows) {
+      if (r.company_slug === slug) continue;
+      if (r.render_x != null && r.render_y != null) {
+        const a = findAnchorForCoords(r.render_x, r.render_y, anchors);
+        if (a) occ.set(a.id, (occ.get(a.id) ?? 0) + 1);
+      }
+    }
+    const best = snapToNearestAnchor(row.strategic_x, row.strategic_y, anchors, occ);
+    if (!best) { setToast({ text: "Nessun anchor libero", ok: false }); setTimeout(() => setToast(null), 2500); return; }
+    update(slug, { render_x: best.render_x, render_y: best.render_y });
+    setToast({ text: `Snap su "${best.name}" — ricordati di Salvare`, ok: true });
+    setTimeout(() => setToast(null), 3000);
+  }
+
   return (
     <div>
       {rows.length === 0 && <Empty text="Nessuna azienda 'operative' presente. Aggiungile da /settings → Aziende con type='operative'." />}
+      {anchors.length === 0 && rows.length > 0 && (
+        <div style={{ ...card, marginBottom: 12, borderColor: "#f59e0b" }}>
+          <div style={{ fontSize: 12, color: "#f59e0b" }}>⚠ Nessun anchor definito. Aggiungi anchor dal tab <b>Anchors</b> per abilitare lo snap.</div>
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {rows.map((r) => (
           <div key={r.company_slug} style={card}>
@@ -110,7 +142,8 @@ function CompaniesTab() {
                 <div style={{ fontSize: 15, fontWeight: 600 }}>{r.name}</div>
                 <div style={{ fontSize: 10, color: "var(--fg3)", letterSpacing: 1 }}>{r.company_slug}</div>
               </div>
-              <button onClick={() => save(r)} disabled={saving === r.company_slug} style={{ ...btnPrimary, marginLeft: "auto" }}>
+              <button onClick={() => snapCompany(r.company_slug)} disabled={anchors.length === 0} style={{ ...btnGhost, marginLeft: "auto" }}>Snap → anchor</button>
+              <button onClick={() => save(r)} disabled={saving === r.company_slug} style={btnPrimary}>
                 {saving === r.company_slug ? "Salvando…" : "Salva"}
               </button>
             </div>
@@ -120,11 +153,20 @@ function CompaniesTab() {
                   {(Object.keys(PORTFOLIO_LABELS) as PortfolioStatus[]).map((k) => <option key={k} value={k}>{PORTFOLIO_LABELS[k]}</option>)}
                 </select>
               </Field>
-              <Field label="Position X (0..1)">
-                <input type="number" step={0.01} min={0} max={1} value={r.position_x} onChange={(e) => update(r.company_slug, { position_x: parseFloat(e.target.value) || 0 })} style={inputStyle} />
+              <Field label="Strategic X (services↔prodotti)">
+                <input type="number" step={0.01} min={0} max={1} value={r.strategic_x} onChange={(e) => update(r.company_slug, { strategic_x: parseFloat(e.target.value) || 0 })} style={inputStyle} />
               </Field>
-              <Field label="Position Y (0..1)">
-                <input type="number" step={0.01} min={0} max={1} value={r.position_y} onChange={(e) => update(r.company_slug, { position_y: parseFloat(e.target.value) || 0 })} style={inputStyle} />
+              <Field label="Strategic Y (B2B↔community)">
+                <input type="number" step={0.01} min={0} max={1} value={r.strategic_y} onChange={(e) => update(r.company_slug, { strategic_y: parseFloat(e.target.value) || 0 })} style={inputStyle} />
+              </Field>
+              <Field label="Render X (visiva 0..1)">
+                <input type="number" step={0.001} min={0} max={1} value={r.render_x ?? ""} placeholder="→ strategic" onChange={(e) => update(r.company_slug, { render_x: e.target.value ? parseFloat(e.target.value) : null })} style={inputStyle} />
+              </Field>
+              <Field label="Render Y (visiva 0..1)">
+                <input type="number" step={0.001} min={0} max={1} value={r.render_y ?? ""} placeholder="→ strategic" onChange={(e) => update(r.company_slug, { render_y: e.target.value ? parseFloat(e.target.value) : null })} style={inputStyle} />
+              </Field>
+              <Field label="Asset variant">
+                <input type="text" placeholder={r.portfolio_status} value={r.asset_variant ?? ""} onChange={(e) => update(r.company_slug, { asset_variant: e.target.value || null })} style={inputStyle} />
               </Field>
               <Field label="Expandability (1..5)">
                 <input type="number" step={1} min={1} max={5} value={r.expandability_score ?? ""} onChange={(e) => update(r.company_slug, { expandability_score: e.target.value ? parseInt(e.target.value) : null })} style={inputStyle} />
@@ -436,6 +478,214 @@ function CrossSellTab() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      <Toast t={toast} />
+    </div>
+  );
+}
+
+// ============================================================
+// ANCHORS TAB
+// ============================================================
+function AnchorsTab() {
+  const [anchors, setAnchors] = useState<SettlementAnchor[]>([]);
+  const [companies, setCompanies] = useState<CompanyMap[]>([]);
+  const [toast, setToast] = useState<{ text: string; ok: boolean } | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState<Partial<SettlementAnchor>>({ capacity: 1 });
+  // Click-to-place mode: se attivo, un click sulla preview crea/sposta l'anchor draft.
+  const [placeMode, setPlaceMode] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const [a, c] = await Promise.all([fetchSettlementAnchors(), fetchCompanyMaps()]);
+    setAnchors(a);
+    setCompanies(c);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const occupancyByAnchorId = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const c of companies) {
+      if (c.render_x != null && c.render_y != null) {
+        const a = findAnchorForCoords(c.render_x, c.render_y, anchors);
+        if (a) {
+          const arr = m.get(a.id) || [];
+          arr.push(c.name);
+          m.set(a.id, arr);
+        }
+      }
+    }
+    return m;
+  }, [anchors, companies]);
+
+  async function saveNew() {
+    if (!draft.name || draft.render_x == null || draft.render_y == null) {
+      setToast({ text: "Name + render_x + render_y richiesti", ok: false }); return;
+    }
+    setCreating(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch("/api/serenissima/anchors", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Errore");
+      setToast({ text: "Anchor creato", ok: true });
+      setDraft({ capacity: 1 });
+      await load();
+    } catch (e) {
+      setToast({ text: (e as Error).message, ok: false });
+    } finally {
+      setCreating(false);
+      setTimeout(() => setToast(null), 2500);
+    }
+  }
+
+  async function updateAnchor(a: SettlementAnchor) {
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const res = await fetch("/api/serenissima/anchors", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(a),
+    });
+    if (res.ok) { setToast({ text: "Aggiornato", ok: true }); await load(); }
+    else setToast({ text: "Errore", ok: false });
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  async function delAnchor(id: string) {
+    if (!confirm("Eliminare anchor?")) return;
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const res = await fetch(`/api/serenissima/anchors?id=${id}`, {
+      method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) { setToast({ text: "Eliminato", ok: true }); await load(); }
+    else setToast({ text: "Errore", ok: false });
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  function onPreviewClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (!placeMode && !selectedId) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const nx = (e.clientX - rect.left) / rect.width;
+    const ny = (e.clientY - rect.top) / rect.height;
+    if (selectedId) {
+      const a = anchors.find((x) => x.id === selectedId);
+      if (!a) return;
+      updateAnchor({ ...a, render_x: nx, render_y: ny });
+      setSelectedId(null);
+      return;
+    }
+    // Place mode: aggiorna draft con coord clickate
+    setDraft((d) => ({ ...d, render_x: nx, render_y: ny }));
+    setPlaceMode(false);
+  }
+
+  return (
+    <div>
+      <div style={{ ...card, marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: "var(--fg3)", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Preview mappa</div>
+        <div
+          onClick={onPreviewClick}
+          style={{
+            position: "relative", width: "100%", aspectRatio: "16 / 9",
+            border: "1px solid var(--bd)", borderRadius: 6, overflow: "hidden",
+            background: "#0d1117", cursor: placeMode || selectedId ? "crosshair" : "default",
+          }}
+        >
+          <img src="/serenissima/base-map.png" alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.9 }}
+               onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/serenissima/base-map.svg"; }} />
+          {anchors.map((a) => {
+            const occupants = occupancyByAnchorId.get(a.id) || [];
+            const occupied = occupants.length >= a.capacity;
+            return (
+              <button
+                key={a.id}
+                onClick={(e) => { e.stopPropagation(); setSelectedId(selectedId === a.id ? null : a.id); }}
+                title={`${a.name}${occupants.length ? ` — ${occupants.join(", ")}` : " · libero"}`}
+                style={{
+                  position: "absolute",
+                  left: `${a.render_x * 100}%`, top: `${a.render_y * 100}%`,
+                  transform: "translate(-50%, -50%)",
+                  width: selectedId === a.id ? 20 : 14, height: selectedId === a.id ? 20 : 14,
+                  borderRadius: "50%",
+                  background: occupied ? "#c1443a" : "#f2c14e",
+                  border: `2px solid ${selectedId === a.id ? "#fff" : "rgba(20,15,10,0.85)"}`,
+                  cursor: "pointer",
+                  boxShadow: "0 0 6px rgba(0,0,0,0.5)",
+                }}
+              />
+            );
+          })}
+          {draft.render_x != null && draft.render_y != null && (
+            <div style={{
+              position: "absolute", left: `${draft.render_x * 100}%`, top: `${draft.render_y * 100}%`,
+              transform: "translate(-50%, -50%)", width: 18, height: 18, borderRadius: "50%",
+              border: "2px dashed #4f8cff", pointerEvents: "none",
+            }}/>
+          )}
+        </div>
+        <div style={{ fontSize: 10, color: "var(--fg3)", marginTop: 6 }}>
+          {selectedId ? "▸ Modalità sposta: clicca la preview per riposizionare l'anchor selezionato." :
+           placeMode ? "▸ Modalità piazza: clicca la preview per settare le coord del nuovo anchor." :
+           "Pallini gialli = anchor liberi · rossi = occupati. Clicca un pallino per selezionarlo."}
+        </div>
+      </div>
+
+      <div style={{ ...card, marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: "var(--fg3)", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Nuovo anchor</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
+          <Field label="Nome"><input type="text" value={draft.name ?? ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inputStyle} /></Field>
+          <Field label="Render X (0..1)"><input type="number" step={0.001} min={0} max={1} value={draft.render_x ?? ""} onChange={(e) => setDraft({ ...draft, render_x: e.target.value ? parseFloat(e.target.value) : undefined })} style={inputStyle} /></Field>
+          <Field label="Render Y (0..1)"><input type="number" step={0.001} min={0} max={1} value={draft.render_y ?? ""} onChange={(e) => setDraft({ ...draft, render_y: e.target.value ? parseFloat(e.target.value) : undefined })} style={inputStyle} /></Field>
+          <Field label="Region"><input type="text" value={draft.region ?? ""} onChange={(e) => setDraft({ ...draft, region: e.target.value })} style={inputStyle} /></Field>
+          <Field label="Capacity"><input type="number" min={1} value={draft.capacity ?? 1} onChange={(e) => setDraft({ ...draft, capacity: parseInt(e.target.value) || 1 })} style={inputStyle} /></Field>
+        </div>
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button onClick={() => setPlaceMode((p) => !p)} style={placeMode ? btnPrimary : btnGhost}>
+            {placeMode ? "Annulla piazza" : "Piazza sulla mappa"}
+          </button>
+          <button onClick={saveNew} disabled={creating} style={btnPrimary}>{creating ? "…" : "Crea"}</button>
+        </div>
+      </div>
+
+      {anchors.length === 0 ? (
+        <Empty text="Nessun anchor. Creane uno usando 'Piazza sulla mappa' + Crea." />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {anchors.map((a) => {
+            const occupants = occupancyByAnchorId.get(a.id) || [];
+            return (
+              <div key={a.id} style={{ ...card, borderColor: selectedId === a.id ? "#4f8cff" : "var(--bd)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{a.name}</div>
+                    <div style={{ fontSize: 10, color: "var(--fg3)" }}>
+                      x={a.render_x.toFixed(3)} y={a.render_y.toFixed(3)} · cap {a.capacity}
+                      {occupants.length ? ` · ${occupants.join(", ")}` : " · libero"}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => setSelectedId(selectedId === a.id ? null : a.id)} style={selectedId === a.id ? btnPrimary : btnGhost}>
+                      {selectedId === a.id ? "Deselez." : "Sposta"}
+                    </button>
+                    <button onClick={() => delAnchor(a.id)} style={btnDanger}>×</button>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
+                  <Field label="Nome"><input type="text" defaultValue={a.name} onBlur={(e) => e.target.value !== a.name && updateAnchor({ ...a, name: e.target.value })} style={inputStyle} /></Field>
+                  <Field label="Render X"><input type="number" step={0.001} min={0} max={1} defaultValue={a.render_x} onBlur={(e) => updateAnchor({ ...a, render_x: parseFloat(e.target.value) })} style={inputStyle} /></Field>
+                  <Field label="Render Y"><input type="number" step={0.001} min={0} max={1} defaultValue={a.render_y} onBlur={(e) => updateAnchor({ ...a, render_y: parseFloat(e.target.value) })} style={inputStyle} /></Field>
+                  <Field label="Region"><input type="text" defaultValue={a.region ?? ""} onBlur={(e) => updateAnchor({ ...a, region: e.target.value || null })} style={inputStyle} /></Field>
+                  <Field label="Capacity"><input type="number" min={1} defaultValue={a.capacity} onBlur={(e) => updateAnchor({ ...a, capacity: parseInt(e.target.value) || 1 })} style={inputStyle} /></Field>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
       <Toast t={toast} />

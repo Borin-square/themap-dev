@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PLACEHOLDER città. Sostituire con illustrazione trasparente stile atlas. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <g>
+    <!-- Case -->
+    <rect x="90" y="130" width="30" height="45" fill="#f4e8d0" stroke="#8a6a20" stroke-width="1.5"/>
+    <polygon points="88,130 105,110 122,130" fill="#c8a24b" stroke="#5a2620" stroke-width="1.5"/>
+    <rect x="130" y="120" width="35" height="55" fill="#f4e8d0" stroke="#8a6a20" stroke-width="1.5"/>
+    <polygon points="128,120 147,98 167,120" fill="#c8a24b" stroke="#5a2620" stroke-width="1.5"/>
+    <rect x="60" y="140" width="25" height="35" fill="#f4e8d0" stroke="#8a6a20" stroke-width="1.5"/>
+    <polygon points="58,140 72,124 87,140" fill="#c8a24b" stroke="#5a2620" stroke-width="1.5"/>
+    <rect x="170" y="140" width="25" height="35" fill="#f4e8d0" stroke="#8a6a20" stroke-width="1.5"/>
+    <polygon points="168,140 182,124 197,140" fill="#c8a24b" stroke="#5a2620" stroke-width="1.5"/>
+    <!-- Torre centrale -->
+    <rect x="115" y="90" width="16" height="40" fill="#f4e8d0" stroke="#8a6a20" stroke-width="1.5"/>
+    <polygon points="113,90 123,72 133,90" fill="#8a3a30" stroke="#5a2620" stroke-width="1.5"/>
+    <line x1="123" y1="72" x2="123" y2="60" stroke="#5a2620" stroke-width="1.5"/>
+  </g>
+</svg>

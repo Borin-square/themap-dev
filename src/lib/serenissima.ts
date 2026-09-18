@@ -32,8 +32,14 @@ export const PORTFOLIO_LABELS: Record<PortfolioStatus, string> = {
 export interface CompanyMap {
   company_slug: string;
   portfolio_status: PortfolioStatus;
-  position_x: number;
-  position_y: number;
+  /** Posizione strategica (services↔products, B2B↔community). Business meaning. */
+  strategic_x: number;
+  strategic_y: number;
+  /** Posizione visiva sulla base-map illustrata. Se null: fallback su strategic_x/y. */
+  render_x: number | null;
+  render_y: number | null;
+  /** Variante grafica città (portfolio/evaluating/incubating/...). Default = portfolio_status. */
+  asset_variant: string | null;
   expandability_score: number | null;
   confidence_score: number | null;
   ownership_pct: number | null;
@@ -44,6 +50,16 @@ export interface CompanyMap {
   // joined from companies
   name: string;
   color: string;
+}
+
+export interface SettlementAnchor {
+  id: string;
+  name: string;
+  render_x: number;
+  render_y: number;
+  region: string | null;
+  capacity: number;
+  notes: string | null;
 }
 
 export interface SnapshotOverride {
@@ -132,8 +148,11 @@ export async function fetchCompanyMaps(): Promise<CompanyMap[]> {
     return {
       company_slug: c.slug,
       portfolio_status: "portfolio" as PortfolioStatus,
-      position_x: 0.5,
-      position_y: 0.5,
+      strategic_x: 0.5,
+      strategic_y: 0.5,
+      render_x: null,
+      render_y: null,
+      asset_variant: null,
       expandability_score: null,
       confidence_score: null,
       ownership_pct: null,
@@ -145,6 +164,57 @@ export async function fetchCompanyMaps(): Promise<CompanyMap[]> {
       color: c.color,
     };
   });
+}
+
+export async function fetchSettlementAnchors(): Promise<SettlementAnchor[]> {
+  const { data } = await supabase
+    .from("serenissima_settlement_anchors")
+    .select("*")
+    .order("name");
+  return (data ?? []) as SettlementAnchor[];
+}
+
+/** Ritorna la posizione visiva effettiva: render_x/y se presente, altrimenti strategic. */
+export function effectiveRenderCoords(c: CompanyMap): { x: number; y: number } {
+  return { x: c.render_x ?? c.strategic_x, y: c.render_y ?? c.strategic_y };
+}
+
+/** Snap-to-nearest: dato un punto (0..1) e la lista degli anchor, restituisce
+ *  l'anchor libero più vicino (rispetto capacity → considera occupancyBySlug).
+ *  Se occupancyBySlug non è passata, tutti gli anchor sono considerati liberi. */
+export function snapToNearestAnchor(
+  x: number,
+  y: number,
+  anchors: SettlementAnchor[],
+  occupancyByAnchorId?: Map<string, number>,
+): SettlementAnchor | null {
+  let best: SettlementAnchor | null = null;
+  let bestD = Infinity;
+  for (const a of anchors) {
+    const used = occupancyByAnchorId?.get(a.id) ?? 0;
+    if (used >= a.capacity) continue;
+    const dx = a.render_x - x;
+    const dy = a.render_y - y;
+    const d = dx * dx + dy * dy;
+    if (d < bestD) { bestD = d; best = a; }
+  }
+  return best;
+}
+
+/** Trova l'anchor che matcha (o è più vicino) alla posizione render corrente. */
+export function findAnchorForCoords(
+  x: number,
+  y: number,
+  anchors: SettlementAnchor[],
+  tolerance = 0.005,
+): SettlementAnchor | null {
+  const tolSq = tolerance * tolerance;
+  for (const a of anchors) {
+    const dx = a.render_x - x;
+    const dy = a.render_y - y;
+    if (dx * dx + dy * dy <= tolSq) return a;
+  }
+  return null;
 }
 
 export async function fetchSnapshotOverrides(year: number): Promise<SnapshotOverride[]> {

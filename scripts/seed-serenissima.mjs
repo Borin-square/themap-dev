@@ -39,7 +39,7 @@ for (const s of SEED) {
   }
   const res = await c.query(
     `INSERT INTO serenissima_company_map
-       (company_slug, portfolio_status, position_x, position_y, expandability_score, confidence_score, business_model, city_seed)
+       (company_slug, portfolio_status, strategic_x, strategic_y, expandability_score, confidence_score, business_model, city_seed)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $1)
      ON CONFLICT (company_slug) DO NOTHING
      RETURNING company_slug`,
