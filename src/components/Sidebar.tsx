@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from "react";
 import { buildNav, filterNavByFeatures, FOOTER_NAV, TYPE_GROUP_IDS, type NavItem } from "@/lib/nav";
 import { fetchCompanies, getCachedCompanies, type Company } from "@/lib/companies";
 import { useAuth } from "./AuthProvider";
-import { getAllowedSlugs, isSuperAdmin } from "@/lib/auth";
+import { getAllowedSlugs, isAdmin, isSuperAdmin } from "@/lib/auth";
 
 const SB_COLL_KEY = "themap:sidebarCollapsed";
 
@@ -61,9 +61,18 @@ export default function Sidebar() {
   /* Filter nav based on user access */
   const allowed = getAllowedSlugs(session);
   const isOp = allowed !== "*";
+  // Determina se l'utente ha accesso ad almeno una holding (per items holdingOnly)
+  const hasHoldingAccess = useMemo(() => {
+    if (isAdmin(session)) return true;
+    const holdingSlugs = companies.filter((c) => c.type === "holding").map((c) => c.slug.toLowerCase());
+    if (holdingSlugs.length === 0) return false;
+    if (allowed === "*") return true;
+    return holdingSlugs.some((h) => (allowed as string[]).includes(h));
+  }, [session, companies, allowed]);
   const filteredNav = useMemo(() => {
+    const withoutHoldingOnly = NAV.filter((item) => !item.holdingOnly || hasHoldingAccess);
     const nav = isOp
-      ? NAV.flatMap((item) => {
+      ? withoutHoldingOnly.flatMap((item) => {
           // Per gli OPERATIVO: appiattisci i gruppi-tipo e mostra solo le aziende assegnate
           if (!TYPE_GROUP_IDS.includes(item.id)) return [item];
           const kids = item.children?.filter((child) =>
@@ -71,12 +80,12 @@ export default function Sidebar() {
           ) || [];
           return kids;
         })
-      : NAV;
+      : withoutHoldingOnly;
     // Apply feature flags filtering
     const filtered = filterNavByFeatures(nav, featureState);
     // Apply search filter
     return filterNavByQuery(filtered, filterQ);
-  }, [NAV, isOp, allowed, featureState, filterQ]);
+  }, [NAV, isOp, allowed, featureState, filterQ, hasHoldingAccess]);
 
   // Auto-espansione dei parent quando c'è un filtro attivo (per far vedere i match)
   useEffect(() => {

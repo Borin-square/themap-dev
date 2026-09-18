@@ -8,6 +8,7 @@ export interface NavItem {
   color?: string;
   featureKey?: string;
   companyType?: Company["type"];
+  holdingOnly?: boolean;
   children?: NavItem[];
 }
 
@@ -142,6 +143,7 @@ export function buildNav(companies: Company[]): NavItem[] {
 
   return [
     { id: "home", label: "Home", href: "/" },
+    { id: "serenissima", label: "Serenissima Map", href: "/serenissima", holdingOnly: true },
     ...groups,
   ];
 }

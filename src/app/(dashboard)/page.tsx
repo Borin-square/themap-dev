@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
+import { isAdmin } from "@/lib/auth";
 import { readVisits, type Visit } from "@/lib/history";
+import { fetchHoldingSlugs } from "@/lib/serenissima";
 
 interface Favorite {
   id: string;
@@ -19,6 +21,7 @@ export default function HomePage() {
   const { session } = useAuth();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
+  const [showSerenissima, setShowSerenissima] = useState(false);
 
   useEffect(() => {
     setVisits(readVisits(8));
@@ -33,6 +36,17 @@ export default function HomePage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    if (isAdmin(session)) { setShowSerenissima(true); return; }
+    (async () => {
+      const holdings = await fetchHoldingSlugs();
+      const userSlugs = session.aziende === "*" ? "*" : session.aziende.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+      const has = userSlugs === "*" ? holdings.length > 0 : holdings.some((h) => userSlugs.includes(h.toLowerCase()));
+      setShowSerenissima(has);
+    })();
+  }, [session]);
 
   const firstName =
     (session?.nome || "").trim().split(/\s+/)[0] ||
@@ -66,24 +80,26 @@ export default function HomePage() {
         <span style={{ letterSpacing: -1, fontWeight: 600 }}>BENVENUTO SU THE MAP</span>
       </h1>
 
-      <Link
-        href="#"
-        style={{
-          alignSelf: "flex-start",
-          padding: "16px 28px",
-          borderRadius: 12,
-          border: "1px solid var(--bd)",
-          background: "#fff",
-          color: "#000",
-          textDecoration: "none",
-          fontSize: 13,
-          fontWeight: 600,
-          letterSpacing: 2,
-          textTransform: "uppercase",
-        }}
-      >
-        See the map
-      </Link>
+      {showSerenissima && (
+        <Link
+          href="/serenissima"
+          style={{
+            alignSelf: "flex-start",
+            padding: "16px 28px",
+            borderRadius: 12,
+            border: "1px solid var(--bd)",
+            background: "#fff",
+            color: "#000",
+            textDecoration: "none",
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+          }}
+        >
+          See the map
+        </Link>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 40 }}>
         <Section title="Preferiti" empty="Nessun preferito. Clicca ☆ nella barra sopra per salvare la pagina corrente.">
