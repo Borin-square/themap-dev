@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { getCompany } from "@/lib/companies";
 import { useLocalState } from "@/lib/useLocalState";
 import { supabase } from "@/lib/supabase";
-import type { GEOProject, GEOPrompt, GEOScan } from "@/lib/geo/types";
+import type { GEOProject, GEOPrompt, GEOScan, GEOIntent, GEOFunnel } from "@/lib/geo/types";
 import { LLM_LIST, GEO_INTENTS, GEO_FUNNELS, emptyPrompt, llmLabel } from "@/lib/geo/types";
 import { getMockGEOProject } from "@/lib/geo/mock";
 import { promptMentionRate, promptAvgPosition, promptSentimentAvg, enrichPromptScores, scoreColor } from "@/lib/geo/scoring";
@@ -65,6 +65,7 @@ export default function PromptMonitorPage() {
   const [jobs, setJobs] = useState<ScanJob[]>([]);
   const [showJobsPanel, setShowJobsPanel] = useState(false);
   const appliedJobIds = useRef<Set<string>>(new Set());
+  const csvImportRef = useRef<HTMLInputElement>(null);
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(null), 3000); }
 
@@ -189,6 +190,92 @@ export default function PromptMonitorPage() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { showToast(data.error || "Errore enqueue"); return; }
     showToast(batch.length === 1 ? `In coda: ${scanLlm}` : `In coda ${batch.length} scan ${scanLlm}`);
+  }
+
+  // Download blank CSV template
+  function handleDownloadTemplate() {
+    const headers = ["prompt", "intent", "funnel", "buyer_persona", "valore_commerciale"];
+    const examples = [
+      ["Qual è la migliore agenzia di marketing B2B in Italia?", "comparativo", "MOFU", "Marketing Manager", "70"],
+      ["Come strutturare un team marketing per una PMI?", "informativo", "TOFU", "CEO", "40"],
+      ["Prezzi agenzia marketing B2B Milano", "transazionale", "BOFU", "Direttore Commerciale", "90"],
+    ];
+    const csv = [headers, ...examples].map((row) => row.map(csvCell).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "template-prompt-monitor.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Parse a single CSV row respecting quoted fields
+  function parseCsvRow(line: string): string[] {
+    const cells: string[] = [];
+    let cur = "";
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuote = !inQuote;
+      } else if (c === "," && !inQuote) {
+        cells.push(cur); cur = "";
+      } else {
+        cur += c;
+      }
+    }
+    cells.push(cur);
+    return cells;
+  }
+
+  // Import prompts from uploaded CSV
+  function handleImportCsv(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      if (!text) return;
+      const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter((l) => l.trim());
+      if (lines.length < 2) { showToast("CSV vuoto o senza righe di dati"); return; }
+      const headers = parseCsvRow(lines[0]).map((h) => h.trim().toLowerCase());
+      const promptIdx = headers.indexOf("prompt");
+      if (promptIdx === -1) { showToast("Colonna 'prompt' non trovata"); return; }
+      const intentIdx = headers.indexOf("intent");
+      const funnelIdx = headers.indexOf("funnel");
+      const personaIdx = headers.indexOf("buyer_persona");
+      const valueIdx = headers.indexOf("valore_commerciale");
+      const imported: GEOPrompt[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cells = parseCsvRow(lines[i]);
+        const text = cells[promptIdx]?.trim();
+        if (!text) continue;
+        const p = emptyPrompt(text, "imported");
+        if (intentIdx !== -1) {
+          const v = cells[intentIdx]?.trim().toLowerCase();
+          if ((GEO_INTENTS as readonly string[]).includes(v)) p.intent = v as GEOIntent;
+        }
+        if (funnelIdx !== -1) {
+          const v = cells[funnelIdx]?.trim().toUpperCase();
+          if ((GEO_FUNNELS as readonly string[]).includes(v)) p.funnelStage = v as GEOFunnel;
+        }
+        if (personaIdx !== -1 && cells[personaIdx]?.trim()) p.buyerPersona = cells[personaIdx].trim();
+        if (valueIdx !== -1) {
+          const n = parseInt(cells[valueIdx], 10);
+          if (!isNaN(n) && n >= 0 && n <= 100) p.commercialValue = n;
+        }
+        imported.push(enrichPromptScores(p));
+      }
+      if (imported.length === 0) { showToast("Nessun prompt valido nel CSV"); return; }
+      setProject((prev) => ({ ...prev, prompts: [...prev.prompts, ...imported] }));
+      showToast(`Importati ${imported.length} prompt`);
+    };
+    reader.readAsText(file, "utf-8");
+    e.target.value = "";
   }
 
   // Export filtered prompts + scans to CSV
@@ -319,6 +406,13 @@ export default function PromptMonitorPage() {
           <button className="geo-btn" onClick={handleExportCsv} title="Esporta i prompt filtrati e le risposte LLM in CSV">
             Esporta CSV
           </button>
+          <button className="geo-btn" onClick={handleDownloadTemplate} title="Scarica il template CSV per l'importazione">
+            Scarica template
+          </button>
+          <button className="geo-btn" onClick={() => csvImportRef.current?.click()} title="Importa prompt da file CSV">
+            Importa CSV
+          </button>
+          <input ref={csvImportRef} type="file" accept=".csv" style={{ display: "none" }} onChange={handleImportCsv} />
           <button className="geo-btn geo-btn-accent" onClick={() => setShowAddPrompt(true)}>+ Prompt</button>
         </div>
       </div>
