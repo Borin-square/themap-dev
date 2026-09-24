@@ -293,6 +293,24 @@ th.ee-inactive { opacity: .4; }
 @keyframes ee-flash { 0% { background: rgba(79,140,255,.2); } 100% {} }
 .ee-calc-flash { animation: ee-flash .5s ease-out; }
 
+/* EE — Note panel */
+.ee-btn-note-active { background: rgba(234,179,8,.12); border-color: #eab308 !important; color: #eab308 !important; }
+.ee-note-panel { position: fixed; right: 0; top: 48px; width: 280px; height: calc(100vh - 48px); background: var(--bg); border-left: 1px solid var(--bd); display: flex; flex-direction: column; z-index: 200; box-shadow: -4px 0 20px rgba(0,0,0,.3); }
+.ee-note-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--bd); flex-shrink: 0; }
+.ee-note-title { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--fg3); }
+.ee-note-close { background: none; border: none; color: var(--fg3); font-size: 18px; cursor: pointer; padding: 0 2px; line-height: 1; transition: color .15s; }
+.ee-note-close:hover { color: var(--fg); }
+.ee-note-toolbar { display: flex; gap: 2px; padding: 8px 10px; border-bottom: 1px solid var(--bd); flex-shrink: 0; }
+.ee-note-toolbar button { background: none; border: 1px solid transparent; color: var(--fg3); width: 26px; height: 26px; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: var(--font); display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.ee-note-toolbar button:hover { background: var(--bg2); border-color: var(--bd); color: var(--fg); }
+.ee-note-editor { flex: 1; padding: 14px 16px; outline: none; font-size: 12px; color: var(--fg2); line-height: 1.7; overflow-y: auto; font-family: var(--font); }
+.ee-note-editor:empty::before { content: attr(data-placeholder); color: var(--fg3); pointer-events: none; }
+.ee-note-editor h3 { font-size: 12px; font-weight: 700; margin: 10px 0 4px; color: var(--fg); letter-spacing: .3px; }
+.ee-note-editor ul,.ee-note-editor ol { padding-left: 18px; margin: 4px 0; }
+.ee-note-editor li { margin: 2px 0; }
+.ee-note-editor p { margin: 0 0 6px; }
+.ee-note-editor b,.ee-note-editor strong { color: var(--fg); }
+
 /* EE — Scenari dropdown */
 .ee-dropdown { position: relative; display: inline-block; }
 .ee-dropdown-menu { position: absolute; right: 0; top: 100%; margin-top: 4px; background: var(--bg2); border: 1px solid var(--bd); border-radius: 8px; min-width: 280px; max-height: 300px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.4); z-index: 50; }

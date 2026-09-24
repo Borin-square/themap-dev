@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useLocalState } from "@/lib/useLocalState";
 import { useYear } from "@/components/YearProvider";
 import { useParams } from "next/navigation";
@@ -39,6 +39,8 @@ export default function EconomicEnginePage() {
   const [scName, setScName] = useState("");
   const [scDesc, setScDesc] = useState("");
   const [promoteConfirm, setPromoteConfirm] = useState<number | null>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteContent] = useLocalState<string>(`themap:${slug}:eeNotes`, () => "", undefined, year);
 
   const { calc, monthly } = eeRecalc(vals);
   const warnings = eeCheckConstraints(vals);
@@ -133,6 +135,13 @@ export default function EconomicEnginePage() {
               {dirtyCount} modific{dirtyCount === 1 ? "a" : "he"} non salvat{dirtyCount === 1 ? "a" : "e"}
             </span>
           )}
+          <button
+            className={`ee-btn${noteOpen ? " ee-btn-note-active" : ""}`}
+            onClick={() => setNoteOpen((o) => !o)}
+            title="Note"
+          >
+            {"\uD83D\uDCD3"} Note{noteContent ? " \u25CF" : ""}
+          </button>
           <button className={`ee-btn ee-btn-save${dirtyCount > 0 ? " ee-dirty-pulse" : ""}`} onClick={() => setSaveOpen(true)}>
             Salva scenario
           </button>
@@ -293,6 +302,9 @@ export default function EconomicEnginePage() {
       {/* Indicatori */}
       <Indicatori calc={calc} monthly={monthly} vals={vals} year={year} />
 
+      {/* Note panel */}
+      {noteOpen && <NotePanel slug={slug} year={year} onClose={() => setNoteOpen(false)} />}
+
       {/* Save inline panel */}
       {saveOpen && (
         <div className="ee-save-inline">
@@ -315,6 +327,70 @@ export default function EconomicEnginePage() {
           <button className="ee-btn" onClick={() => { setSaveOpen(false); setScName(""); setScDesc(""); }}>&times;</button>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── NOTE PANEL ── */
+
+function NotePanel({ slug, year, onClose }: { slug: string; year: number; onClose: () => void }) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [, setNote, , hydrated] = useLocalState<string>(`themap:${slug}:eeNotes`, () => "", undefined, year);
+  const [savedContent] = useLocalState<string>(`themap:${slug}:eeNotes`, () => "", undefined, year);
+  const didInit = useRef(false);
+
+  useEffect(() => {
+    if (hydrated && !didInit.current && editorRef.current) {
+      editorRef.current.innerHTML = savedContent || "";
+      didInit.current = true;
+    }
+  }, [hydrated, savedContent]);
+
+  function handleInput() {
+    if (editorRef.current) setNote(editorRef.current.innerHTML);
+  }
+
+  function fmt(e: React.MouseEvent, cmd: string, val?: string) {
+    e.preventDefault();
+    document.execCommand(cmd, false, val);
+    editorRef.current?.focus();
+  }
+
+  const tools: { label: string; cmd: string; val?: string; bold?: boolean }[] = [
+    { label: "B", cmd: "bold", bold: true },
+    { label: "/", cmd: "italic" },
+    { label: "U", cmd: "underline" },
+    { label: "•", cmd: "insertUnorderedList" },
+    { label: "1", cmd: "insertOrderedList" },
+    { label: "H", cmd: "formatBlock", val: "h3" },
+    { label: "P", cmd: "formatBlock", val: "p" },
+  ];
+
+  return (
+    <div className="ee-note-panel">
+      <div className="ee-note-head">
+        <span className="ee-note-title">NOTE</span>
+        <button className="ee-note-close" onClick={onClose}>&times;</button>
+      </div>
+      <div className="ee-note-toolbar">
+        {tools.map((t) => (
+          <button
+            key={t.cmd + (t.val || "")}
+            onMouseDown={(e) => fmt(e, t.cmd, t.val)}
+            style={t.bold ? { fontWeight: 700 } : undefined}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div
+        ref={editorRef}
+        className="ee-note-editor"
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        data-placeholder="Scrivi note, ipotesi, ragionamenti..."
+      />
     </div>
   );
 }
