@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchCompanies, getCachedCompanies, type Company, type CompanyType } from "@/lib/companies";
 import { useAuth } from "@/components/AuthProvider";
-import { isAdmin, type Ruolo } from "@/lib/auth";
+import { isAdmin, isSuperAdmin, type Ruolo } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
 interface UserProfile {
@@ -31,6 +31,7 @@ async function getToken(): Promise<string> {
 export default function SettingsPage() {
   const { session } = useAuth();
   const admin = isAdmin(session);
+  const superAdmin = isSuperAdmin(session);
   const [tab, setTab] = useState<Tab>("accessi");
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [companies, setCompanies] = useState<Company[]>(getCachedCompanies);
@@ -173,7 +174,7 @@ export default function SettingsPage() {
       )}
 
       <div className="ee-subnav" style={{ marginBottom: 20 }}>
-        {(["accessi", "aziende", "generali"] as Tab[]).map((t) => (
+        {(["accessi", ...(superAdmin ? ["aziende", "generali"] : [])] as Tab[]).map((t) => (
           <button key={t} className={`ee-tab${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>
             {t === "accessi" ? "Gestione Accessi" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -262,7 +263,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {tab === "aziende" && (
+      {tab === "aziende" && superAdmin && (
         <div className="ac-page">
           <div className="ac-head">
             Aziende
@@ -384,7 +385,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {tab === "generali" && (
+      {tab === "generali" && superAdmin && (
         <div className="cd" style={{ maxWidth: 480 }}>
           <label className="setting-label">Nome applicazione</label>
           <input className="setting-input" defaultValue="THE MAP" />
