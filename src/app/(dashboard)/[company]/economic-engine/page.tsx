@@ -21,13 +21,14 @@ export default function EconomicEnginePage() {
   const { year } = useYear();
 
   const [metrics] = useState(() => getEeMockMetrics());
-  const { values, origValues, prevValues } = useMemo(
+  const { values, origValues } = useMemo(
     () => initEeValues(getEeMockMetrics(), year),
     [year],
   );
   const slug = params.company as string;
   const emptyValsInit = () => (year === 2026 ? values : ({} as Record<string, number>));
   const [vals, setVals] = useLocalState(`themap:${slug}:eeVals`, emptyValsInit, undefined, year);
+  const [prevVals] = useLocalState<Record<string, number>>(`themap:${slug}:eeVals`, () => ({}), undefined, year - 1);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ mensile: true });
   const [filterFn, setFilterFn] = useState<string | null>(null);
   const [drillKpi, setDrillKpi] = useState<string | null>(null);
@@ -263,7 +264,7 @@ export default function EconomicEnginePage() {
                           isRo={isRo}
                           vals={vals}
                           calc={calc}
-                          prevValues={prevValues}
+                          prevValues={prevVals}
                           isModified={isModified(m.metrica.toUpperCase())}
                           warning={warnings[m.metrica.toUpperCase()]}
                           isDrill={drillDeps.includes(m.metrica.toUpperCase())}
