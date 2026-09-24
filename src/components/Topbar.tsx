@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { buildNav, FOOTER_NAV, getPath, flatNav } from "@/lib/nav";
 import { fetchCompanies, getCachedCompanies, type Company } from "@/lib/companies";
 import { supabase } from "@/lib/supabase";
@@ -254,7 +255,7 @@ function YearChip() {
         {year}
         <span style={{ fontSize: 8, color: "var(--fg3)" }}>▾</span>
       </button>
-      {open && rect && (
+      {open && rect && typeof document !== "undefined" && createPortal(
         <div
           style={{
             position: "fixed",
@@ -292,7 +293,8 @@ function YearChip() {
               {y}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
