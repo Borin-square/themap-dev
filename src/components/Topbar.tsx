@@ -208,6 +208,8 @@ export default function Topbar() {
 function YearChip() {
   const { year, setYear } = useYear();
   const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -218,10 +220,19 @@ function YearChip() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
+  function handleOpen() {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setRect({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setOpen((o) => !o);
+  }
+
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div ref={ref}>
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={btnRef}
+        onClick={handleOpen}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -243,19 +254,18 @@ function YearChip() {
         {year}
         <span style={{ fontSize: 8, color: "var(--fg3)" }}>▾</span>
       </button>
-      {open && (
+      {open && rect && (
         <div
           style={{
-            position: "absolute",
-            top: "100%",
-            right: 0,
-            marginTop: 6,
+            position: "fixed",
+            top: rect.top,
+            right: rect.right,
             background: "var(--bg2)",
             border: "1px solid var(--bd)",
             borderRadius: 6,
             padding: 4,
             minWidth: 80,
-            zIndex: 100,
+            zIndex: 9999,
             boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
           }}
         >
