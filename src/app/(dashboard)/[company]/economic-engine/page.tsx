@@ -40,7 +40,7 @@ export default function EconomicEnginePage() {
   const [scDesc, setScDesc] = useState("");
   const [promoteConfirm, setPromoteConfirm] = useState<number | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [noteContent] = useLocalState<string>(`themap:${slug}:eeNotes`, () => "", undefined, year);
+  const [noteContent, setNoteContent, , noteHydrated] = useLocalState<string>(`themap:${slug}:eeNotes`, () => "", undefined, year);
 
   const { calc, monthly } = eeRecalc(vals);
   const warnings = eeCheckConstraints(vals);
@@ -303,7 +303,7 @@ export default function EconomicEnginePage() {
       <Indicatori calc={calc} monthly={monthly} vals={vals} year={year} />
 
       {/* Note panel */}
-      {noteOpen && <NotePanel slug={slug} year={year} onClose={() => setNoteOpen(false)} />}
+      {noteOpen && <NotePanel note={noteContent} hydrated={noteHydrated} setNote={setNoteContent} onClose={() => setNoteOpen(false)} />}
 
       {/* Save inline panel */}
       {saveOpen && (
@@ -333,18 +333,21 @@ export default function EconomicEnginePage() {
 
 /* ── NOTE PANEL ── */
 
-function NotePanel({ slug, year, onClose }: { slug: string; year: number; onClose: () => void }) {
+function NotePanel({ note, hydrated, setNote, onClose }: {
+  note: string;
+  hydrated: boolean;
+  setNote: (v: string) => void;
+  onClose: () => void;
+}) {
   const editorRef = useRef<HTMLDivElement>(null);
-  const [, setNote, , hydrated] = useLocalState<string>(`themap:${slug}:eeNotes`, () => "", undefined, year);
-  const [savedContent] = useLocalState<string>(`themap:${slug}:eeNotes`, () => "", undefined, year);
   const didInit = useRef(false);
 
   useEffect(() => {
     if (hydrated && !didInit.current && editorRef.current) {
-      editorRef.current.innerHTML = savedContent || "";
+      editorRef.current.innerHTML = note || "";
       didInit.current = true;
     }
-  }, [hydrated, savedContent]);
+  }, [hydrated, note]);
 
   function handleInput() {
     if (editorRef.current) setNote(editorRef.current.innerHTML);
