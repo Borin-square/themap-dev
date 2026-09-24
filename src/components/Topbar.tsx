@@ -212,10 +212,13 @@ function YearChip() {
   const [rect, setRect] = useState<{ top: number; right: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (ref.current?.contains(t) || dropRef.current?.contains(t)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
@@ -257,6 +260,7 @@ function YearChip() {
       </button>
       {open && rect && typeof document !== "undefined" && createPortal(
         <div
+          ref={dropRef}
           style={{
             position: "fixed",
             top: rect.top,
