@@ -16,6 +16,63 @@ export type VarRole =
   | "OUTPUT";
 export type Feasibility = "FEASIBLE" | "CAPACITY_STRESSED" | "NOT_FEASIBLE";
 
+// ─── CONSTRAINT ENGINE TYPES ─────────────────────────────────────────────────
+
+export type ConstraintType = "HARD" | "ELASTIC" | "PERFORMANCE" | "SOFT";
+export type ConstraintStatus = "ACTIVE" | "INACTIVE" | "EXPERIMENTAL" | "DA_DEFINIRE";
+export type ConstraintCategory =
+  | "DEMAND" | "SALES" | "PRICING" | "RECURRING"
+  | "DELIVERY" | "OUTSOURCING" | "PEOPLE" | "CASH"
+  | "MARGIN" | "MANAGEMENT" | "CLIENT_CONCENTRATION" | "QUALITY";
+
+export interface ConstraintResponse {
+  name: string;
+  status: ConstraintStatus;
+}
+
+export interface ConstraintDef {
+  id: string;
+  name: string;
+  category: ConstraintCategory;
+  tipo: ConstraintType;
+  status: ConstraintStatus;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  description?: string;
+  responses: ConstraintResponse[];
+}
+
+export interface ConstraintRunResult {
+  constraintId: string;
+  touched: boolean;
+  exceeded: boolean;
+  resolved: boolean;
+  unresolved: boolean;
+  responseName?: string;
+  responseCost: number;
+}
+
+export interface ConstraintPressure {
+  constraintId: string;
+  name: string;
+  category: ConstraintCategory;
+  tipo: ConstraintType;
+  status: ConstraintStatus;
+  pctTouched: number;
+  pctExceeded: number;
+  pctResolved: number;
+  pctUnresolved: number;
+  avgResponseCost: number;
+  bindingCount: number;
+}
+
+export interface ValidationError {
+  key: string;
+  field: string;
+  message: string;
+}
+
+// ─── CORE TYPES ──────────────────────────────────────────────────────────────
+
 export interface DistConfig {
   type: DistType;
   current: number;     // base value (from EE Playground)
@@ -103,6 +160,8 @@ export interface SimRunResult {
   // Capacity
   capacity: CapacityResult;
   feasibility: Feasibility;
+  // Constraint engine
+  constraintResults: ConstraintRunResult[];
 }
 
 export interface SimPercentiles {
@@ -132,6 +191,7 @@ export interface SimAnalysis {
   maxFeasibleVdp: number;
   maxFeasibleMargine: number;
   mainConstraint: string;
+  constraintPressure: ConstraintPressure[];
 }
 
 // ─── VAR METADATA ────────────────────────────────────────────────────────────
@@ -170,6 +230,140 @@ export const SIM_VAR_META: VarMeta[] = [
   { key: "PERC. RICORRENTI",             label: "% ricorrenti",            role: "FIXED",     isPercent: true },
   { key: "PERC. STOCK",                  label: "% stock",                 role: "DERIVED",   isPercent: true },
   { key: "MULTIPLO",                      label: "Multiplo valutazione",    role: "FIXED" },
+];
+
+// ─── CONSTRAINT DEFINITIONS ──────────────────────────────────────────────────
+// 12 pre-wired categories. ACTIVE = evaluated each run. INACTIVE = pre-wired but no business rules yet.
+
+export const DEFAULT_CONSTRAINT_DEFS: ConstraintDef[] = [
+  {
+    id: "DEMAND_PIPELINE",
+    name: "Pipeline domanda",
+    category: "DEMAND",
+    tipo: "PERFORMANCE",
+    status: "INACTIVE",
+    severity: "MEDIUM",
+    description: "Offerte generate vs pipeline target",
+    responses: [],
+  },
+  {
+    id: "SALES_CAPACITY",
+    name: "Sales capacity",
+    category: "SALES",
+    tipo: "ELASTIC",
+    status: "ACTIVE",
+    severity: "HIGH",
+    description: "Offerte gestibili dai commerciali vs offerte generate",
+    responses: [
+      { name: "Capping offerte", status: "ACTIVE" },
+    ],
+  },
+  {
+    id: "PRICING_FLOOR",
+    name: "Prezzo minimo",
+    category: "PRICING",
+    tipo: "SOFT",
+    status: "INACTIVE",
+    severity: "LOW",
+    description: "Valore vendita media vs floor sostenibile",
+    responses: [],
+  },
+  {
+    id: "RECURRING_SUM",
+    name: "Ricorrenti + Stock = 1",
+    category: "RECURRING",
+    tipo: "HARD",
+    status: "ACTIVE",
+    severity: "CRITICAL",
+    description: "PERC_RIC + PERC_STOCK devono sommare a 1",
+    responses: [
+      { name: "Derivazione automatica PERC_STOCK", status: "ACTIVE" },
+    ],
+  },
+  {
+    id: "DELIVERY_CAPACITY",
+    name: "Productive capacity",
+    category: "DELIVERY",
+    tipo: "ELASTIC",
+    status: "ACTIVE",
+    severity: "CRITICAL",
+    description: "Capacity necessaria vs disponibile interna",
+    responses: [
+      { name: "Outsourcing", status: "ACTIVE" },
+      { name: "Hiring", status: "INACTIVE" },
+      { name: "Backlog domanda", status: "INACTIVE" },
+    ],
+  },
+  {
+    id: "OUTSOURCING_LIMIT",
+    name: "Limite outsourcing",
+    category: "OUTSOURCING",
+    tipo: "HARD",
+    status: "ACTIVE",
+    severity: "HIGH",
+    description: "Max ore outsourcabili — se gap residuo > 0 → NOT_FEASIBLE",
+    responses: [],
+  },
+  {
+    id: "PEOPLE_SPAN",
+    name: "Management span",
+    category: "PEOPLE",
+    tipo: "SOFT",
+    status: "INACTIVE",
+    severity: "LOW",
+    description: "Rapporto commerciali / manager sostenibile",
+    responses: [],
+  },
+  {
+    id: "CASH_COSTS",
+    name: "Budget costi",
+    category: "CASH",
+    tipo: "PERFORMANCE",
+    status: "INACTIVE",
+    severity: "MEDIUM",
+    description: "Costi totali vs budget autorizzato",
+    responses: [],
+  },
+  {
+    id: "MARGIN_TARGET",
+    name: "Target margine",
+    category: "MARGIN",
+    tipo: "PERFORMANCE",
+    status: "INACTIVE",
+    severity: "MEDIUM",
+    description: "Margine lordo vs obiettivo",
+    responses: [],
+  },
+  {
+    id: "MANAGEMENT_CAPACITY",
+    name: "Carico manageriale",
+    category: "MANAGEMENT",
+    tipo: "SOFT",
+    status: "INACTIVE",
+    severity: "LOW",
+    description: "Numero di iniziative / decisioni sostenibili",
+    responses: [],
+  },
+  {
+    id: "CLIENT_CONCENTRATION",
+    name: "Concentrazione clienti",
+    category: "CLIENT_CONCENTRATION",
+    tipo: "SOFT",
+    status: "INACTIVE",
+    severity: "LOW",
+    description: "% revenue da top 3 clienti vs limite rischio",
+    responses: [],
+  },
+  {
+    id: "QUALITY_UTILIZATION",
+    name: "% ore billabili",
+    category: "QUALITY",
+    tipo: "PERFORMANCE",
+    status: "INACTIVE",
+    severity: "MEDIUM",
+    description: "% ore lavorate effettive vs standard qualità",
+    responses: [],
+  },
 ];
 
 // ─── SEEDED RNG (Mulberry32) ─────────────────────────────────────────────────
@@ -338,6 +532,157 @@ export function applySalesCapacityConstraint(values: Record<string, number>): Sa
   };
 }
 
+// ─── CONSTRAINT ENGINE ───────────────────────────────────────────────────────
+
+export function evaluateConstraints(
+  inputs: Record<string, number>,
+  capResult: CapacityResult,
+  sc: SalesCapacityResult,
+  simConstraints: SimConstraints,
+): ConstraintRunResult[] {
+  const out: ConstraintRunResult[] = [];
+
+  for (const def of DEFAULT_CONSTRAINT_DEFS) {
+    if (def.status === "INACTIVE") continue;
+
+    let r: ConstraintRunResult;
+
+    switch (def.id) {
+      case "SALES_CAPACITY": {
+        const exceeded = sc.offerteScartate > 0;
+        r = {
+          constraintId: def.id,
+          touched: sc.offerteGenerate > 0,
+          exceeded,
+          resolved: exceeded,   // always resolved by capping — ELASTIC
+          unresolved: false,
+          responseName: exceeded ? "Capping offerte" : undefined,
+          responseCost: 0,
+        };
+        break;
+      }
+
+      case "RECURRING_SUM": {
+        // By the time we evaluate, inputs are already corrected if enforceRecurringStock=true
+        const ric = inputs["PERC. RICORRENTI"] ?? 0;
+        const stock = inputs["PERC. STOCK"] ?? 0;
+        const violated = Math.abs(ric + stock - 1) > 0.001;
+        r = {
+          constraintId: def.id,
+          touched: true,
+          exceeded: violated,
+          resolved: !violated || simConstraints.enforceRecurringStock,
+          unresolved: violated && !simConstraints.enforceRecurringStock,
+          responseName: simConstraints.enforceRecurringStock ? "Derivazione automatica PERC_STOCK" : undefined,
+          responseCost: 0,
+        };
+        break;
+      }
+
+      case "DELIVERY_CAPACITY": {
+        const exceeded = capResult.necessaria > capResult.disponibile;
+        const unresolved = capResult.unservedHours > 0;
+        r = {
+          constraintId: def.id,
+          touched: capResult.necessaria > 0,
+          exceeded,
+          resolved: exceeded && !unresolved,  // outsourcing covered the gap
+          unresolved,
+          responseName: exceeded ? "Outsourcing" : undefined,
+          responseCost: capResult.outsourcingCost,
+        };
+        break;
+      }
+
+      case "OUTSOURCING_LIMIT": {
+        const outsourcingNeeded = capResult.necessaria > capResult.disponibile;
+        const gapExceedsLimit = capResult.unservedHours > 0;
+        r = {
+          constraintId: def.id,
+          touched: outsourcingNeeded,
+          exceeded: gapExceedsLimit,
+          resolved: false,
+          unresolved: gapExceedsLimit,
+          responseCost: 0,
+        };
+        break;
+      }
+
+      default: {
+        // EXPERIMENTAL constraints: tracked but no evaluation logic yet
+        r = {
+          constraintId: def.id,
+          touched: false,
+          exceeded: false,
+          resolved: false,
+          unresolved: false,
+          responseCost: 0,
+        };
+      }
+    }
+
+    out.push(r);
+  }
+
+  return out;
+}
+
+// ─── DISTRIBUTION VALIDATION ─────────────────────────────────────────────────
+
+export function validateDistributions(
+  distributions: Record<string, DistConfig>,
+  distMetas: VarMeta[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (const meta of distMetas) {
+    const d = distributions[meta.key];
+    if (!d) continue;
+
+    const pct = meta.isPercent ?? false;
+    const pos = (meta.isEuro || meta.isInt) ?? false;
+
+    const check = (field: keyof DistConfig, label: string) => {
+      const v = d[field] as number;
+      if (isNaN(v)) return;
+      if (pct && (v < 0 || v > 1)) {
+        errors.push({ key: meta.key, field, message: `${label} deve essere tra 0% e 100%` });
+      } else if (pos && v < 0) {
+        errors.push({ key: meta.key, field, message: `${label} deve essere ≥ 0` });
+      }
+    };
+
+    switch (d.type) {
+      case "fixed":
+        check("current", "Valore");
+        break;
+      case "uniform":
+        check("min", "Min");
+        check("max", "Max");
+        if (!isNaN(d.min) && !isNaN(d.max) && d.min > d.max)
+          errors.push({ key: meta.key, field: "max", message: "Max deve essere ≥ Min" });
+        break;
+      case "triangular":
+        check("min", "Min");
+        check("mostLikely", "Più probabile");
+        check("max", "Max");
+        if (!isNaN(d.min) && !isNaN(d.max) && d.min > d.max)
+          errors.push({ key: meta.key, field: "max", message: "Max deve essere ≥ Min" });
+        if (!isNaN(d.min) && !isNaN(d.mostLikely) && !isNaN(d.max) &&
+            (d.mostLikely < d.min || d.mostLikely > d.max))
+          errors.push({ key: meta.key, field: "mostLikely", message: "Più probabile deve essere tra Min e Max" });
+        break;
+      case "normal":
+        check("mostLikely", "Media");
+        if (!isNaN(d.stddev) && d.stddev < 0)
+          errors.push({ key: meta.key, field: "stddev", message: "Dev. std deve essere ≥ 0" });
+        break;
+    }
+  }
+
+  return errors;
+}
+
 // ─── SINGLE RUN ──────────────────────────────────────────────────────────────
 
 // Percent-bounded keys: values must stay in [0, 1]
@@ -425,6 +770,9 @@ export function runSingleSimulation(
   const totalCosts = calc["TOTALE COSTI"] ?? 0;
   const margine = calc["MARGINE LORDO (NO BANDI)"] ?? 0;
 
+  // 8. Constraint engine
+  const constraintResults = evaluateConstraints(inputs, capResult, sc, cfg.constraints);
+
   return {
     inputs,
     vdp,
@@ -439,6 +787,7 @@ export function runSingleSimulation(
     offerteScartate: sc.offerteScartate,
     capacity: capResult,
     feasibility,
+    constraintResults,
   };
 }
 
@@ -458,6 +807,34 @@ export function runMonteCarlo(
 
 // ─── ANALYSIS ────────────────────────────────────────────────────────────────
 
+function computeConstraintPressure(results: SimRunResult[]): ConstraintPressure[] {
+  const n = results.length;
+  if (n === 0) return [];
+
+  const allIds = new Set(results.flatMap((r) => r.constraintResults.map((c) => c.constraintId)));
+  return Array.from(allIds).map((id) => {
+    const def = DEFAULT_CONSTRAINT_DEFS.find((d) => d.id === id);
+    const runs = results.map((r) => r.constraintResults.find((c) => c.constraintId === id));
+    const valid = runs.filter((c): c is ConstraintRunResult => c !== undefined);
+    const nn = valid.length;
+    if (nn === 0) return null;
+
+    return {
+      constraintId: id,
+      name: def?.name ?? id,
+      category: def?.category ?? "DELIVERY",
+      tipo: def?.tipo ?? "SOFT",
+      status: def?.status ?? "INACTIVE",
+      pctTouched:   valid.filter((c) => c.touched).length / nn,
+      pctExceeded:  valid.filter((c) => c.exceeded).length / nn,
+      pctResolved:  valid.filter((c) => c.resolved).length / nn,
+      pctUnresolved:valid.filter((c) => c.unresolved).length / nn,
+      avgResponseCost: valid.reduce((s, c) => s + c.responseCost, 0) / nn,
+      bindingCount: valid.filter((c) => c.unresolved).length,
+    } satisfies ConstraintPressure;
+  }).filter((p): p is ConstraintPressure => p !== null);
+}
+
 export function analyzeResults(
   results: SimRunResult[],
   margineTarget: number,
@@ -476,6 +853,7 @@ export function analyzeResults(
       maxFeasibleVdp: 0,
       maxFeasibleMargine: 0,
       mainConstraint: "—",
+      constraintPressure: [],
     };
   }
 
@@ -486,8 +864,6 @@ export function analyzeResults(
 
   // Sensitivity: Pearson on active DISTRIBUTION vars
   const activeKeys = SIM_DISTRIBUTION_KEYS.filter((k) => {
-    const cfg = results[0]?.inputs;
-    // Only include keys that actually varied (not all same value)
     const xs = results.map((r) => r.inputs[k] ?? 0);
     const first = xs[0];
     return xs.some((v) => v !== first);
@@ -507,12 +883,29 @@ export function analyzeResults(
     .filter((e) => Math.abs(e.pearson) > 0.001)
     .sort((a, b) => Math.abs(b.pearson) - Math.abs(a.pearson));
 
-  // Main constraint in NOT_FEASIBLE
+  // Constraint pressure
+  const constraintPressure = computeConstraintPressure(results);
+
+  // Main constraint: find which was binding in NOT_FEASIBLE scenarios
   let mainConstraint = "—";
   if (notFeasible.length > 0) {
-    const capCount = notFeasible.filter((r) => r.capacity.unservedHours > 0).length;
-    const salesCount = notFeasible.filter((r) => r.offerteScartate > 0).length;
-    mainConstraint = capCount >= salesCount ? "Capacity operativa" : "Sales capacity";
+    const bindingCounts: Record<string, number> = {};
+    for (const r of notFeasible) {
+      for (const cr of r.constraintResults) {
+        if (cr.unresolved) {
+          bindingCounts[cr.constraintId] = (bindingCounts[cr.constraintId] ?? 0) + 1;
+        }
+      }
+    }
+    const top = Object.entries(bindingCounts).sort((a, b) => b[1] - a[1])[0];
+    if (top) {
+      const def = DEFAULT_CONSTRAINT_DEFS.find((d) => d.id === top[0]);
+      mainConstraint = def?.name ?? top[0];
+    } else {
+      const capCount = notFeasible.filter((r) => r.capacity.unservedHours > 0).length;
+      const salesCount = notFeasible.filter((r) => r.offerteScartate > 0).length;
+      mainConstraint = capCount >= salesCount ? "Capacity operativa" : "Sales capacity";
+    }
   }
 
   return {
@@ -526,6 +919,7 @@ export function analyzeResults(
     maxFeasibleVdp: feasible.length > 0 ? Math.max(...feasible.map((r) => r.vdp)) : 0,
     maxFeasibleMargine: feasible.length > 0 ? Math.max(...feasible.map((r) => r.margine)) : 0,
     mainConstraint,
+    constraintPressure,
   };
 }
 

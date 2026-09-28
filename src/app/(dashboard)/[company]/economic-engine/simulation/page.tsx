@@ -8,10 +8,11 @@ import { getCompany } from "@/lib/companies";
 import { getEeMockMetrics, initEeValues, eeFmtEuro, eeRecalc } from "@/lib/economic-engine";
 import {
   runMonteCarlo, analyzeResults, buildDefaultSimConfig,
-  calcCapacityDisponibile,
-  SIM_VAR_META, SIM_DISTRIBUTION_KEYS,
+  calcCapacityDisponibile, validateDistributions,
+  SIM_VAR_META, SIM_DISTRIBUTION_KEYS, DEFAULT_CONSTRAINT_DEFS,
   type SimConfig, type DistConfig, type DistType,
-  type SimRunResult, type SimAnalysis,
+  type SimRunResult, type SimAnalysis, type ValidationError,
+  type ConstraintPressure, type ConstraintCategory,
 } from "@/lib/simulation-engine";
 
 // Legge i valori EE dal localStorage (scritti da useLocalState del Playground)
@@ -100,7 +101,7 @@ export default function SimulationLabPage() {
   const company = getCompany(slug);
   const { year } = useYear();
 
-  // EE values: letti da localStorage (scritti dal Playground), nessuna chiamata API
+  // EE values: letti da localStorage, nessuna chiamata API
   const [eeVals, setEeVals] = useState<Record<string, number>>(() => {
     const { values } = initEeValues(getEeMockMetrics(), year);
     return values;
@@ -126,6 +127,13 @@ export default function SimulationLabPage() {
       return next;
     });
   }
+
+  // Distribution validation (pure derivation)
+  const validationErrors = useMemo(
+    () => validateDistributions(simConfig.distributions, SIM_VAR_META.filter((m) => m.role === "DISTRIBUTION")),
+    [simConfig.distributions],
+  );
+  const hasDistErrors = validationErrors.length > 0;
 
   // Ephemeral results state
   const [results, setResults] = useState<SimRunResult[]>([]);
@@ -161,6 +169,7 @@ export default function SimulationLabPage() {
   }
 
   function runSimulation() {
+    if (hasDistErrors) return;
     setRunning(true);
     setSelectedIdx(null);
     setTimeout(() => {
@@ -209,6 +218,7 @@ export default function SimulationLabPage() {
         setSimConfig={setSimConfig}
         eeVals={eeVals}
         disponibile={disponibile}
+        validationErrors={validationErrors}
       />
 
       {/* Run Controls */}
@@ -218,6 +228,7 @@ export default function SimulationLabPage() {
         running={running}
         runSimulation={runSimulation}
         resultsCount={results.length}
+        hasDistErrors={hasDistErrors}
       />
 
       {/* Results */}
@@ -243,7 +254,7 @@ export default function SimulationLabPage() {
 // ─── CONFIG PANEL ─────────────────────────────────────────────────────────────
 
 function ConfigPanel({
-  configTab, setConfigTab, simConfig, setSimConfig, eeVals, disponibile,
+  configTab, setConfigTab, simConfig, setSimConfig, eeVals, disponibile, validationErrors,
 }: {
   configTab: ConfigTab;
   setConfigTab: (t: ConfigTab) => void;
@@ -251,28 +262,34 @@ function ConfigPanel({
   setSimConfig: React.Dispatch<React.SetStateAction<SimConfig>>;
   eeVals: Record<string, number>;
   disponibile: number;
+  validationErrors: ValidationError[];
 }) {
+  const tabs: { key: ConfigTab; label: string }[] = [
+    { key: "base", label: "Base Scenario" },
+    { key: "dist", label: validationErrors.length > 0 ? `Distributions (${validationErrors.length} errori)` : "Distributions" },
+    { key: "constraints", label: "Constraints & Capacity" },
+  ];
+
   return (
     <div className="ee-section" style={{ marginBottom: 8 }}>
       <div style={{ display: "flex", gap: 4, padding: "6px 12px", borderBottom: "1px solid var(--bd)" }}>
-        {([
-          { key: "base", label: "Base Scenario" },
-          { key: "dist", label: "Distributions" },
-          { key: "constraints", label: "Constraints & Capacity" },
-        ] as { key: ConfigTab; label: string }[]).map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setConfigTab(t.key)}
-            style={{
-              padding: "4px 12px", fontSize: 12, borderRadius: 4, border: "1px solid var(--bd)",
-              background: configTab === t.key ? "var(--accent)" : "transparent",
-              color: configTab === t.key ? "#fff" : "var(--fg)",
-              cursor: "pointer", fontWeight: configTab === t.key ? 600 : 400,
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
+        {tabs.map((t) => {
+          const hasError = t.key === "dist" && validationErrors.length > 0;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setConfigTab(t.key)}
+              style={{
+                padding: "4px 12px", fontSize: 12, borderRadius: 4, border: "1px solid var(--bd)",
+                background: configTab === t.key ? (hasError ? "#ef4444" : "var(--accent)") : "transparent",
+                color: configTab === t.key ? "#fff" : (hasError ? "#ef4444" : "var(--fg)"),
+                cursor: "pointer", fontWeight: configTab === t.key ? 600 : 400,
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="ee-section-body" style={{ padding: "12px 16px" }}>
@@ -280,7 +297,7 @@ function ConfigPanel({
           <BaseScenarioTab eeVals={eeVals} simConfig={simConfig} />
         )}
         {configTab === "dist" && (
-          <DistributionsTab simConfig={simConfig} setSimConfig={setSimConfig} />
+          <DistributionsTab simConfig={simConfig} setSimConfig={setSimConfig} validationErrors={validationErrors} />
         )}
         {configTab === "constraints" && (
           <ConstraintsTab simConfig={simConfig} setSimConfig={setSimConfig} disponibile={disponibile} />
@@ -381,10 +398,11 @@ function RoleBadge({ role }: { role: string }) {
 // ─── DISTRIBUTIONS TAB ────────────────────────────────────────────────────────
 
 function DistributionsTab({
-  simConfig, setSimConfig,
+  simConfig, setSimConfig, validationErrors,
 }: {
   simConfig: SimConfig;
   setSimConfig: React.Dispatch<React.SetStateAction<SimConfig>>;
+  validationErrors: ValidationError[];
 }) {
   function updateDist(key: string, patch: Partial<DistConfig>) {
     setSimConfig((prev) => ({
@@ -405,14 +423,24 @@ function DistributionsTab({
         <strong>FIXED</strong> = valore deterministico. Per le distribuzioni, i parametri probabilistici
         sono sperimentali — usa "DA DEFINIRE" come source finché non hai dati storici.
       </div>
+      {validationErrors.length > 0 && (
+        <div style={{
+          padding: "8px 12px", borderRadius: 5, marginBottom: 10,
+          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)",
+          fontSize: 11, color: "#ef4444",
+        }}>
+          {validationErrors.length} errore{validationErrors.length > 1 ? "i" : ""} di validazione — correggi prima di eseguire la simulazione.
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 10 }}>
         {distMetas.map((m) => {
           const d = simConfig.distributions[m.key] ?? {
             type: "fixed" as DistType,
             current: 0, min: 0, mostLikely: 0, max: 0, stddev: 0, confidence: 0.8, source: "DA DEFINIRE",
           };
+          const cardErrors = validationErrors.filter((e) => e.key === m.key);
           return (
-            <DistCard key={m.key} meta={m} cfg={d} onChange={(patch) => updateDist(m.key, patch)} />
+            <DistCard key={m.key} meta={m} cfg={d} errors={cardErrors} onChange={(patch) => updateDist(m.key, patch)} />
           );
         })}
       </div>
@@ -421,25 +449,29 @@ function DistributionsTab({
 }
 
 function DistCard({
-  meta, cfg, onChange,
+  meta, cfg, errors, onChange,
 }: {
   meta: typeof SIM_VAR_META[0];
   cfg: DistConfig;
+  errors: ValidationError[];
   onChange: (patch: Partial<DistConfig>) => void;
 }) {
   const isActive = cfg.type !== "fixed";
+  const hasError = errors.length > 0;
   const distTypes: DistType[] = ["fixed", "uniform", "triangular", "normal"];
 
   function numInput(label: string, field: keyof DistConfig, pct?: boolean) {
     const raw = cfg[field] as number;
     const display = pct ? parseFloat((raw * 100).toFixed(4)) : raw;
+    const fieldErrors = errors.filter((e) => e.field === field);
     return (
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-        <span style={{ color: "var(--fg3)", width: 65, flexShrink: 0 }}>{label}</span>
+        <span style={{ color: fieldErrors.length > 0 ? "#ef4444" : "var(--fg3)", width: 75, flexShrink: 0 }}>{label}</span>
         <input
           type="number"
           style={{
-            width: 80, padding: "2px 6px", borderRadius: 3, border: "1px solid var(--bd)",
+            width: 80, padding: "2px 6px", borderRadius: 3,
+            border: `1px solid ${fieldErrors.length > 0 ? "#ef4444" : "var(--bd)"}`,
             background: "var(--bg)", color: "var(--fg)", fontSize: 11,
           }}
           value={display}
@@ -457,12 +489,12 @@ function DistCard({
 
   return (
     <div style={{
-      border: `1px solid ${isActive ? "var(--accent)" : "var(--bd)"}`,
+      border: `1px solid ${hasError ? "#ef444466" : isActive ? "var(--accent)" : "var(--bd)"}`,
       borderRadius: 6, padding: "10px 12px",
-      background: isActive ? "rgba(79,140,255,0.04)" : "var(--cd, rgba(255,255,255,0.02))",
+      background: hasError ? "rgba(239,68,68,0.04)" : isActive ? "rgba(79,140,255,0.04)" : "var(--cd, rgba(255,255,255,0.02))",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>{meta.label}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: hasError ? "#ef4444" : "var(--fg)" }}>{meta.label}</span>
         <select
           value={cfg.type}
           onChange={(e) => onChange({ type: e.target.value as DistType })}
@@ -503,7 +535,7 @@ function DistCard({
         )}
 
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, marginTop: 3 }}>
-          <span style={{ color: "var(--fg3)", width: 65, flexShrink: 0 }}>Confidenza</span>
+          <span style={{ color: "var(--fg3)", width: 75, flexShrink: 0 }}>Confidenza</span>
           <input
             type="range" min={0} max={100} value={Math.round(cfg.confidence * 100)}
             onChange={(e) => onChange({ confidence: parseInt(e.target.value) / 100 })}
@@ -513,7 +545,7 @@ function DistCard({
         </label>
 
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-          <span style={{ color: "var(--fg3)", width: 65, flexShrink: 0 }}>Source</span>
+          <span style={{ color: "var(--fg3)", width: 75, flexShrink: 0 }}>Source</span>
           <input
             type="text"
             style={{
@@ -524,6 +556,14 @@ function DistCard({
             onChange={(e) => onChange({ source: e.target.value })}
           />
         </label>
+
+        {errors.length > 0 && (
+          <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+            {errors.map((err, i) => (
+              <div key={i} style={{ fontSize: 10, color: "#ef4444" }}>⚠ {err.message}</div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -612,6 +652,9 @@ function ConstraintsTab({
           <span style={{ fontSize: 10, color: "var(--fg3)", fontWeight: 400, marginLeft: 8 }}>
             Disponibile: {Math.round(disponibile).toLocaleString("it-IT")} h/anno
           </span>
+          <span style={{ fontSize: 10, color: "#f59e0b", fontWeight: 400, marginLeft: 8 }}>
+            ELASTIC — risposta: Outsourcing (attiva) · Hiring / Backlog (INACTIVE)
+          </span>
         </div>
         <div style={rowStyle}>
           <span style={labelStyle}>Persone operative</span>
@@ -643,6 +686,9 @@ function ConstraintsTab({
       <div style={sectionStyle}>
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, color: "var(--fg2)" }}>
           Outsourcing / Overflow
+          <span style={{ fontSize: 10, color: "#ef4444", fontWeight: 400, marginLeft: 8 }}>
+            HARD — se gap residuo {">"} 0 → NOT_FEASIBLE
+          </span>
         </div>
         <div style={rowStyle}>
           <span style={labelStyle}>Max ore outsourcing</span>
@@ -656,9 +702,30 @@ function ConstraintsTab({
             onChange={(e) => patchOut({ costoOra: Math.max(0, parseFloat(e.target.value) || 0) })} />
           <span style={{ fontSize: 11, color: "var(--fg3)" }}>€/ora</span>
         </div>
-        <div style={{ fontSize: 11, color: "var(--fg3)", marginTop: 6 }}>
-          Se la capacity interna non basta: usa outsourcing fino al limite → se ancora insufficiente: NOT_FEASIBLE.
-          {/* TODO: decidere la relazione economica tra UNSERVED CAPACITY e fatturato perso */}
+      </div>
+
+      {/* Constraint catalog preview */}
+      <div style={sectionStyle}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: "var(--fg2)" }}>
+          Constraint Catalog — 12 categorie
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+          {DEFAULT_CONSTRAINT_DEFS.map((def) => (
+            <span key={def.id} style={{
+              fontSize: 10, padding: "2px 7px", borderRadius: 10,
+              border: `1px solid ${def.status === "ACTIVE" ? "var(--accent)" : "var(--bd)"}`,
+              color: def.status === "ACTIVE" ? "var(--accent)" : "var(--fg3)",
+              background: def.status === "ACTIVE" ? "rgba(79,140,255,0.06)" : "transparent",
+            }}>
+              {def.name}
+              <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.7 }}>
+                [{def.tipo}]
+              </span>
+            </span>
+          ))}
+        </div>
+        <div style={{ fontSize: 10, color: "var(--fg3)", marginTop: 8 }}>
+          Le categorie INACTIVE sono pre-cablate ma non valutate finché non vengono definite le business rules.
         </div>
       </div>
 
@@ -681,15 +748,17 @@ function ConstraintsTab({
 // ─── RUN CONTROLS ─────────────────────────────────────────────────────────────
 
 function RunControls({
-  simConfig, setSimConfig, running, runSimulation, resultsCount,
+  simConfig, setSimConfig, running, runSimulation, resultsCount, hasDistErrors,
 }: {
   simConfig: SimConfig;
   setSimConfig: React.Dispatch<React.SetStateAction<SimConfig>>;
   running: boolean;
   runSimulation: () => void;
   resultsCount: number;
+  hasDistErrors: boolean;
 }) {
   const RUN_OPTIONS = [1000, 10000, 50000];
+  const blocked = running || hasDistErrors;
 
   return (
     <div style={{
@@ -734,14 +803,17 @@ function RunControls({
 
       <button
         onClick={runSimulation}
-        disabled={running}
+        disabled={blocked}
+        title={hasDistErrors ? "Correggi gli errori nelle distribuzioni prima di eseguire" : undefined}
         style={{
-          padding: "6px 20px", borderRadius: 5, fontSize: 13, fontWeight: 600, cursor: running ? "not-allowed" : "pointer",
-          background: running ? "var(--fg3)" : "var(--accent)", color: "#fff", border: "none",
-          opacity: running ? 0.6 : 1,
+          padding: "6px 20px", borderRadius: 5, fontSize: 13, fontWeight: 600,
+          cursor: blocked ? "not-allowed" : "pointer",
+          background: hasDistErrors ? "#ef4444" : running ? "var(--fg3)" : "var(--accent)",
+          color: "#fff", border: "none",
+          opacity: blocked ? 0.7 : 1,
         }}
       >
-        {running ? "Running…" : "▶ Run Simulation"}
+        {running ? "Running…" : hasDistErrors ? "⚠ Errori Dist." : "▶ Run Simulation"}
       </button>
 
       {resultsCount > 0 && !running && (
@@ -787,8 +859,10 @@ function ResultsPanel({
         )}
       </div>
 
+      {/* Reality Map */}
+      <RealityMapPanel constraintPressure={analysis.constraintPressure} />
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        {/* Scenario Cloud */}
         <ScenarioCloud
           results={results}
           xAxis={xAxis} yAxis={yAxis}
@@ -796,7 +870,6 @@ function ResultsPanel({
           selectedIdx={selectedIdx}
           setSelectedIdx={setSelectedIdx}
         />
-        {/* Probability */}
         <ProbabilityPanel analysis={analysis} results={results} simConfig={simConfig} setSimConfig={setSimConfig} />
       </div>
 
@@ -804,6 +877,11 @@ function ResultsPanel({
         <SensitivityPanel analysis={analysis} />
         <FrontierPanel analysis={analysis} simConfig={simConfig} />
       </div>
+
+      {/* Constraint Frontier */}
+      {analysis.constraintPressure.length > 0 && (
+        <ConstraintFrontierPanel constraintPressure={analysis.constraintPressure} />
+      )}
 
       {selected && (
         <ScenarioExplorer
@@ -833,6 +911,163 @@ function StatBadge({ label, val, total, color, isPercent }: {
       {!isPercent && (
         <div style={{ fontSize: 10, color: "var(--fg3)" }}>{fmtPct(val / total)}</div>
       )}
+    </div>
+  );
+}
+
+// ─── REALITY MAP ──────────────────────────────────────────────────────────────
+
+const REALITY_MAP_FLOW: { category: ConstraintCategory; label: string }[] = [
+  { category: "DEMAND",   label: "DEMAND" },
+  { category: "SALES",    label: "SALES" },
+  { category: "DELIVERY", label: "DELIVERY" },
+  { category: "PEOPLE",   label: "PEOPLE" },
+  { category: "CASH",     label: "CASH" },
+  { category: "MARGIN",   label: "MARGIN" },
+];
+
+function pressureColor(pct: number, isActive: boolean): string {
+  if (!isActive) return "rgba(136,136,136,0.15)";
+  if (pct < 0.01)  return "rgba(34,197,94,0.2)";
+  if (pct < 0.20)  return "rgba(132,204,22,0.25)";
+  if (pct < 0.50)  return "rgba(245,158,11,0.25)";
+  if (pct < 0.80)  return "rgba(249,115,22,0.3)";
+  return "rgba(239,68,68,0.3)";
+}
+
+function pressureTextColor(pct: number, isActive: boolean): string {
+  if (!isActive) return "#888";
+  if (pct < 0.01)  return "#22c55e";
+  if (pct < 0.20)  return "#84cc16";
+  if (pct < 0.50)  return "#f59e0b";
+  if (pct < 0.80)  return "#f97316";
+  return "#ef4444";
+}
+
+function RealityMapPanel({ constraintPressure }: { constraintPressure: ConstraintPressure[] }) {
+  const getPressure = (cat: ConstraintCategory) => {
+    const items = constraintPressure.filter((p) => p.category === cat);
+    if (items.length === 0) return null;
+    return items.sort((a, b) => b.pctExceeded - a.pctExceeded)[0];
+  };
+
+  const isTracked = (cat: ConstraintCategory) => {
+    const def = DEFAULT_CONSTRAINT_DEFS.find((d) => d.category === cat && d.status === "ACTIVE");
+    return !!def;
+  };
+
+  return (
+    <div className="ee-section" style={{ marginBottom: 12 }}>
+      <div className="ee-section-title" style={{ cursor: "default" }}>Reality Map
+        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 400, color: "var(--fg3)" }}>
+          pressione per categoria — grigio = non tracciato
+        </span>
+      </div>
+      <div style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: 0 }}>
+        {REALITY_MAP_FLOW.map((node, i) => {
+          const p = getPressure(node.category);
+          const active = isTracked(node.category);
+          const pct = p?.pctExceeded ?? 0;
+          const bg = pressureColor(pct, active);
+          const tc = pressureTextColor(pct, active);
+
+          return (
+            <div key={node.category} style={{ display: "flex", alignItems: "center" }}>
+              <div style={{
+                background: bg,
+                border: `1px solid ${active ? tc + "55" : "rgba(136,136,136,0.25)"}`,
+                borderRadius: 6, padding: "8px 14px", textAlign: "center", minWidth: 90,
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: tc, letterSpacing: "0.05em" }}>
+                  {node.label}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: tc, marginTop: 2 }}>
+                  {active ? (pct * 100).toFixed(0) + "%" : "—"}
+                </div>
+                <div style={{ fontSize: 9, color: "var(--fg3)", marginTop: 1 }}>
+                  {active ? "ecceduto" : "INACTIVE"}
+                </div>
+              </div>
+              {i < REALITY_MAP_FLOW.length - 1 && (
+                <div style={{ width: 20, height: 1, background: "var(--bd)", position: "relative", flexShrink: 0 }}>
+                  <span style={{ position: "absolute", right: 0, top: -5, fontSize: 10, color: "var(--fg3)" }}>›</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── CONSTRAINT FRONTIER PANEL ────────────────────────────────────────────────
+
+function ConstraintFrontierPanel({ constraintPressure }: { constraintPressure: ConstraintPressure[] }) {
+  const active = constraintPressure.filter((p) => p.status === "ACTIVE");
+  if (active.length === 0) return null;
+
+  return (
+    <div className="ee-section" style={{ marginBottom: 12 }}>
+      <div className="ee-section-title" style={{ cursor: "default" }}>Constraint Frontier
+        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 400, color: "var(--fg3)" }}>
+          frequenza e risoluzione per constraint attivo
+        </span>
+      </div>
+      <div style={{ padding: "8px 12px", overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid var(--bd)" }}>
+              {["Constraint", "Tipo", "Categoria", "Touched", "Ecceduto", "Risolto", "Non risolto", "Costo medio resp.", "Binding"].map((h) => (
+                <th key={h} style={{ padding: "4px 8px", textAlign: "left", color: "var(--fg3)", fontWeight: 500, fontSize: 10 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {active.map((p) => {
+              const bindingColor = p.pctUnresolved > 0.3 ? "#ef4444" : p.pctUnresolved > 0.1 ? "#f59e0b" : "var(--fg)";
+              return (
+                <tr key={p.constraintId} style={{ borderBottom: "1px solid var(--bd)" }}>
+                  <td style={{ padding: "6px 8px", fontWeight: 600, color: "var(--fg)" }}>{p.name}</td>
+                  <td style={{ padding: "6px 8px" }}>
+                    <span style={{
+                      fontSize: 9, padding: "1px 5px", borderRadius: 3,
+                      background: p.tipo === "HARD" ? "rgba(239,68,68,0.15)" :
+                                  p.tipo === "ELASTIC" ? "rgba(245,158,11,0.15)" :
+                                  "rgba(136,136,136,0.15)",
+                      color: p.tipo === "HARD" ? "#ef4444" :
+                             p.tipo === "ELASTIC" ? "#f59e0b" :
+                             "var(--fg3)",
+                    }}>
+                      {p.tipo}
+                    </span>
+                  </td>
+                  <td style={{ padding: "6px 8px", color: "var(--fg3)" }}>{p.category}</td>
+                  <td style={{ padding: "6px 8px" }}>{fmtPct(p.pctTouched)}</td>
+                  <td style={{ padding: "6px 8px", color: p.pctExceeded > 0.2 ? "#f59e0b" : "var(--fg)" }}>
+                    {fmtPct(p.pctExceeded)}
+                  </td>
+                  <td style={{ padding: "6px 8px", color: p.pctResolved > 0 ? "#22c55e" : "var(--fg3)" }}>
+                    {fmtPct(p.pctResolved)}
+                  </td>
+                  <td style={{ padding: "6px 8px", color: bindingColor, fontWeight: p.pctUnresolved > 0 ? 600 : 400 }}>
+                    {fmtPct(p.pctUnresolved)}
+                  </td>
+                  <td style={{ padding: "6px 8px" }}>
+                    {p.avgResponseCost > 0 ? eeFmtEuro(p.avgResponseCost) : "—"}
+                  </td>
+                  <td style={{ padding: "6px 8px", color: bindingColor }}>
+                    {p.bindingCount > 0 ? p.bindingCount.toLocaleString("it-IT") : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <div style={{ fontSize: 10, color: "var(--fg3)", marginTop: 8 }}>
+          <strong>Binding</strong> = scenari in cui il constraint è rimasto non risolto (causa principale NOT_FEASIBLE).
+        </div>
+      </div>
     </div>
   );
 }
@@ -888,11 +1123,9 @@ function ScenarioCloud({
 
     ctx.clearRect(0, 0, CLOUD_W, CLOUD_H);
 
-    // Background
     ctx.fillStyle = "rgba(0,0,0,0.15)";
     ctx.fillRect(PAD.left, PAD.top, CLOUD_W - PAD.left - PAD.right, CLOUD_H - PAD.top - PAD.bottom);
 
-    // Zero lines if in range
     if (xMin < 0 && xMax > 0) {
       const zx = toCanvasX(0);
       ctx.strokeStyle = "rgba(255,255,255,0.15)";
@@ -908,7 +1141,6 @@ function ScenarioCloud({
       ctx.setLineDash([]);
     }
 
-    // Axes
     ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -917,7 +1149,6 @@ function ScenarioCloud({
     ctx.lineTo(CLOUD_W - PAD.right, CLOUD_H - PAD.bottom);
     ctx.stroke();
 
-    // Axis labels
     ctx.fillStyle = "rgba(255,255,255,0.45)";
     ctx.font = "10px system-ui";
     ctx.textAlign = "center";
@@ -928,7 +1159,6 @@ function ScenarioCloud({
     ctx.fillText(OUTPUT_OPTIONS.find((o) => o.key === yAxis)?.label ?? yAxis, 0, 0);
     ctx.restore();
 
-    // Points
     const drawn: { x: number; y: number; idx: number }[] = [];
     for (let di = 0; di < displayIndices.length; di++) {
       const ri = displayIndices[di];
@@ -958,7 +1188,7 @@ function ScenarioCloud({
     const rect = canvasRef.current!.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
-    let best = -1, bestDist = 20 * 20; // 20px threshold
+    let best = -1, bestDist = 20 * 20;
     for (const pt of drawnRef.current) {
       const d = (pt.x - mx) ** 2 + (pt.y - my) ** 2;
       if (d < bestDist) { bestDist = d; best = pt.idx; }
@@ -985,7 +1215,6 @@ function ScenarioCloud({
         </span>
       </div>
       <div style={{ padding: "8px 12px" }}>
-        {/* Axis selectors */}
         <div style={{ display: "flex", gap: 12, marginBottom: 8, fontSize: 11 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--fg3)" }}>
             X:
@@ -1003,7 +1232,6 @@ function ScenarioCloud({
           </label>
         </div>
 
-        {/* Canvas */}
         <div style={{ position: "relative", display: "inline-block" }}>
           <canvas
             ref={canvasRef}
@@ -1017,7 +1245,6 @@ function ScenarioCloud({
               setSelectedIdx(idx === selectedIdx ? null : idx);
             }}
           />
-          {/* Hover tooltip */}
           {hovered && (
             <div style={{
               position: "absolute", left: tooltipPos.x, top: tooltipPos.y,
@@ -1036,7 +1263,6 @@ function ScenarioCloud({
           )}
         </div>
 
-        {/* Legend */}
         <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 10, color: "var(--fg3)" }}>
           {(["FEASIBLE", "CAPACITY_STRESSED", "NOT_FEASIBLE"] as const).map((f) => (
             <span key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1102,9 +1328,7 @@ function ProbabilityPanel({
     <div className="ee-section">
       <div className="ee-section-title" style={{ cursor: "default" }}>Probability — Margine Lordo</div>
       <div style={{ padding: "8px 12px" }}>
-        {/* Histogram */}
         <svg width={SVG_W} height={SVG_H} style={{ overflow: "visible", display: "block" }}>
-          {/* Bars */}
           {bins.map((b, i) => {
             const x = padL + (i / bins.length) * chartW;
             const bw = chartW / bins.length - 0.5;
@@ -1117,7 +1341,6 @@ function ProbabilityPanel({
               />
             );
           })}
-          {/* Zero line */}
           {(() => {
             if (!margines.length) return null;
             const mn = Math.min(...margines), mx = Math.max(...margines);
@@ -1125,7 +1348,6 @@ function ProbabilityPanel({
             const zx = xScale(0);
             return <line x1={zx} x2={zx} y1={padT} y2={padT + chartH} stroke="rgba(255,255,255,0.3)" strokeDasharray="3 2" />;
           })()}
-          {/* Percentile lines */}
           {pctiles.map(({ v, label, bold }) => {
             const x = xScale(v);
             return (
@@ -1137,7 +1359,6 @@ function ProbabilityPanel({
               </g>
             );
           })}
-          {/* Target line */}
           {simConfig.margineTarget !== 0 && (
             <line x1={xScale(simConfig.margineTarget)} x2={xScale(simConfig.margineTarget)}
               y1={padT} y2={padT + chartH}
@@ -1145,7 +1366,6 @@ function ProbabilityPanel({
           )}
         </svg>
 
-        {/* Percentile table */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4, marginTop: 8 }}>
           {[
             { l: "P10", v: p10 }, { l: "P25", v: p25 }, { l: "P50", v: p50 },
@@ -1160,7 +1380,6 @@ function ProbabilityPanel({
           ))}
         </div>
 
-        {/* Probabilities */}
         <div style={{ display: "flex", gap: 12, marginTop: 10, fontSize: 11 }}>
           <span>
             P(M &gt; 0) = <strong style={{ color: "var(--grn)" }}>{fmtPct(analysis.probPositive)}</strong>
@@ -1173,7 +1392,6 @@ function ProbabilityPanel({
           )}
         </div>
 
-        {/* Target input */}
         <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--fg3)" }}>
           Target margine:
           <input
@@ -1212,7 +1430,7 @@ function SensitivityPanel({ analysis }: { analysis: SimAnalysis }) {
       <div className="ee-section-title" style={{ cursor: "default" }}>
         Sensitivity Analysis
         <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 400, color: "var(--fg3)" }}>
-          Pearson su Margine Lordo — correlazione, non causalità
+          Pearson su Margine Lordo
         </span>
       </div>
       <div style={{ padding: "8px 12px" }}>
@@ -1254,6 +1472,15 @@ function SensitivityPanel({ analysis }: { analysis: SimAnalysis }) {
             `${s.label} ${s.spearman > 0 ? "+" : ""}${s.spearman.toFixed(2)}`
           ).join(" · ")}
         </div>
+
+        <div style={{
+          fontSize: 10, color: "var(--fg3)", marginTop: 8, padding: "6px 8px",
+          background: "rgba(255,255,255,0.03)", borderRadius: 4, borderLeft: "2px solid var(--bd)",
+        }}>
+          <strong>Nota metodologica:</strong> Pearson/Spearman misurano correlazione, non causalità.
+          Variabili con range ampio appaiono più influenti anche se l&apos;effetto unitario è minore —
+          interpretare in combinazione con la conoscenza del dominio.
+        </div>
       </div>
     </div>
   );
@@ -1274,7 +1501,7 @@ function FrontierPanel({ analysis, simConfig }: { analysis: SimAnalysis; simConf
           val={`${Math.round(analysis.probAboveTarget * n).toLocaleString("it-IT")} (${fmtPct(analysis.probAboveTarget)})`}
         />
         <FrontierCard
-          label="Constraint più frequente NOT_FEASIBLE"
+          label="Constraint binding NOT_FEASIBLE"
           val={analysis.notFeasibleCount > 0 ? analysis.mainConstraint : "—"}
           sub={analysis.notFeasibleCount > 0 ? `${analysis.notFeasibleCount.toLocaleString("it-IT")} scenari` : "Nessuno scenario NOT_FEASIBLE"}
         />
@@ -1393,6 +1620,24 @@ function ScenarioExplorer({
           <CompRow label="Max gestibili"       val={result.maxOfferteGestibili} />
           <CompRow label="Offerte gestite"     val={result.offerteGestite} />
           <CompRow label="Opportunità perse"   val={result.offerteScartate} />
+
+          {result.constraintResults.length > 0 && (
+            <>
+              <div style={{ marginTop: 10, fontSize: 11, fontWeight: 600, color: "var(--fg3)" }}>CONSTRAINTS</div>
+              {result.constraintResults.map((cr) => {
+                const def = DEFAULT_CONSTRAINT_DEFS.find((d) => d.id === cr.constraintId);
+                const statusColor = cr.unresolved ? "#ef4444" : cr.resolved ? "#22c55e" : "var(--fg3)";
+                return (
+                  <div key={cr.constraintId} style={{ padding: "2px 0", borderBottom: "1px solid var(--bd)", fontSize: 11, display: "grid", gridTemplateColumns: "1fr auto", gap: 4 }}>
+                    <span style={{ color: "var(--fg2)" }}>{def?.name ?? cr.constraintId}</span>
+                    <span style={{ fontSize: 10, color: statusColor, fontWeight: 600 }}>
+                      {cr.unresolved ? "UNRESOLVED" : cr.resolved ? "✓" : cr.exceeded ? "exceeded" : cr.touched ? "ok" : "—"}
+                    </span>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       </div>
     </div>
