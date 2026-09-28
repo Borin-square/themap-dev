@@ -48,6 +48,7 @@ export default function ForecastPage() {
         <span className="ee-tab active">Forecast</span>
         <Link href={`/${params.company}/economic-engine/real`} className="ee-tab">Consuntivo</Link>
         <Link href={`/${params.company}/economic-engine/ckm`} className="ee-tab">CKM</Link>
+        <Link href={`/${params.company}/economic-engine/simulation`} className="ee-tab">Simulation Lab</Link>
       </div>
 
       <div className="ee-head">

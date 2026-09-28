@@ -190,6 +190,7 @@ export default function CkmPage() {
         <Link href={`/${params.company}/economic-engine/forecast`} className="ee-tab">Forecast</Link>
         <Link href={`/${params.company}/economic-engine/real`} className="ee-tab">Consuntivo</Link>
         <span className="ee-tab active">Cycle Key Metrics</span>
+        <Link href={`/${params.company}/economic-engine/simulation`} className="ee-tab">Simulation Lab</Link>
       </div>
 
       <div className="ckm-head">

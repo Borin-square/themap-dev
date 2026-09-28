@@ -96,6 +96,7 @@ export default function ConsuntivoPage() {
         <Link href={`/${params.company}/economic-engine/forecast`} className="ee-tab">Forecast</Link>
         <span className="ee-tab active">Consuntivo</span>
         <Link href={`/${params.company}/economic-engine/ckm`} className="ee-tab">CKM</Link>
+        <Link href={`/${params.company}/economic-engine/simulation`} className="ee-tab">Simulation Lab</Link>
       </div>
 
       <div className="ee-head">

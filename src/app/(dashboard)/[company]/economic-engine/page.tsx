@@ -121,6 +121,7 @@ export default function EconomicEnginePage() {
         <Link href={`/${params.company}/economic-engine/forecast`} className="ee-tab">Forecast</Link>
         <Link href={`/${params.company}/economic-engine/real`} className="ee-tab">Consuntivo</Link>
         <Link href={`/${params.company}/economic-engine/ckm`} className="ee-tab">CKM</Link>
+        <Link href={`/${params.company}/economic-engine/simulation`} className="ee-tab">Simulation Lab</Link>
       </div>
 
       {/* Header */}
