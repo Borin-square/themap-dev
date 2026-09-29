@@ -921,23 +921,22 @@ function ResultsPanel({
       {/* Reality Map */}
       <RealityMapPanel constraintPressure={analysis.constraintPressure} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <ScenarioCloud
-          results={results}
-          xAxis={xAxis} yAxis={yAxis}
-          setXAxis={setXAxis} setYAxis={setYAxis}
-          selectedIdx={selectedIdx}
-          setSelectedIdx={setSelectedIdx}
-          margineTarget={simConfig.margineTarget}
-          disponibile={disponibile}
-        />
-        <ProbabilityPanel analysis={analysis} results={results} simConfig={simConfig} setSimConfig={setSimConfig} />
-      </div>
+      <ScenarioCloud
+        results={results}
+        xAxis={xAxis} yAxis={yAxis}
+        setXAxis={setXAxis} setYAxis={setYAxis}
+        selectedIdx={selectedIdx}
+        setSelectedIdx={setSelectedIdx}
+        margineTarget={simConfig.margineTarget}
+        disponibile={disponibile}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+        <ProbabilityPanel analysis={analysis} results={results} simConfig={simConfig} setSimConfig={setSimConfig} />
         <SensitivityPanel analysis={analysis} />
-        <FrontierPanel analysis={analysis} simConfig={simConfig} />
       </div>
+
+      <FrontierPanel analysis={analysis} simConfig={simConfig} />
 
       {/* Constraint Frontier */}
       {analysis.constraintPressure.length > 0 && (
@@ -960,17 +959,20 @@ function ResultsPanel({
 function StatBadge({ label, val, total, color, isPercent }: {
   label: string; val: number; total: number; color: string; isPercent?: boolean;
 }) {
+  const hex = color.startsWith("#") || color.startsWith("rgb");
+  const bg = hex ? `${color}12` : "rgba(255,255,255,0.03)";
+  const bd = hex ? `${color}30` : "var(--bd)";
   return (
     <div style={{
-      padding: "6px 12px", borderRadius: 5, border: "1px solid var(--bd)",
-      background: "var(--cd, rgba(255,255,255,0.02))",
+      padding: "10px 18px", borderRadius: 6,
+      border: `1px solid ${bd}`, background: bg, minWidth: 110,
     }}>
-      <div style={{ fontSize: 10, color: "var(--fg3)" }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 700, color }}>
+      <div style={{ fontSize: 10, color: "var(--fg3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 5 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>
         {isPercent ? fmtPct(val) : val.toLocaleString("it-IT")}
       </div>
       {!isPercent && (
-        <div style={{ fontSize: 10, color: "var(--fg3)" }}>{fmtPct(val / total)}</div>
+        <div style={{ fontSize: 10, marginTop: 3, color: hex ? `${color}99` : "var(--fg3)" }}>{fmtPct(val / total)}</div>
       )}
     </div>
   );
@@ -1034,21 +1036,24 @@ function RealityMapPanel({ constraintPressure }: { constraintPressure: Constrain
 
           return (
             <div key={node.category} style={{ display: "flex", alignItems: "center" }}>
-              <div style={{
-                background: bg,
-                border: `1px solid ${active ? tc + "55" : "rgba(136,136,136,0.25)"}`,
-                borderRadius: 6, padding: "8px 14px", textAlign: "center", minWidth: 90,
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: tc, letterSpacing: "0.05em" }}>
-                  {node.label}
+              {active ? (
+                <div style={{
+                  background: bg, border: `1px solid ${tc}55`,
+                  borderRadius: 6, padding: "8px 14px", textAlign: "center", minWidth: 90,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: tc, letterSpacing: "0.05em" }}>{node.label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: tc, marginTop: 2 }}>{(pct * 100).toFixed(0)}%</div>
+                  <div style={{ fontSize: 9, color: "var(--fg3)", marginTop: 1 }}>ecceduto</div>
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: tc, marginTop: 2 }}>
-                  {active ? (pct * 100).toFixed(0) + "%" : "—"}
+              ) : (
+                <div style={{
+                  padding: "5px 10px", borderRadius: 4, textAlign: "center", minWidth: 64,
+                  border: "1px solid rgba(136,136,136,0.18)",
+                  background: "rgba(136,136,136,0.04)",
+                }}>
+                  <div style={{ fontSize: 9, color: "rgba(136,136,136,0.4)", letterSpacing: "0.05em" }}>{node.label}</div>
                 </div>
-                <div style={{ fontSize: 9, color: "var(--fg3)", marginTop: 1 }}>
-                  {active ? "ecceduto" : "INACTIVE"}
-                </div>
-              </div>
+              )}
               {i < REALITY_MAP_FLOW.length - 1 && (
                 <div style={{ width: 20, height: 1, background: "var(--bd)", position: "relative", flexShrink: 0 }}>
                   <span style={{ position: "absolute", right: 0, top: -5, fontSize: 10, color: "var(--fg3)" }}>›</span>
@@ -1135,10 +1140,10 @@ function ConstraintFrontierPanel({ constraintPressure }: { constraintPressure: C
 
 // ─── SCENARIO CLOUD (Canvas scatter) ─────────────────────────────────────────
 
-const CLOUD_W = 520;
-const CLOUD_H = 320;
-const PAD = { top: 20, right: 20, bottom: 50, left: 70 };
-const MAX_DISPLAY = 4000;
+const CLOUD_W = 920;
+const CLOUD_H = 400;
+const PAD = { top: 24, right: 24, bottom: 52, left: 72 };
+const MAX_DISPLAY = 6000;
 
 function ScenarioCloud({
   results, xAxis, yAxis, setXAxis, setYAxis, selectedIdx, setSelectedIdx,
@@ -1508,14 +1513,34 @@ function ProbabilityPanel({
       <div className="ee-section-title" style={{ cursor: "default" }}>Probability — Margine Lordo</div>
       <div style={{ padding: "8px 12px" }}>
         <svg width={SVG_W} height={SVG_H} style={{ overflow: "visible", display: "block" }}>
+          {/* Zone shading */}
+          {(() => {
+            if (!margines.length) return null;
+            const mn = Math.min(...margines), mx = Math.max(...margines);
+            if (mn >= mx) return null;
+            const threshold = simConfig.margineTarget !== 0 ? simConfig.margineTarget : 0;
+            const tx = xScale(threshold);
+            const clampedTx = Math.max(padL, Math.min(padL + chartW, tx));
+            return (
+              <g>
+                {tx > padL && (
+                  <rect x={padL} y={padT} width={clampedTx - padL} height={chartH} fill="rgba(239,68,68,0.07)" />
+                )}
+                {tx < padL + chartW && (
+                  <rect x={clampedTx} y={padT} width={padL + chartW - clampedTx} height={chartH} fill="rgba(34,197,94,0.06)" />
+                )}
+              </g>
+            );
+          })()}
           {bins.map((b, i) => {
             const x = padL + (i / bins.length) * chartW;
             const bw = chartW / bins.length - 0.5;
             const bh = (b.h / 100) * chartH;
-            const isPos = b.from >= 0;
+            const threshold = simConfig.margineTarget !== 0 ? simConfig.margineTarget : 0;
+            const isAbove = b.from >= threshold;
             return (
               <rect key={i} x={x} y={padT + chartH - bh} width={bw} height={bh}
-                fill={isPos ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"}
+                fill={isAbove ? "rgba(34,197,94,0.55)" : "rgba(239,68,68,0.55)"}
                 stroke="none"
               />
             );
@@ -1525,7 +1550,7 @@ function ProbabilityPanel({
             const mn = Math.min(...margines), mx = Math.max(...margines);
             if (mn >= 0 || mx <= 0) return null;
             const zx = xScale(0);
-            return <line x1={zx} x2={zx} y1={padT} y2={padT + chartH} stroke="rgba(255,255,255,0.3)" strokeDasharray="3 2" />;
+            return <line x1={zx} x2={zx} y1={padT} y2={padT + chartH} stroke="rgba(255,255,255,0.25)" strokeDasharray="3 2" />;
           })()}
           {pctiles.map(({ v, label, bold }) => {
             const x = xScale(v);
@@ -1539,9 +1564,13 @@ function ProbabilityPanel({
             );
           })}
           {simConfig.margineTarget !== 0 && (
-            <line x1={xScale(simConfig.margineTarget)} x2={xScale(simConfig.margineTarget)}
-              y1={padT} y2={padT + chartH}
-              stroke="#a78bfa" strokeWidth={1.5} strokeDasharray="3 2" />
+            <g>
+              <line x1={xScale(simConfig.margineTarget)} x2={xScale(simConfig.margineTarget)}
+                y1={padT} y2={padT + chartH}
+                stroke="#a78bfa" strokeWidth={1.5} strokeDasharray="4 2" />
+              <text x={xScale(simConfig.margineTarget)} y={padT - 2} textAnchor="middle"
+                fontSize={8} fill="#a78bfacc">TARGET</text>
+            </g>
           )}
         </svg>
 
@@ -1672,7 +1701,7 @@ function FrontierPanel({ analysis, simConfig }: { analysis: SimAnalysis; simConf
   return (
     <div className="ee-section">
       <div className="ee-section-title" style={{ cursor: "default" }}>Business Frontier</div>
-      <div style={{ padding: "8px 12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div style={{ padding: "8px 12px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
         <FrontierCard label="Max VDP FEASIBLE" val={eeFmtEuro(analysis.maxFeasibleVdp)} />
         <FrontierCard label="Max Margine FEASIBLE" val={eeFmtEuro(analysis.maxFeasibleMargine)} />
         <FrontierCard
