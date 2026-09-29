@@ -45,7 +45,7 @@ function saveSimConfig(slug: string, year: number, cfg: SimConfig) {
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 
 type OutputKey = "vdp" | "totalCosts" | "margine" | "marginePerc" | "mrr" | "capacity";
-type ConfigTab = "base" | "dist" | "constraints";
+type ConfigTab = "base" | "dist" | "constraints" | "target";
 
 const OUTPUT_OPTIONS: { key: OutputKey; label: string }[] = [
   { key: "vdp",        label: "Valore Produzione" },
@@ -245,6 +245,7 @@ export default function SimulationLabPage() {
           simConfig={simConfig}
           setSimConfig={setSimConfig}
           eeVals={eeVals}
+          disponibile={disponibile}
         />
       )}
     </div>
@@ -268,6 +269,7 @@ function ConfigPanel({
     { key: "base", label: "Base Scenario" },
     { key: "dist", label: validationErrors.length > 0 ? `Distributions (${validationErrors.length} errori)` : "Distributions" },
     { key: "constraints", label: "Constraints & Capacity" },
+    { key: "target", label: simConfig.margineTarget !== 0 ? "Target ✓" : "Target" },
   ];
 
   return (
@@ -301,6 +303,9 @@ function ConfigPanel({
         )}
         {configTab === "constraints" && (
           <ConstraintsTab simConfig={simConfig} setSimConfig={setSimConfig} disponibile={disponibile} />
+        )}
+        {configTab === "target" && (
+          <TargetTab simConfig={simConfig} setSimConfig={setSimConfig} />
         )}
       </div>
     </div>
@@ -608,6 +613,12 @@ function ConstraintsTab({
 
   return (
     <div>
+      <div style={{ fontSize: 11, color: "var(--fg3)", marginBottom: 10, padding: "6px 10px", background: "rgba(255,255,255,0.03)", borderRadius: 4 }}>
+        <strong>Come funziona:</strong> ogni scenario Monte Carlo viene valutato in sequenza contro questi vincoli.{" "}
+        <strong style={{ color: "#ef4444" }}>HARD</strong> = violazione → scenario NOT_FEASIBLE immediato.{" "}
+        <strong style={{ color: "#f59e0b" }}>ELASTIC</strong> = il sistema tenta una risposta (es. outsourcing); se non basta → NOT_FEASIBLE.{" "}
+        <strong style={{ color: "var(--fg3)" }}>SOFT / PERFORMANCE</strong> = vincoli qualitativi, non bloccanti.
+      </div>
       {/* Logical Constraints */}
       <div style={sectionStyle}>
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, color: "var(--fg2)" }}>
@@ -729,16 +740,63 @@ function ConstraintsTab({
         </div>
       </div>
 
-      {/* Margine Target */}
+    </div>
+  );
+}
+
+// ─── TARGET TAB ───────────────────────────────────────────────────────────────
+
+function TargetTab({
+  simConfig, setSimConfig,
+}: {
+  simConfig: SimConfig;
+  setSimConfig: React.Dispatch<React.SetStateAction<SimConfig>>;
+}) {
+  const sectionStyle: React.CSSProperties = {
+    border: "1px solid var(--bd)", borderRadius: 6, padding: "12px 14px", marginBottom: 12,
+  };
+  const rowStyle: React.CSSProperties = {
+    display: "flex", alignItems: "center", gap: 10, marginBottom: 8, fontSize: 12,
+  };
+  const labelStyle: React.CSSProperties = { color: "var(--fg3)", width: 160, flexShrink: 0 };
+  const hasTarget = simConfig.margineTarget !== 0;
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: "var(--fg3)", marginBottom: 10 }}>
+        Definisci il target di margine. Quando attivo, lo Scenario Cloud mostra verde = sopra target,
+        rosso = sotto target, con una linea di barriera viola sul grafico.
+      </div>
       <div style={sectionStyle}>
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, color: "var(--fg2)" }}>
-          Target
+          Margine Lordo Target
         </div>
         <div style={rowStyle}>
-          <span style={labelStyle}>Margine target</span>
-          <input type="number" style={inputStyle} value={simConfig.margineTarget}
-            onChange={(e) => patch({ margineTarget: parseFloat(e.target.value) || 0 })} />
-          <span style={{ fontSize: 11, color: "var(--fg3)" }}>€ — per P(Margine {">"} target)</span>
+          <span style={labelStyle}>Target margine</span>
+          <input
+            type="number"
+            style={{
+              width: 130, padding: "3px 7px", borderRadius: 3, fontSize: 12,
+              border: `1px solid ${hasTarget ? "var(--accent)" : "var(--bd)"}`,
+              background: "var(--bg)", color: "var(--fg)",
+            }}
+            value={simConfig.margineTarget}
+            onChange={(e) => setSimConfig((p) => ({ ...p, margineTarget: parseFloat(e.target.value) || 0 }))}
+          />
+          <span style={{ fontSize: 11, color: "var(--fg3)" }}>€</span>
+          {hasTarget && (
+            <span style={{
+              fontSize: 11, padding: "2px 8px", borderRadius: 4,
+              background: "rgba(79,140,255,0.12)", color: "var(--accent)", border: "1px solid rgba(79,140,255,0.3)",
+            }}>
+              target attivo
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--fg3)", padding: "6px 8px", background: "rgba(255,255,255,0.03)", borderRadius: 4 }}>
+          Usato per: <strong>P(Margine &gt; target)</strong> nelle stats · colori verde/rosso nel Scenario Cloud ·
+          linea barriera viola sul cloud e sul grafico di probabilità.
+          Lascia a 0 per tornare alla colorazione per feasibility.
         </div>
       </div>
     </div>
@@ -829,7 +887,7 @@ function RunControls({
 
 function ResultsPanel({
   results, analysis, xAxis, yAxis, setXAxis, setYAxis,
-  selectedIdx, setSelectedIdx, simConfig, setSimConfig, eeVals,
+  selectedIdx, setSelectedIdx, simConfig, setSimConfig, eeVals, disponibile,
 }: {
   results: SimRunResult[];
   analysis: SimAnalysis;
@@ -842,6 +900,7 @@ function ResultsPanel({
   simConfig: SimConfig;
   setSimConfig: React.Dispatch<React.SetStateAction<SimConfig>>;
   eeVals: Record<string, number>;
+  disponibile: number;
 }) {
   const selected = selectedIdx !== null ? results[selectedIdx] : null;
   const { calc: baseCalc } = eeRecalc(eeVals);
@@ -869,6 +928,8 @@ function ResultsPanel({
           setXAxis={setXAxis} setYAxis={setYAxis}
           selectedIdx={selectedIdx}
           setSelectedIdx={setSelectedIdx}
+          margineTarget={simConfig.margineTarget}
+          disponibile={disponibile}
         />
         <ProbabilityPanel analysis={analysis} results={results} simConfig={simConfig} setSimConfig={setSimConfig} />
       </div>
@@ -1081,12 +1142,15 @@ const MAX_DISPLAY = 4000;
 
 function ScenarioCloud({
   results, xAxis, yAxis, setXAxis, setYAxis, selectedIdx, setSelectedIdx,
+  margineTarget, disponibile,
 }: {
   results: SimRunResult[];
   xAxis: OutputKey; yAxis: OutputKey;
   setXAxis: (k: OutputKey) => void; setYAxis: (k: OutputKey) => void;
   selectedIdx: number | null;
   setSelectedIdx: (i: number | null) => void;
+  margineTarget: number;
+  disponibile: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -1126,27 +1190,126 @@ function ScenarioCloud({
     ctx.fillStyle = "rgba(0,0,0,0.15)";
     ctx.fillRect(PAD.left, PAD.top, CLOUD_W - PAD.left - PAD.right, CLOUD_H - PAD.top - PAD.bottom);
 
+    const chartLeft = PAD.left, chartRight = CLOUD_W - PAD.right;
+    const chartTop = PAD.top, chartBottom = CLOUD_H - PAD.bottom;
+    const chartW2 = chartRight - chartLeft, chartH2 = chartBottom - chartTop;
+
+    // Zone shading — target
+    if (margineTarget !== 0 && yAxis === "margine") {
+      if (margineTarget >= yMin && margineTarget <= yMax) {
+        const ty = toCanvasY(margineTarget);
+        ctx.fillStyle = "rgba(34,197,94,0.06)";
+        ctx.fillRect(chartLeft, chartTop, chartW2, ty - chartTop);
+        ctx.fillStyle = "rgba(239,68,68,0.07)";
+        ctx.fillRect(chartLeft, ty, chartW2, chartBottom - ty);
+      } else if (margineTarget < yMin) {
+        ctx.fillStyle = "rgba(34,197,94,0.06)";
+        ctx.fillRect(chartLeft, chartTop, chartW2, chartH2);
+      } else {
+        ctx.fillStyle = "rgba(239,68,68,0.07)";
+        ctx.fillRect(chartLeft, chartTop, chartW2, chartH2);
+      }
+    }
+    if (margineTarget !== 0 && xAxis === "margine") {
+      if (margineTarget >= xMin && margineTarget <= xMax) {
+        const tx = toCanvasX(margineTarget);
+        ctx.fillStyle = "rgba(34,197,94,0.06)";
+        ctx.fillRect(chartLeft, chartTop, tx - chartLeft, chartH2);
+        ctx.fillStyle = "rgba(239,68,68,0.07)";
+        ctx.fillRect(tx, chartTop, chartRight - tx, chartH2);
+      } else if (margineTarget > xMax) {
+        ctx.fillStyle = "rgba(239,68,68,0.07)";
+        ctx.fillRect(chartLeft, chartTop, chartW2, chartH2);
+      } else {
+        ctx.fillStyle = "rgba(34,197,94,0.06)";
+        ctx.fillRect(chartLeft, chartTop, chartW2, chartH2);
+      }
+    }
+
+    // Zone shading — capacity
+    if (disponibile > 0 && yAxis === "capacity" && disponibile >= yMin && disponibile <= yMax) {
+      const dy = toCanvasY(disponibile);
+      ctx.fillStyle = "rgba(239,68,68,0.09)";
+      ctx.fillRect(chartLeft, chartTop, chartW2, dy - chartTop);
+    }
+    if (disponibile > 0 && xAxis === "capacity" && disponibile >= xMin && disponibile <= xMax) {
+      const dx = toCanvasX(disponibile);
+      ctx.fillStyle = "rgba(239,68,68,0.09)";
+      ctx.fillRect(dx, chartTop, chartRight - dx, chartH2);
+    }
+
+    // Zero reference lines
     if (xMin < 0 && xMax > 0) {
       const zx = toCanvasX(0);
       ctx.strokeStyle = "rgba(255,255,255,0.15)";
       ctx.setLineDash([3, 3]);
-      ctx.beginPath(); ctx.moveTo(zx, PAD.top); ctx.lineTo(zx, CLOUD_H - PAD.bottom); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(zx, chartTop); ctx.lineTo(zx, chartBottom); ctx.stroke();
       ctx.setLineDash([]);
     }
     if (yMin < 0 && yMax > 0) {
       const zy = toCanvasY(0);
       ctx.strokeStyle = "rgba(255,255,255,0.15)";
       ctx.setLineDash([3, 3]);
-      ctx.beginPath(); ctx.moveTo(PAD.left, zy); ctx.lineTo(CLOUD_W - PAD.right, zy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(chartLeft, zy); ctx.lineTo(chartRight, zy); ctx.stroke();
       ctx.setLineDash([]);
     }
 
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    // Barrier lines
+    if (margineTarget !== 0 && yAxis === "margine" && margineTarget >= yMin && margineTarget <= yMax) {
+      const ty = toCanvasY(margineTarget);
+      ctx.strokeStyle = "#a78bfa";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.moveTo(chartLeft, ty); ctx.lineTo(chartRight, ty); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#a78bfacc";
+      ctx.font = "9px system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText("TARGET", chartLeft + 4, ty - 3);
+    }
+    if (margineTarget !== 0 && xAxis === "margine" && margineTarget >= xMin && margineTarget <= xMax) {
+      const tx = toCanvasX(margineTarget);
+      ctx.strokeStyle = "#a78bfa";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.moveTo(tx, chartTop); ctx.lineTo(tx, chartBottom); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#a78bfacc";
+      ctx.font = "9px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText("TARGET", tx, chartTop + 10);
+    }
+    if (disponibile > 0 && yAxis === "capacity" && disponibile >= yMin && disponibile <= yMax) {
+      const dy = toCanvasY(disponibile);
+      ctx.strokeStyle = "#f59e0b";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.moveTo(chartLeft, dy); ctx.lineTo(chartRight, dy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#f59e0bcc";
+      ctx.font = "9px system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText("CAP. LIMIT", chartLeft + 4, dy - 3);
+    }
+    if (disponibile > 0 && xAxis === "capacity" && disponibile >= xMin && disponibile <= xMax) {
+      const dx = toCanvasX(disponibile);
+      ctx.strokeStyle = "#f59e0b";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.moveTo(dx, chartTop); ctx.lineTo(dx, chartBottom); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#f59e0bcc";
+      ctx.font = "9px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText("CAP. LIMIT", dx, chartBottom + 12);
+    }
     ctx.lineWidth = 1;
+
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.beginPath();
-    ctx.moveTo(PAD.left, PAD.top);
-    ctx.lineTo(PAD.left, CLOUD_H - PAD.bottom);
-    ctx.lineTo(CLOUD_W - PAD.right, CLOUD_H - PAD.bottom);
+    ctx.moveTo(chartLeft, chartTop);
+    ctx.lineTo(chartLeft, chartBottom);
+    ctx.lineTo(chartRight, chartBottom);
     ctx.stroke();
 
     ctx.fillStyle = "rgba(255,255,255,0.45)";
@@ -1169,7 +1332,9 @@ function ScenarioCloud({
       const radius = isSelected ? 5 : 2.5;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fillStyle = FEASIBILITY_COLORS[r.feasibility];
+      ctx.fillStyle = margineTarget !== 0
+        ? (r.feasibility !== "NOT_FEASIBLE" && r.margine >= margineTarget ? "#22c55e" : "#ef4444")
+        : FEASIBILITY_COLORS[r.feasibility];
       ctx.globalAlpha = isSelected ? 1 : 0.55;
       ctx.fill();
       if (isSelected) {
@@ -1182,7 +1347,7 @@ function ScenarioCloud({
     }
     ctx.globalAlpha = 1;
     drawnRef.current = drawn;
-  }, [results, xs, ys, displayIndices, xAxis, yAxis, selectedIdx, toCanvasX, toCanvasY]);
+  }, [results, xs, ys, displayIndices, xAxis, yAxis, selectedIdx, toCanvasX, toCanvasY, margineTarget, disponibile]);
 
   function findNearest(e: React.MouseEvent<HTMLCanvasElement>): number | null {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -1264,12 +1429,26 @@ function ScenarioCloud({
         </div>
 
         <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 10, color: "var(--fg3)" }}>
-          {(["FEASIBLE", "CAPACITY_STRESSED", "NOT_FEASIBLE"] as const).map((f) => (
-            <span key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: FEASIBILITY_COLORS[f], display: "inline-block" }} />
-              {f === "FEASIBLE" ? "Feasible" : f === "CAPACITY_STRESSED" ? "Stressed" : "Not Feasible"}
-            </span>
-          ))}
+          {margineTarget !== 0 ? (
+            <>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+                Sopra target
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444", display: "inline-block" }} />
+                Sotto target / Not Feasible
+              </span>
+              <span style={{ color: "var(--fg3)", fontStyle: "italic" }}>feasibility nel tooltip</span>
+            </>
+          ) : (
+            (["FEASIBLE", "CAPACITY_STRESSED", "NOT_FEASIBLE"] as const).map((f) => (
+              <span key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: FEASIBILITY_COLORS[f], display: "inline-block" }} />
+                {f === "FEASIBLE" ? "Feasible" : f === "CAPACITY_STRESSED" ? "Stressed" : "Not Feasible"}
+              </span>
+            ))
+          )}
         </div>
       </div>
     </div>
