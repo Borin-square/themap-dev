@@ -207,6 +207,71 @@ export default function FlywheelOverviewPage() {
           </select>
         </div>
 
+        {/* Progress panel */}
+        <div className="fw-pp">
+          {([...FW_SEGS,
+            { key: "DIREZIONE" as const, color: "#f59e0b" },
+            { key: "AMMINISTRAZIONE" as const, color: "#8b949e" },
+          ] as Array<{ key: string; color: string }>).map((seg) => {
+            const goals =
+              seg.key === "DIREZIONE" ? dirGoals
+              : seg.key === "AMMINISTRAZIONE" ? admGoals
+              : (data[seg.key] || {});
+            const names = Object.keys(goals);
+            if (!names.length) return null;
+            if (seg.key === "DIREZIONE" && !admin) return null;
+            const sorted = [...names].sort((a, b) => {
+              const ra = fwGR(goals[a], per, getCfg(a));
+              const rb = fwGR(goals[b], per, getCfg(b));
+              if (ra === null && rb === null) return 0;
+              if (ra === null) return -1;
+              if (rb === null) return 1;
+              return ra - rb;
+            });
+            return (
+              <div key={seg.key} className="fw-pp-seg">
+                <div className="fw-pp-hdr" style={{ color: seg.color }}>{seg.key}</div>
+                {sorted.map((name) => {
+                  const gObj = goals[name];
+                  const cfg = getCfg(name);
+                  const ratio = fwGR(gObj, per, cfg);
+                  const sc = fwSCl(ratio);
+                  const rt = ratio !== null ? (ratio * 100).toFixed(1) + "%" : "N/D";
+                  const barW = ratio !== null ? Math.min(Math.max(ratio, 0), 1) * 100 : 0;
+                  const subNames = Object.keys(gObj.subgoals);
+                  return (
+                    <div key={name}>
+                      <div className="fw-met-row">
+                        <span className={`fw-met-dot ${sc}`} />
+                        <span className="fw-met-name fw-pp-name">{name}</span>
+                        <span className={`fw-met-perf ${sc}`}>{rt}</span>
+                      </div>
+                      <div className="fw-pp-bar-bg">
+                        <div className="fw-pp-bar" style={{ width: `${barW}%`, background: fwSC(ratio) }} />
+                      </div>
+                      {subNames.map((sName) => {
+                        const sCfg = getCfg(name);
+                        const sR = fwCR(gObj.subgoals[sName], per, sCfg.mode, sCfg.start, sCfg.limInf, sCfg.limSup);
+                        const sSc = fwSCl(sR);
+                        const sRt = sR !== null ? (sR * 100).toFixed(1) + "%" : "N/D";
+                        return (
+                          <div key={sName} className="fw-pp-sub-row">
+                            <div className="fw-met-row">
+                              <span className={`fw-met-dot ${sSc}`} style={{ width: 7, height: 7 }} />
+                              <span className="fw-met-name fw-pp-name" style={{ opacity: 0.75 }}>{sName}</span>
+                              <span className={`fw-met-perf ${sSc}`} style={{ fontSize: 10 }}>{sRt}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+
         {/* SVG */}
         <div className="fw-wrap">
           <svg viewBox="-500 -500 1000 1000" id="fwSvg" style={{ width: "100%", height: "100%" }}>
